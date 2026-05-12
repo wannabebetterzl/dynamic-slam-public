@@ -64,9 +64,44 @@ STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=none \
   runs/verify_forcefilter_off
 ```
 
-## Next Full-sequence Ablation
+## Full-sequence Stage Ablation Result
 
-Run these on `backend_maskonly_full_wxyz`, not only smoke30:
+Dataset:
+
+```text
+backend_maskonly_full_wxyz
+```
+
+Run root:
+
+```text
+runs/full_stage_ablation_20260512
+```
+
+Raw run outputs are local-only and ignored by git. The compact public summary is:
+
+```text
+results_summaries/full_stage_ablation_20260512/README.md
+```
+
+| Variant | Matched | ATE-SE3 RMSE (m) | ATE-Sim3 RMSE (m) | Sim3 scale | RPEt-SE3 RMSE (m) | RPER RMSE (deg) | Local-map failures |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `none_metadata_only` | 851 | 0.191482 | 0.167528 | 0.729600 | 0.051918 | 1.136524 | 12 |
+| `track_local_map_pre_pose` | 857 | 0.274240 | 0.247344 | 0.590789 | 0.019668 | 0.553184 | 0 |
+| `before_local_map` | 857 | 0.388275 | 0.248433 | 0.362142 | 0.026060 | 0.646083 | 0 |
+| `before_create_keyframe` | 857 | 0.566043 | 0.265760 | 0.219656 | 0.023246 | 0.593768 | 0 |
+
+Interpretation:
+
+- No hard deletion gives the best global ATE, but the worst local RPE.
+- `track_local_map_pre_pose` gives the best local RPE among hard-delete variants and beats the previous full `semantic_only` ATE-SE3 baseline of about 0.303 m.
+- `before_local_map` is too early or misplaced.
+- `before_create_keyframe` is too late and causes the worst global trajectory/scale behavior.
+- The next step should not be another single-stage hard-delete rule. The result points to support-preserving soft/capped dynamic evidence.
+
+## Commands Reproduced
+
+Run these on `backend_maskonly_full_wxyz`:
 
 ```bash
 STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=before_local_map \
@@ -91,3 +126,19 @@ STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=none \
 
 Only after this stage ablation should we move to capped/soft/support-aware
 geometric rejection.
+
+## Next Implementation Target
+
+Add a soft/capped/support-aware action around `track_local_map_pre_pose`:
+
+```bash
+STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0
+STSLAM_GEOMETRIC_DYNAMIC_REJECTION=1
+STSLAM_GEOMETRIC_DYNAMIC_REJECTION_ACTION=soft_weight
+STSLAM_GEOMETRIC_DYNAMIC_REJECTION_STAGES=track_local_map_pre_pose
+STSLAM_GEOMETRIC_DYNAMIC_REJECTION_MAX_REJECT_RATIO=0.10
+STSLAM_GEOMETRIC_DYNAMIC_REJECTION_PROTECT_MIN_INLIERS=45
+```
+
+If `STSLAM_GEOMETRIC_DYNAMIC_REJECTION_ACTION=soft_weight` is not implemented yet,
+implement that switch before running another full sequence.
