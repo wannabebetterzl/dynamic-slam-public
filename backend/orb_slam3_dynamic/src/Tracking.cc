@@ -195,6 +195,16 @@ bool StageIsEnabledByEnvList(const char* envName,
     return false;
 }
 
+bool ForceFilterDetectedDynamicFeaturesForStage(const std::string& stage)
+{
+    if(!ForceFilterDetectedDynamicFeatures())
+        return false;
+
+    return StageIsEnabledByEnvList("STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES",
+                                   "*",
+                                   stage);
+}
+
 bool EnableGeometricDynamicRejection()
 {
     static const bool value =
@@ -558,7 +568,7 @@ SemanticGeometricVerificationResult VerifySemanticCandidateWithGeometry(const Fr
 
 int ForceFilterDetectedDynamicFeatureMatches(Frame& frame, const std::string& stage)
 {
-    if(!ForceFilterDetectedDynamicFeatures())
+    if(!ForceFilterDetectedDynamicFeaturesForStage(stage))
         return 0;
 
     const bool geometryVerificationEnabledForStage =

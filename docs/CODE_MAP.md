@@ -136,6 +136,7 @@ Layer 1 / feature extraction:
 Semantic force filtering:
 
 - `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES`
+- `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES`
 - `STSLAM_RGBD_DYNAMIC_FRONTEND_SPLIT`
 
 Semantic + geometry candidate logic:

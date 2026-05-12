@@ -45,6 +45,8 @@ tools/
 
 docs/
   Experiment records, route decisions, code map, and deep-thinking prompt.
+  The current 5.5 Pro follow-up plan is in
+  docs/SLAM_5_5_PRO_FEEDBACK_ACTION_PLAN.md.
 
 results_summaries/
   Small markdown/json/txt summaries only. Full datasets and frame dumps are
@@ -79,6 +81,7 @@ Local execution helpers:
 - `scripts/run_backend_rgbd.sh`
 - `scripts/run_frontend_inference.sh`
 - `tools/evaluate_trajectory_ate.py`
+- `tools/check_rgbd_sequence_integrity.py`
 
 ## Current Metrics To Explain
 
@@ -152,6 +155,18 @@ Check local paths:
 python scripts/dslam_data.py check
 ```
 
+Check full RGB-D/mask/ground-truth sequence integrity:
+
+```bash
+DATASET_ID=backend_maskonly_full_wxyz
+python tools/check_rgbd_sequence_integrity.py \
+  --sequence-root "$(python scripts/dslam_data.py get "$DATASET_ID" sequence_root)" \
+  --associations "$(python scripts/dslam_data.py get "$DATASET_ID" associations)" \
+  --mask-root "$(python scripts/dslam_data.py get "$DATASET_ID" mask_root)" \
+  --groundtruth "$(python scripts/dslam_data.py get "$DATASET_ID" ground_truth)" \
+  --out "runs/integrity/${DATASET_ID}.json"
+```
+
 Create convenience symlinks under `data/local/`:
 
 ```bash
@@ -175,6 +190,13 @@ Run backend full mask-only RGB-D:
 
 ```bash
 bash scripts/run_backend_rgbd.sh backend_maskonly_full_wxyz semantic_only
+```
+
+Run the first stage-gated hard-delete ablation:
+
+```bash
+STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=before_create_keyframe \
+  bash scripts/run_backend_rgbd.sh backend_maskonly_full_wxyz semantic_only
 ```
 
 Run frontend YOLOE/SAM3 export smoke from raw TUM input:
