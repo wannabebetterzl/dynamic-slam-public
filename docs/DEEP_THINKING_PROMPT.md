@@ -10,9 +10,9 @@ https://github.com/wannabebetterzl/dynamic-slam-public
 
 - `README.md`
 - `docs/CODE_MAP.md`
+- `docs/ABANDONED_ROUTES.md`
+- `data/datasets.json`
 - `docs/动态改进Visual SLAM实验记录.md`
-- `docs/多维度结合提升.md`
-- `docs/STSLAM复刻.md`
 - `docs/动态改进Orb SLAM3.md`
 - `backend/orb_slam3_dynamic/src/Tracking.cc`
 - `backend/orb_slam3_dynamic/include/Tracking.h`
@@ -22,6 +22,8 @@ https://github.com/wannabebetterzl/dynamic-slam-public
 - `backend/orb_slam3_dynamic/src/Optimizer.cc`
 - `frontend/basic_model_based_SLAM/scripts/rflysim_slam_nav/world_sam_pipeline.py`
 - `frontend/basic_model_based_SLAM/scripts/run_rgbd_slam_benchmark.py`
+- `scripts/run_backend_rgbd.sh`
+- `scripts/run_frontend_inference.sh`
 - `tools/evaluate_trajectory_ate.py`
 - `results_summaries/`
 
@@ -32,8 +34,10 @@ The project studies Visual SLAM in dynamic RGB-D / stereo scenes. The current go
 The important route correction is:
 
 - The old STSLAM reproduction was abandoned as a failed route.
+- The DynoSAM adapter / object frontend was removed from the active public snapshot.
 - The current backend is `backend/orb_slam3_dynamic/`, originally from `/home/lj/dynamic_SLAM/stslam_backend`.
 - The current frontend is `frontend/basic_model_based_SLAM/`, originally from `/home/lj/d-drive/CODEX/basic_model_based_SLAM`.
+- The current local data entry point is `data/datasets.json`.
 
 ## Current Metrics
 
@@ -63,7 +67,7 @@ Please do a deep technical diagnosis and propose the next solution route.
 
 First build a code map:
 
-1. Data / sequence input path.
+1. Data / sequence input path using `data/datasets.json`.
 2. YOLOE + SAM3 frontend output path.
 3. Mask/meta side-channel format.
 4. ORB-SLAM3 RGB-D entry point.
@@ -87,7 +91,7 @@ Please propose a prioritized experiment plan:
 - Keep it practical.
 - Start with full-sequence diagnosis before proposing another complex backend.
 - Prefer small, interpretable ablations over broad new architecture.
-- Avoid recommending direct DynoSAM / STSLAM joint optimization unless you can justify how it avoids the already observed dynamic pollution.
+- Avoid recommending direct DynoSAM / STSLAM joint optimization unless you can justify how it avoids the already observed dynamic pollution and why it should re-enter the active codebase.
 - Include expected metrics and decision criteria for each experiment.
 
 Target:

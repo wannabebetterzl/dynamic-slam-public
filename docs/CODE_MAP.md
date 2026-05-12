@@ -26,15 +26,45 @@ Original local source:
 /home/lj/dynamic_SLAM/stslam_backend
 ```
 
-The backend directory name is historical. It contains ORB-SLAM3 dynamic-filter experiments, not the abandoned STSLAM reproduction route.
+The backend source directory name is historical. It contains ORB-SLAM3 dynamic-filter experiments, not the abandoned STSLAM reproduction route.
 
-## Abandoned / Background Route
+## Local Data Layer
+
+Registry:
+
+```text
+data/datasets.json
+```
+
+Main dataset IDs:
+
+- `frontend_raw_wxyz`
+- `backend_maskonly_full_wxyz`
+- `backend_maskonly_smoke30_wxyz`
+- `frontend_imagelevel_milddilate_full_wxyz`
+- `frontend_imagelevel_boxfallback_full_wxyz`
+
+Helpers:
+
+- `scripts/dslam_data.py`
+- `scripts/link_local_datasets.sh`
+- `scripts/run_frontend_inference.sh`
+- `scripts/run_backend_rgbd.sh`
+
+## Abandoned / Background Routes
+
+Not active code paths in this public snapshot:
 
 ```text
 /home/lj/d-drive/CODEX/STSLAM/workspace/ORB_SLAM3_STSLAM
+/home/lj/dynamic_SLAM/third_party/DynOSAM
 ```
 
-This was the earlier STSLAM reproduction attempt and is not the source for the latest 2026-05-11 results.
+See:
+
+```text
+docs/ABANDONED_ROUTES.md
+```
 
 ## Frontend Flow
 
@@ -44,6 +74,7 @@ Main files:
 - `frontend/basic_model_based_SLAM/scripts/run_rgbd_slam_benchmark.py`
 - `frontend/basic_model_based_SLAM/config/world_sam_pipeline_foundation_panoptic_person_v2_milddilate_local.json`
 - `frontend/basic_model_based_SLAM/config/world_sam_pipeline_foundation_panoptic_person_v2_local.json`
+- `scripts/run_frontend_inference.sh`
 
 Conceptual flow:
 
@@ -74,11 +105,14 @@ Main files:
 - `backend/orb_slam3_dynamic/include/Frame.h`
 - `backend/orb_slam3_dynamic/src/LocalMapping.cc`
 - `backend/orb_slam3_dynamic/src/Optimizer.cc`
+- `scripts/run_backend_rgbd.sh`
 
 Conceptual flow:
 
 ```text
-rgbd_tum.cc
+data/datasets.json
+-> scripts/run_backend_rgbd.sh
+-> rgbd_tum.cc
 -> load RGB, depth, optional panoptic/mask path
 -> System::TrackRGBD(...)
 -> Tracking::GrabImageRGBD(...)

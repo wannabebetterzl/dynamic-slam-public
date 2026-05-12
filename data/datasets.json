@@ -1,0 +1,77 @@
+{
+  "schema": "dynamic_slam_local_dataset_registry_v1",
+  "note": "Local dataset registry for the active ORB-SLAM3 dynamic-filter route. It records paths only; raw frames, masks, weights, and vocabularies are not stored in this public snapshot.",
+  "tool_paths": {
+    "backend_root": "/home/lj/dynamic_SLAM/stslam_backend",
+    "rgbd_tum": "/home/lj/dynamic_SLAM/stslam_backend/Examples/RGB-D/rgbd_tum",
+    "orb_vocab": "/home/lj/dynamic_SLAM/stslam_backend/Vocabulary/ORBvoc.txt",
+    "rgbd_config": "/home/lj/dynamic_SLAM/stslam_backend/Examples/RGB-D/TUM3.yaml",
+    "frontend_root": "/home/lj/d-drive/CODEX/basic_model_based_SLAM"
+  },
+  "datasets": {
+    "frontend_raw_wxyz": {
+      "role": "frontend_inference_source",
+      "description": "Original TUM RGB-D freiburg3_walking_xyz sequence used by YOLOE/SAM frontend export and inference scripts.",
+      "frame_count": 859,
+      "paths": {
+        "sequence_root": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_xyz/rgbd_dataset_freiburg3_walking_xyz",
+        "ground_truth": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_xyz/rgbd_dataset_freiburg3_walking_xyz/groundtruth.txt"
+      },
+      "default_frontend_config": "frontend/basic_model_based_SLAM/config/world_sam_pipeline_foundation_panoptic_person_v2_milddilate_local.json"
+    },
+    "backend_maskonly_full_wxyz": {
+      "role": "backend_inference_sequence",
+      "description": "Full raw RGB-D + YOLOE/SAM3 mask side-channel sequence used by the current backend diagnosis.",
+      "frame_count": 859,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/sequence",
+        "associations": "/home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/sequence/mask",
+        "ground_truth": "/home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/sequence/groundtruth.txt"
+      },
+      "primary_metric_context": "Full-sequence ATE-SE3 is currently about 0.30 m, far worse than image-level filtering."
+    },
+    "backend_maskonly_smoke30_wxyz": {
+      "role": "backend_smoke_sequence",
+      "description": "30-frame symlinked smoke subset from the same mask-only full sequence.",
+      "frame_count": 30,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/smoke30_sequence",
+        "associations": "/home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/smoke30_sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/smoke30_sequence/mask",
+        "ground_truth": "/home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/smoke30_sequence/groundtruth.txt"
+      },
+      "primary_metric_context": "Useful for quick smoke checks only; do not extrapolate its improvements to full walking_xyz."
+    },
+    "frontend_imagelevel_milddilate_full_wxyz": {
+      "role": "strong_image_level_baseline",
+      "description": "YOLOE/SAM3 mild-dilate image-level filtered sequence, current strongest reported image-level baseline.",
+      "frame_count": 859,
+      "paths": {
+        "sequence_root": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_milddilate_wxyz/sequence",
+        "associations": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_milddilate_wxyz/sequence/associations.txt",
+        "mask_root": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_milddilate_wxyz/sequence/mask",
+        "ground_truth": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_milddilate_wxyz/sequence/groundtruth.txt"
+      },
+      "reference_metrics": {
+        "ate_se3_rmse_m": 0.016268,
+        "rpet_se3_rmse_m": 0.012387
+      }
+    },
+    "frontend_imagelevel_boxfallback_full_wxyz": {
+      "role": "strong_image_level_baseline",
+      "description": "YOLOE/SAM3 box-fallback image-level filtered sequence.",
+      "frame_count": 859,
+      "paths": {
+        "sequence_root": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_boxfallback_wxyz/sequence",
+        "associations": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_boxfallback_wxyz/sequence/associations.txt",
+        "mask_root": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_boxfallback_wxyz/sequence/mask",
+        "ground_truth": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_boxfallback_wxyz/sequence/groundtruth.txt"
+      },
+      "reference_metrics": {
+        "ate_se3_rmse_m": 0.016951,
+        "rpet_se3_rmse_m": 0.01167
+      }
+    }
+  }
+}

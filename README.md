@@ -6,13 +6,13 @@ GitHub target:
 https://github.com/wannabebetterzl/dynamic-slam-public
 ```
 
-This repository is a compact public snapshot for diagnosing a dynamic Visual SLAM research project. It contains the current code, experiment notes, key metrics, and run commands needed for external deep analysis. It intentionally does not include datasets, model weights, full image/depth/mask sequences, ORB vocabulary files, compiled binaries, or private Obsidian vault content.
+This repository is a compact public snapshot for diagnosing a dynamic Visual SLAM research project. It contains the current code, experiment notes, key metrics, a local dataset registry, and run wrappers needed for external deep analysis. It intentionally does not include datasets, model weights, full image/depth/mask sequences, ORB vocabulary files, compiled binaries, or private Obsidian vault content.
 
 ## Research Goal
 
 Improve Visual SLAM robustness in dynamic RGB-D / stereo scenes by using foundation-model perception as a dynamic-object prior without polluting static tracking and mapping.
 
-The current question is no longer simply "can YOLOE/SAM3 remove dynamic objects?" The active research problem is:
+The active research question is:
 
 ```text
 When should semantic dynamic information remove, keep, rescue, or re-score visual features
@@ -26,21 +26,25 @@ frontend/basic_model_based_SLAM/
   Latest YOLOE + SAM3 frontend used to generate image-level filtered sequences,
   mask-only sequences, and mask/meta side channels.
 
-frontend/object_frontend/
-  Small object-observation layer for future object-level dynamic SLAM work.
-
 backend/orb_slam3_dynamic/
   Current ORB-SLAM3-derived experimental backend. Despite the historical
   directory name in the source workspace, this is NOT the abandoned STSLAM
-  reproduction path. It contains the latest semantic candidate geometry gate,
-  geometric dynamic rejection, sparse-flow gate, conservative delete, and
-  strict static keep logic.
+  reproduction path. It contains semantic candidate geometry gate, geometric
+  dynamic rejection, sparse-flow gate, conservative delete, and strict static
+  keep logic.
+
+data/
+  Local dataset registry. This stores paths and metadata only, not frame data.
+
+scripts/
+  Thin local wrappers for dataset lookup, frontend inference/export, backend
+  RGB-D runs, smoke runs, and trajectory evaluation.
 
 tools/
   Evaluation and KITTI preparation utilities.
 
 docs/
-  Experiment records, route history, code map, and deep-thinking prompt.
+  Experiment records, route decisions, code map, and deep-thinking prompt.
 
 results_summaries/
   Small markdown/json/txt summaries only. Full datasets and frame dumps are
@@ -67,8 +71,13 @@ Current frontend entry points:
 - `frontend/basic_model_based_SLAM/config/world_sam_pipeline_foundation_panoptic_person_v2_milddilate_local.json`
 - `frontend/basic_model_based_SLAM/config/world_sam_pipeline_foundation_panoptic_person_v2_local.json`
 
-Unified evaluator:
+Local execution helpers:
 
+- `data/datasets.json`
+- `scripts/dslam_data.py`
+- `scripts/link_local_datasets.sh`
+- `scripts/run_backend_rgbd.sh`
+- `scripts/run_frontend_inference.sh`
 - `tools/evaluate_trajectory_ate.py`
 
 ## Current Metrics To Explain
@@ -77,7 +86,7 @@ Use `ATE-SE3` as the main RGB-D metric. `ATE-Sim3` and `ATE-origin` are diagnost
 
 ### Strong Image-Level Frontend Baseline
 
-From old YOLOE + SAM3 image/depth-level filtered frontend, evaluated with the unified script:
+From YOLOE + SAM3 image/depth-level filtered frontend, evaluated with the unified script:
 
 | Route | ATE-SE3 RMSE | RPEt-SE3 RMSE |
 |---|---:|---:|
@@ -102,14 +111,17 @@ Interpretation so far:
 - Large Sim3 scale corrections indicate global scale/path-length inconsistency in the raw RGB-D + mask-only backend route.
 - Smoke30 improvements do not safely extrapolate to the full sequence.
 
-## Important Route Correction
+## Route Decision
 
 The historical STSLAM reproduction failed and should not be treated as the active code path.
+
+The DynoSAM adapter / object-frontend bridge is also removed from the active public snapshot. DynoSAM remains useful as a conceptual reference, but it is not the next implementation base until the current full-sequence mask-only ORB backend failure is explained.
 
 Abandoned / background only:
 
 ```text
 /home/lj/d-drive/CODEX/STSLAM/workspace/ORB_SLAM3_STSLAM
+/home/lj/dynamic_SLAM/third_party/DynOSAM
 ```
 
 Latest experiment backend code:
@@ -124,11 +136,27 @@ Latest YOLOE + SAM3 frontend code:
 /home/lj/d-drive/CODEX/basic_model_based_SLAM
 ```
 
-This public repo merges those two active code paths.
+This public repo now keeps only the active frontend/backend paths plus a concise abandoned-route note.
 
 ## Typical Commands
 
-These commands document the experiment protocol. Paths in this public snapshot are relative, but original local data paths are retained in summaries for traceability.
+List registered local datasets:
+
+```bash
+python scripts/dslam_data.py list
+```
+
+Check local paths:
+
+```bash
+python scripts/dslam_data.py check
+```
+
+Create convenience symlinks under `data/local/`:
+
+```bash
+bash scripts/link_local_datasets.sh
+```
 
 Build backend in the original workspace:
 
@@ -137,31 +165,38 @@ cd /home/lj/dynamic_SLAM/stslam_backend
 ./build.sh
 ```
 
-Run full mask-only RGB-D backend experiment, original workspace style:
+Run backend smoke30:
 
 ```bash
-export STSLAM_USE_VIEWER=0
-export STSLAM_DISABLE_FRAME_SLEEP=1
-export ORB_SLAM3_MASK_MODE=postfilter
-export STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=1
-export STSLAM_RGBD_DYNAMIC_FRONTEND_SPLIT=0
+bash scripts/run_backend_rgbd.sh backend_maskonly_smoke30_wxyz semantic_only
+```
 
-/home/lj/dynamic_SLAM/stslam_backend/Examples/RGB-D/rgbd_tum \
-  /home/lj/dynamic_SLAM/stslam_backend/Vocabulary/ORBvoc.txt \
-  /home/lj/dynamic_SLAM/stslam_backend/Examples/RGB-D/TUM3.yaml \
-  /home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/sequence \
-  /home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/sequence/associations.txt \
-  /home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/sequence/mask
+Run backend full mask-only RGB-D:
+
+```bash
+bash scripts/run_backend_rgbd.sh backend_maskonly_full_wxyz semantic_only
+```
+
+Run frontend YOLOE/SAM3 export smoke from raw TUM input:
+
+```bash
+bash scripts/run_frontend_inference.sh frontend_raw_wxyz runs/frontend_smoke30 30
+```
+
+Run frontend YOLOE/SAM3 export full sequence:
+
+```bash
+bash scripts/run_frontend_inference.sh frontend_raw_wxyz runs/frontend_full 0
 ```
 
 Evaluate trajectory:
 
 ```bash
-python /home/lj/dynamic_SLAM/scripts/evaluate_trajectory_ate.py \
+python tools/evaluate_trajectory_ate.py \
   --ground-truth /path/to/groundtruth.txt \
-  --estimate /path/to/CameraTrajectory.txt \
+  --estimated /path/to/CameraTrajectory.txt \
   --alignment all \
-  --output-json /path/to/eval_unified_all.json
+  --json-out /path/to/eval_unified_all.json
 ```
 
 ## Requested Deep Analysis
@@ -176,6 +211,7 @@ Start with `docs/DEEP_THINKING_PROMPT.md`. The desired analysis is:
 
 ## Public Snapshot Notes
 
-- This repo is for code review and reasoning, not direct turnkey reproduction.
+- This repo is for code review, local orchestration, and reasoning, not a self-contained dataset release.
 - Datasets, model weights, ORB vocabulary, compiled binaries, full frame sequences, and private notes are excluded.
-- Some configs keep original absolute local paths to document the actual experiment provenance; replace them with your own paths before running.
+- Some configs keep original absolute local paths to document actual experiment provenance.
+- Failed STSLAM reproduction code and the DynoSAM adapter path are intentionally excluded; see `docs/ABANDONED_ROUTES.md`.
