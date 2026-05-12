@@ -1,0 +1,107 @@
+{
+  "sequence_root": "/mnt/d/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_xyz/rgbd_dataset_freiburg3_walking_xyz",
+  "export_root": "/mnt/d/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_milddilate_wxyz/sequence",
+  "filter_mode": "filtered",
+  "config_path": "/mnt/d/CODEX/basic_model_based_SLAM/config/world_sam_pipeline_foundation_panoptic_person_v2_milddilate_local.json",
+  "exported_frames": 859,
+  "export_runtime_sec": 526.7028841972351,
+  "mean_runtime_ms": 506.849092154897,
+  "mean_mask_ratio": 0.14682124927240978,
+  "mean_filtered_detections": 1.119906868451688,
+  "mean_relevance": 0.642913328724695,
+  "mean_foundation": 0.49718022037487974,
+  "mean_motion": 0.36336825987762855,
+  "mean_geometry_dynamic": 0.35883758668242827,
+  "mean_tube_motion": 0.5938957084662264,
+  "mean_track_confirmation": 0.5693607091260356,
+  "mean_dynamic_memory": 0.5246786177908254,
+  "mean_scene_dynamic_context": 0.4053566653132214,
+  "mean_temporal_window_length": 0.0,
+  "max_temporal_window_length": 0,
+  "mean_temporal_prompt_frames": 0.0,
+  "max_temporal_prompt_frames": 0,
+  "mean_temporal_propagation_span_frames": 0.0,
+  "max_temporal_propagation_span_frames": 0,
+  "gate_stage_summary": {
+    "total_instances": 971,
+    "stages": [
+      {
+        "stage": "keep_insufficient_temporal_support",
+        "instances": 8,
+        "filtered_instances": 0,
+        "kept_instances": 8,
+        "instance_ratio": 0.008238928939237899,
+        "filtered_ratio_within_stage": 0.0,
+        "filtered_ratio_overall": 0.0
+      },
+      {
+        "stage": "stage3_static_protection",
+        "instances": 1,
+        "filtered_instances": 0,
+        "kept_instances": 1,
+        "instance_ratio": 0.0010298661174047373,
+        "filtered_ratio_within_stage": 0.0,
+        "filtered_ratio_overall": 0.0
+      },
+      {
+        "stage": "stage5_dynamic_memory_gate",
+        "instances": 611,
+        "filtered_instances": 611,
+        "kept_instances": 0,
+        "instance_ratio": 0.6292481977342945,
+        "filtered_ratio_within_stage": 1.0,
+        "filtered_ratio_overall": 0.6292481977342945
+      },
+      {
+        "stage": "stage6_motion_gate",
+        "instances": 288,
+        "filtered_instances": 288,
+        "kept_instances": 0,
+        "instance_ratio": 0.29660144181256437,
+        "filtered_ratio_within_stage": 1.0,
+        "filtered_ratio_overall": 0.29660144181256437
+      },
+      {
+        "stage": "stage8_high_confidence_override",
+        "instances": 59,
+        "filtered_instances": 59,
+        "kept_instances": 0,
+        "instance_ratio": 0.0607621009268795,
+        "filtered_ratio_within_stage": 1.0,
+        "filtered_ratio_overall": 0.0607621009268795
+      },
+      {
+        "stage": "stage9_confirmed_track_gate",
+        "instances": 4,
+        "filtered_instances": 4,
+        "kept_instances": 0,
+        "instance_ratio": 0.004119464469618949,
+        "filtered_ratio_within_stage": 1.0,
+        "filtered_ratio_overall": 0.004119464469618949
+      }
+    ],
+    "total_counts": {
+      "stage8_high_confidence_override": 59,
+      "stage6_motion_gate": 288,
+      "stage5_dynamic_memory_gate": 611,
+      "keep_insufficient_temporal_support": 8,
+      "stage9_confirmed_track_gate": 4,
+      "stage3_static_protection": 1
+    },
+    "filtered_counts": {
+      "stage8_high_confidence_override": 59,
+      "stage6_motion_gate": 288,
+      "stage5_dynamic_memory_gate": 611,
+      "stage9_confirmed_track_gate": 4
+    },
+    "kept_counts": {
+      "keep_insufficient_temporal_support": 8,
+      "stage3_static_protection": 1
+    }
+  },
+  "orb_slam3": {
+    "attempted": false,
+    "status": "export_only",
+    "trajectory_path": ""
+  }
+}

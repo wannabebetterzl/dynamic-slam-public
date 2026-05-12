@@ -1,0 +1,97 @@
+{
+  "detectors": {
+    "drone_detector": {
+      "enabled": true,
+      "type": "onnx_yolo",
+      "model": "/home/lj/multi-UAV-world-SLAM-work/weights/best.onnx",
+      "device": "auto",
+      "imgsz": 640,
+      "conf": 0.25,
+      "iou": 0.45,
+      "class_names": [
+        "person",
+        "drone"
+      ],
+      "target_classes": [
+        "drone"
+      ],
+      "source_name": "drone_detector"
+    },
+    "open_vocab_detector": {
+      "enabled": true,
+      "type": "yolo_world",
+      "model": "/home/lj/multi-UAV-world-SLAM-work/weights/yolov8s-world.pt",
+      "device": "auto",
+      "imgsz": 960,
+      "conf": 0.2,
+      "iou": 0.45,
+      "classes": [
+        "person",
+        "pedestrian",
+        "worker",
+        "car",
+        "truck",
+        "bus",
+        "bicycle",
+        "motorcycle"
+      ],
+      "source_name": "open_vocab_detector"
+    }
+  },
+  "fusion": {
+    "enabled": true,
+    "iou": 0.5,
+    "class_agnostic": false,
+    "source_priority": {
+      "drone_detector": 3.0,
+      "open_vocab_detector": 1.0
+    }
+  },
+  "segmenter": {
+    "type": "sam",
+    "checkpoint": "/home/lj/multi-UAV-world-SLAM-work/weights/sam_vit_b_01ec64.pth",
+    "model_type": "vit_b",
+    "device": "auto",
+    "multimask": true,
+    "allow_box_fallback": true
+  },
+  "runtime": {
+    "detector_interval": 3,
+    "dilate_pixels": 5,
+    "mask_blur_kernel": 21,
+    "rgb_fill_mode": "blur",
+    "max_inpaint_area_ratio": 0.12
+  },
+  "depth_filter": {
+    "enabled": true,
+    "dilate_pixels": 12,
+    "depth_margin_mm": 250.0,
+    "min_valid_pixels": 40,
+    "min_keep_ratio": 0.18
+  },
+  "task_relevance": {
+    "enabled": true,
+    "min_score": 0.45,
+    "default_semantic_weight": 0.55,
+    "semantic_weights": {
+      "person": 0.95,
+      "pedestrian": 0.95,
+      "worker": 0.9,
+      "drone": 0.85,
+      "bicycle": 0.7,
+      "motorcycle": 0.7,
+      "car": 0.6,
+      "truck": 0.55,
+      "bus": 0.55
+    },
+    "weights": {
+      "semantic": 0.35,
+      "area": 0.15,
+      "center": 0.2,
+      "depth": 0.15,
+      "confidence": 0.15
+    },
+    "area_norm_ratio": 0.08,
+    "depth_norm_mm": 1500.0
+  }
+}

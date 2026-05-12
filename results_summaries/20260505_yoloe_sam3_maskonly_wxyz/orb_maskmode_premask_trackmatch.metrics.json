@@ -1,0 +1,1 @@
+{"matched_poses": 857, "ground_truth_poses": 2884, "estimated_poses": 859, "trajectory_coverage": 0.29715672676837723, "ate_rmse_m": 0.4040319583386503, "ate_mean_m": 0.33684992567501787, "rpe_rmse_m": 0.029415970792147743}

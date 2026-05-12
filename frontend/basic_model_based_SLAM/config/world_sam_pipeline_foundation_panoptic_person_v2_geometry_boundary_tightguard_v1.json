@@ -1,0 +1,104 @@
+{
+  "detectors": {
+    "drone_detector": {
+      "enabled": false
+    },
+    "open_vocab_detector": {
+      "enabled": true,
+      "classes": [
+        "person",
+        "pedestrian",
+        "worker"
+      ]
+    }
+  },
+  "mask_boundary_refine": {
+    "enabled": true,
+    "edge_width": 3,
+    "min_boundary_pixels": 24,
+    "min_keep_ratio": 0.58,
+    "depth_margin_mm": 120.0,
+    "image_grad_threshold": 18.0
+  },
+  "geometry_consistency": {
+    "enabled": true,
+    "motion_weight": 0.30,
+    "static_weight": 0.24,
+    "dynamic_confirm_threshold": 0.60,
+    "static_veto_threshold": 0.72,
+    "static_veto_min_hits": 3,
+    "static_veto_min_confirmation": 0.52,
+    "weak_scene_context_threshold": 0.18,
+    "dynamic_margin": 0.08,
+    "motion_margin": 0.05,
+    "ring_dilate_pixels": 7
+  },
+  "foundation_reliability": {
+    "enabled": true,
+    "min_score": 0.34,
+    "boundary_quality": {
+      "enabled": true,
+      "edge_width": 3,
+      "min_boundary_pixels": 24,
+      "image_grad_norm": 34.0,
+      "depth_norm_mm": 160.0
+    },
+    "weights": {
+      "detector_confidence": 0.26,
+      "segment_quality": 0.21,
+      "mask_area": 0.14,
+      "compactness": 0.13,
+      "border": 0.10,
+      "boundary": 0.16
+    }
+  },
+  "panoptic_memory": {
+    "enabled": true,
+    "motion_filter_threshold": 0.15,
+    "static_protection_threshold": 0.84,
+    "high_confidence_override": 0.82,
+    "class_motion_thresholds": {
+      "person": 0.13,
+      "pedestrian": 0.13,
+      "worker": 0.13
+    },
+    "class_high_confidence_overrides": {
+      "person": 0.78,
+      "pedestrian": 0.78,
+      "worker": 0.78
+    },
+    "class_static_protection_thresholds": {
+      "person": 0.90,
+      "pedestrian": 0.90,
+      "worker": 0.90
+    },
+    "class_motion_foundation_ceiling": {
+      "person": 0.92,
+      "pedestrian": 0.92,
+      "worker": 0.92
+    },
+    "tube_support_classes": [],
+    "class_tube_motion_thresholds": {},
+    "weak_dynamic_guard": {
+      "enabled": true,
+      "classes": [
+        "person",
+        "pedestrian",
+        "worker"
+      ],
+      "scene_context_threshold": 0.12,
+      "motion_threshold": 0.18,
+      "dynamic_memory_threshold": 0.76,
+      "static_score_floor": 0.72
+    }
+  },
+  "dynamic_memory": {
+    "enabled": true,
+    "min_score": 0.64,
+    "foundation_floor": 0.38,
+    "static_ceiling": 0.90,
+    "min_motion_score_for_activation": 0.10,
+    "min_tube_motion_score_for_activation": 0.18,
+    "min_dynamic_evidence": 0.18
+  }
+}

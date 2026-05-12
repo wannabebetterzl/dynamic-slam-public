@@ -1,0 +1,118 @@
+{
+  "datasets": {
+    "tum_rgbd_freiburg3_walking_xyz": {
+      "group": "tum_rgbd",
+      "title": "TUM RGB-D freiburg3_walking_xyz",
+      "description": "Dynamic indoor RGB-D sequence with moving people and handheld xyz camera motion.",
+      "official_page": "https://cvg.cit.tum.de/data/datasets/rgbd-dataset/download",
+      "archive_url": "https://cvg.cit.tum.de/rgbd/dataset/freiburg3/rgbd_dataset_freiburg3_walking_xyz.tgz",
+      "ground_truth_url": "https://cvg.cit.tum.de/rgbd/dataset/freiburg3/rgbd_dataset_freiburg3_walking_xyz-groundtruth.txt",
+      "archive_type": "tgz",
+      "extract_dir": "datasets/tum_rgbd/freiburg3_walking_xyz",
+      "size_note": "approx. 0.49GB",
+      "recommended_phase": "E3-2"
+    },
+    "tum_rgbd_freiburg3_walking_static": {
+      "group": "tum_rgbd",
+      "title": "TUM RGB-D freiburg3_walking_static",
+      "description": "Dynamic indoor RGB-D sequence with walking people and near-static camera pose.",
+      "official_page": "https://cvg.cit.tum.de/data/datasets/rgbd-dataset/download",
+      "archive_url": "https://cvg.cit.tum.de/rgbd/dataset/freiburg3/rgbd_dataset_freiburg3_walking_static.tgz",
+      "ground_truth_url": "https://cvg.cit.tum.de/rgbd/dataset/freiburg3/rgbd_dataset_freiburg3_walking_static-groundtruth.txt",
+      "archive_type": "tgz",
+      "extract_dir": "datasets/tum_rgbd/freiburg3_walking_static",
+      "size_note": "approx. 0.44GB",
+      "recommended_phase": "E3-2"
+    },
+    "tum_rgbd_freiburg3_sitting_xyz": {
+      "group": "tum_rgbd",
+      "title": "TUM RGB-D freiburg3_sitting_xyz",
+      "description": "Indoor RGB-D sequence with a seated person, mild dynamic interference, and handheld xyz camera motion.",
+      "official_page": "https://cvg.cit.tum.de/data/datasets/rgbd-dataset/download",
+      "archive_url": "https://cvg.cit.tum.de/rgbd/dataset/freiburg3/rgbd_dataset_freiburg3_sitting_xyz.tgz",
+      "ground_truth_url": "https://cvg.cit.tum.de/rgbd/dataset/freiburg3/rgbd_dataset_freiburg3_sitting_xyz-groundtruth.txt",
+      "archive_type": "tgz",
+      "extract_dir": "datasets/tum_rgbd/freiburg3_sitting_xyz",
+      "size_note": "approx. 0.35GB",
+      "recommended_phase": "E6-2"
+    },
+    "tum_rgbd_freiburg3_sitting_static": {
+      "group": "tum_rgbd",
+      "title": "TUM RGB-D freiburg3_sitting_static",
+      "description": "Indoor RGB-D sequence with a seated person, mild dynamic interference, and near-static camera pose.",
+      "official_page": "https://cvg.cit.tum.de/data/datasets/rgbd-dataset/download",
+      "archive_url": "https://cvg.cit.tum.de/rgbd/dataset/freiburg3/rgbd_dataset_freiburg3_sitting_static.tgz",
+      "ground_truth_url": "https://cvg.cit.tum.de/rgbd/dataset/freiburg3/rgbd_dataset_freiburg3_sitting_static-groundtruth.txt",
+      "archive_type": "tgz",
+      "extract_dir": "datasets/tum_rgbd/freiburg3_sitting_static",
+      "size_note": "approx. 0.30GB",
+      "recommended_phase": "E6-2"
+    },
+    "bonn_rgbd_person_tracking": {
+      "group": "bonn_rgbd_dynamic",
+      "title": "Bonn RGB-D person_tracking",
+      "description": "Dynamic RGB-D SLAM sequence with a moving person, suitable for dynamic filtering evaluation.",
+      "official_page": "https://www.ipb.uni-bonn.de/data/rgbd-dynamic-dataset/",
+      "archive_url": "https://www.ipb.uni-bonn.de/html/projects/rgbd_dynamic2019/rgbd_bonn_person_tracking.zip",
+      "archive_type": "zip",
+      "extract_dir": "datasets/bonn_rgbd_dynamic/person_tracking",
+      "size_note": "official Bonn RGB-D Dynamic Dataset subset",
+      "recommended_phase": "E3-1"
+    },
+    "bonn_rgbd_static": {
+      "group": "bonn_rgbd_dynamic",
+      "title": "Bonn RGB-D static",
+      "description": "Static reference sequence from the Bonn RGB-D Dynamic Dataset.",
+      "official_page": "https://www.ipb.uni-bonn.de/data/rgbd-dynamic-dataset/",
+      "archive_url": "https://www.ipb.uni-bonn.de/html/projects/rgbd_dynamic2019/rgbd_bonn_static.zip",
+      "archive_type": "zip",
+      "extract_dir": "datasets/bonn_rgbd_dynamic/static",
+      "size_note": "official Bonn RGB-D Dynamic Dataset subset",
+      "recommended_phase": "E3-1"
+    },
+    "bonn_rgbd_crowd": {
+      "group": "bonn_rgbd_dynamic",
+      "title": "Bonn RGB-D crowd",
+      "description": "Dynamic RGB-D SLAM sequence with multiple pedestrians, suitable for semantic-generalization evaluation.",
+      "official_page": "https://www.ipb.uni-bonn.de/data/rgbd-dynamic-dataset/",
+      "archive_url": "https://www.ipb.uni-bonn.de/html/projects/rgbd_dynamic2019/rgbd_bonn_crowd.zip",
+      "archive_type": "zip",
+      "extract_dir": "datasets/bonn_rgbd_dynamic/crowd",
+      "size_note": "official Bonn RGB-D Dynamic Dataset subset",
+      "recommended_phase": "E3-2"
+    },
+    "bonn_rgbd_kidnapping_box": {
+      "group": "bonn_rgbd_dynamic",
+      "title": "Bonn RGB-D kidnapping_box",
+      "description": "Dynamic RGB-D sequence with a moved box, suitable for open-vocabulary dynamic-object evaluation.",
+      "official_page": "https://www.ipb.uni-bonn.de/data/rgbd-dynamic-dataset/",
+      "archive_url": "https://www.ipb.uni-bonn.de/html/projects/rgbd_dynamic2019/rgbd_bonn_kidnapping_box.zip",
+      "archive_type": "zip",
+      "extract_dir": "datasets/bonn_rgbd_dynamic/kidnapping_box",
+      "size_note": "official Bonn RGB-D Dynamic Dataset subset",
+      "recommended_phase": "E3-2"
+    }
+  },
+  "bundles": {
+    "initial_main_experiments": [
+      "tum_rgbd_freiburg3_walking_xyz",
+      "tum_rgbd_freiburg3_walking_static",
+      "bonn_rgbd_person_tracking",
+      "bonn_rgbd_static"
+    ],
+    "extended_static_generalization": [
+      "bonn_rgbd_static",
+      "tum_rgbd_freiburg3_sitting_xyz",
+      "tum_rgbd_freiburg3_sitting_static"
+    ],
+    "paper_full_validation": [
+      "tum_rgbd_freiburg3_walking_xyz",
+      "tum_rgbd_freiburg3_walking_static",
+      "tum_rgbd_freiburg3_sitting_xyz",
+      "tum_rgbd_freiburg3_sitting_static",
+      "bonn_rgbd_person_tracking",
+      "bonn_rgbd_static",
+      "bonn_rgbd_crowd"
+    ]
+  }
+}

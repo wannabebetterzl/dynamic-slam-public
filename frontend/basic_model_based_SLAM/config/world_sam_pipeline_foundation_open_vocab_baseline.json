@@ -1,0 +1,111 @@
+{
+  "detectors": {
+    "drone_detector": {
+      "enabled": false,
+      "type": "onnx_yolo",
+      "model": "/home/lj/multi-UAV-world-SLAM-work/weights/best.onnx",
+      "device": "auto",
+      "imgsz": 640,
+      "conf": 0.25,
+      "iou": 0.45,
+      "class_names": [
+        "person",
+        "drone"
+      ],
+      "target_classes": [
+        "drone"
+      ],
+      "source_name": "drone_detector"
+    },
+    "open_vocab_detector": {
+      "enabled": true,
+      "type": "yolo_world",
+      "model": "/home/lj/multi-UAV-world-SLAM-work/weights/yolov8s-world.pt",
+      "device": "auto",
+      "imgsz": 960,
+      "conf": 0.22,
+      "iou": 0.45,
+      "classes": [
+        "person",
+        "pedestrian",
+        "worker",
+        "box",
+        "package",
+        "parcel",
+        "bag",
+        "balloon",
+        "sports ball"
+      ],
+      "source_name": "open_vocab_detector"
+    }
+  },
+  "fusion": {
+    "enabled": true,
+    "iou": 0.5,
+    "class_agnostic": false,
+    "source_priority": {
+      "open_vocab_detector": 1.0
+    }
+  },
+  "segmenter": {
+    "type": "sam",
+    "checkpoint": "/home/lj/multi-UAV-world-SLAM-work/weights/sam_vit_b_01ec64.pth",
+    "model_type": "vit_b",
+    "device": "auto",
+    "multimask": true,
+    "allow_box_fallback": true
+  },
+  "runtime": {
+    "detector_interval": 3,
+    "dilate_pixels": 5,
+    "mask_blur_kernel": 21,
+    "rgb_fill_mode": "blur",
+    "max_inpaint_area_ratio": 0.12
+  },
+  "depth_filter": {
+    "enabled": true,
+    "dilate_pixels": 12,
+    "depth_margin_mm": 250.0,
+    "min_valid_pixels": 40,
+    "min_keep_ratio": 0.18
+  },
+  "task_relevance": {
+    "enabled": true,
+    "min_score": 0.58,
+    "default_semantic_weight": 0.42,
+    "semantic_weights": {
+      "person": 0.98,
+      "pedestrian": 0.98,
+      "worker": 0.96,
+      "box": 0.86,
+      "package": 0.86,
+      "parcel": 0.86,
+      "bag": 0.72,
+      "balloon": 0.8,
+      "sports ball": 0.78,
+      "drone": 0.15,
+      "car": 0.1,
+      "truck": 0.1,
+      "bus": 0.1,
+      "bicycle": 0.12,
+      "motorcycle": 0.12
+    },
+    "weights": {
+      "semantic": 0.28,
+      "area": 0.12,
+      "center": 0.14,
+      "depth": 0.12,
+      "confidence": 0.12,
+      "sam": 0.1,
+      "foundation": 0.12
+    },
+    "area_norm_ratio": 0.06,
+    "depth_norm_mm": 1400.0
+  },
+  "foundation_reliability": {
+    "enabled": false
+  },
+  "panoptic_memory": {
+    "enabled": false
+  }
+}

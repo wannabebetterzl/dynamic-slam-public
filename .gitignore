@@ -1,0 +1,37 @@
+# Local data and generated artifacts are intentionally excluded from this public snapshot.
+datasets/
+experiments/
+results/
+cache/
+tmp/
+tmp_wheels/
+build/
+build_*/
+lib/
+Vocabulary/
+
+# Model weights and downloaded binaries.
+*.pt
+*.pth
+*.onnx
+*.engine
+*.whl
+*.so
+*.a
+*.o
+
+# Large media / generated frame dumps.
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.mp4
+*.avi
+
+# Python / editor caches.
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store

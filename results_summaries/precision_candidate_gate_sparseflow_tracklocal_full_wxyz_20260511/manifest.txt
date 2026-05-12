@@ -1,0 +1,6 @@
+binary: /home/lj/dynamic_SLAM/stslam_backend/Examples/RGB-D/rgbd_tum
+sequence: /home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/sequence
+evaluator: /home/lj/dynamic_SLAM/scripts/evaluate_trajectory_ate.py
+started: 2026-05-11T19:07:50+08:00
+binary_sha256: 7386f47be9022c5b10491551b2a1498ca936a3d89c40ddb31c8e3c1a54c4caf2  /home/lj/dynamic_SLAM/stslam_backend/Examples/RGB-D/rgbd_tum
+finished: 2026-05-11T19:08:27+08:00

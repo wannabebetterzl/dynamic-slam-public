@@ -1,0 +1,126 @@
+{
+  "detectors": {
+    "closed_set_person_detector": {
+      "enabled": true,
+      "type": "ultralytics_yolo",
+      "model": "weights/yolov8n.pt",
+      "device": "auto",
+      "imgsz": 640,
+      "conf": 0.25,
+      "iou": 0.45,
+      "target_classes": [
+        "person"
+      ],
+      "source_name": "closed_set_person_detector"
+    }
+  },
+  "fusion": {
+    "enabled": true,
+    "iou": 0.5,
+    "class_agnostic": false,
+    "source_priority": {
+      "closed_set_person_detector": 1.0
+    }
+  },
+  "segmenter": {
+    "type": "sam",
+    "checkpoint": "weights/sam_vit_b_01ec64.pth",
+    "model_type": "vit_b",
+    "device": "auto",
+    "multimask": true,
+    "allow_box_fallback": true
+  },
+  "runtime": {
+    "detector_interval": 3,
+    "dilate_pixels": 5,
+    "mask_blur_kernel": 21,
+    "rgb_fill_mode": "blur",
+    "max_inpaint_area_ratio": 0.12
+  },
+  "depth_filter": {
+    "enabled": true,
+    "dilate_pixels": 12,
+    "depth_margin_mm": 250.0,
+    "min_valid_pixels": 40,
+    "min_keep_ratio": 0.18
+  },
+  "task_relevance": {
+    "enabled": true,
+    "min_score": 0.50,
+    "default_semantic_weight": 0.50,
+    "semantic_weights": {
+      "person": 0.99
+    },
+    "weights": {
+      "semantic": 0.34,
+      "area": 0.12,
+      "center": 0.14,
+      "depth": 0.12,
+      "confidence": 0.12,
+      "sam": 0.08,
+      "foundation": 0.08
+    },
+    "area_norm_ratio": 0.06,
+    "depth_norm_mm": 1400.0
+  },
+  "foundation_reliability": {
+    "enabled": true,
+    "min_score": 0.32,
+    "min_mask_pixels": 96,
+    "min_mask_ratio": 0.00018,
+    "border_margin_pixels": 14,
+    "weights": {
+      "detector_confidence": 0.30,
+      "segment_quality": 0.25,
+      "mask_area": 0.15,
+      "compactness": 0.15,
+      "border": 0.15
+    }
+  },
+  "panoptic_memory": {
+    "enabled": true,
+    "match_iou": 0.35,
+    "max_age": 4,
+    "min_hits": 2,
+    "confirm_threshold": 0.52,
+    "motion_filter_threshold": 0.14,
+    "static_protection_threshold": 0.82,
+    "high_confidence_override": 0.82,
+    "ema_momentum": 0.65,
+    "center_motion_norm": 0.04,
+    "depth_motion_norm_mm": 600.0,
+    "class_motion_thresholds": {
+      "person": 0.12
+    },
+    "class_high_confidence_overrides": {
+      "person": 0.78
+    },
+    "class_static_protection_thresholds": {
+      "person": 0.88
+    },
+    "class_confirmed_hit_requirements": {
+      "person": 2
+    },
+    "confirmed_support_classes": [
+      "person"
+    ],
+    "appearance_bins": [
+      8,
+      8
+    ],
+    "association_weights": {
+      "bbox_iou": 0.30,
+      "mask_iou": 0.24,
+      "appearance": 0.28,
+      "depth": 0.18
+    },
+    "tube_motion_threshold": 0.28,
+    "tube_min_hits": 3,
+    "tube_displacement_norm_ratio": 0.12,
+    "tube_support_classes": [],
+    "class_tube_motion_thresholds": {},
+    "class_motion_foundation_ceiling": {
+      "person": 0.92
+    }
+  }
+}

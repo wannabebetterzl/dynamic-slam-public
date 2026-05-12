@@ -1,0 +1,77 @@
+{
+  "experiment_name": "20260504_yoloe_sam3_boxfallback_wxyz",
+  "sequence_root": "/mnt/d/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_xyz/rgbd_dataset_freiburg3_walking_xyz",
+  "export_root": "/mnt/d/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_boxfallback_wxyz/sequence",
+  "filter_mode": "filtered",
+  "config_path": "/mnt/d/CODEX/basic_model_based_SLAM/config/world_sam_pipeline_foundation_panoptic_person_v2_local.json",
+  "config_note": "Same local YOLOE + SAM3 person_v2_local pipeline as the previous 20260504_yoloe_sam3_full_wxyz run, with allow_box_fallback switched from false to true.",
+  "frontend_summary": {
+    "exported_frames": 859,
+    "mean_filtered_detections": 1.1105937136204889,
+    "mean_mask_ratio": 0.13623353448171335,
+    "mean_relevance": 0.636408735130584,
+    "mean_foundation": 0.4930201253961437,
+    "mean_motion": 0.3525039610878121,
+    "mean_tube_motion": 0.5922708574260404,
+    "mean_track_confirmation": 0.5659355307860683,
+    "mean_dynamic_memory": 0.5225979887898173
+  },
+  "orb_result": {
+    "evaluation_mode": "direct_orb_only_on_exported_sequence",
+    "command": [
+      "/home/lj/tools/slam_deps/ORB_SLAM3/Examples/RGB-D/rgbd_tum",
+      "/home/lj/tools/slam_deps/ORB_SLAM3/Vocabulary/ORBvoc.txt",
+      "/home/lj/tools/slam_deps/ORB_SLAM3/Examples/RGB-D/TUM3.yaml",
+      "/mnt/d/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_boxfallback_wxyz/sequence",
+      "/mnt/d/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_boxfallback_wxyz/sequence/associations.txt"
+    ],
+    "returncode": 0,
+    "trajectory_path": "/mnt/d/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_boxfallback_wxyz/orb_run_long/CameraTrajectory.txt",
+    "keyframe_trajectory_path": "/mnt/d/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_boxfallback_wxyz/orb_run_long/KeyFrameTrajectory.txt",
+    "note": "The benchmark wrapper run timed out at 1800 s earlier, so the final ORB evaluation was rerun directly on the already-exported sequence to avoid repeating the frontend stage."
+  },
+  "trajectory_metrics": {
+    "matched_poses": 857,
+    "ground_truth_poses": 2884,
+    "estimated_poses": 859,
+    "trajectory_coverage": 0.29715672676837723,
+    "alignment_method": "rigid_umeyama_se3",
+    "ate_rmse_m": 0.016950820623991066,
+    "ate_mean_m": 0.014959462321250169,
+    "rpe_rmse_m": 0.011670320890374725
+  },
+  "comparison": {
+    "old_best_e6_9_dynmem": {
+      "path": "/mnt/d/CODEX/basic_model_based_SLAM/experiments/E6-9_full_foundation_panoptic_person_v2_dynamic_memory_freiburg3_walking_xyz_20260321/benchmark_summary.json",
+      "ate_rmse_m": 0.018325171473579614,
+      "rpe_rmse_m": 0.013279865365736667,
+      "mean_filtered_detections": 0.9918509895227008,
+      "mean_mask_ratio": 0.1124697481628347,
+      "mean_foundation": 0.6840299830965865
+    },
+    "sam3_no_fallback": {
+      "frontend_path": "/mnt/d/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_full_wxyz/frame_stats.json",
+      "metrics_path": "/mnt/d/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_autotest_orb_only/metrics.json",
+      "ate_rmse_m": 0.08158688300097335,
+      "rpe_rmse_m": 0.027843787461938087,
+      "mean_filtered_detections": 0.8277066356228172,
+      "mean_mask_ratio": 0.09447662389042492,
+      "mean_foundation": 0.49302007979754975
+    },
+    "sam3_box_fallback": {
+      "ate_rmse_m": 0.016950820623991066,
+      "rpe_rmse_m": 0.011670320890374725,
+      "mean_filtered_detections": 1.1105937136204889,
+      "mean_mask_ratio": 0.13623353448171335,
+      "mean_foundation": 0.4930201253961437
+    }
+  },
+  "takeaway": {
+    "primary_conclusion": "For the current YOLOE + SAM3 local pipeline on TUM freiburg3_walking_xyz, enabling detector box fallback repairs the previous under-filtering issue and recovers final ORB-SLAM3 accuracy.",
+    "evidence": [
+      "ATE RMSE improves from 0.0815868830 m to 0.0169508206 m.",
+      "Mean filtered detections increase from 0.8277 to 1.1106.",
+      "Mean mask ratio increases from 0.0945 to 0.1362."
+    ]
+  }
+}

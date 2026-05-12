@@ -1,0 +1,154 @@
+{
+  "results": [
+    {
+      "ground_truth": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_milddilate_wxyz/sequence/groundtruth.txt",
+      "estimate": "CameraTrajectory.txt",
+      "ground_truth_poses": 2884,
+      "estimated_poses": 859,
+      "matched_poses": 857,
+      "trajectory_coverage": 0.29715672676837723,
+      "alignment": "se3",
+      "alignment_method": "rigid_umeyama_se3",
+      "alignment_scale": 1.0,
+      "alignment_rotation": [
+        [
+          0.9965594627302364,
+          0.08251881859285101,
+          -0.0077383345018506855
+        ],
+        [
+          0.022510557469169523,
+          -0.17962731602237317,
+          0.9834771487640297
+        ],
+        [
+          0.0797653561720221,
+          -0.9802676532032659,
+          -0.18086684615515292
+        ]
+      ],
+      "alignment_translation": [
+        -0.7324325648418527,
+        -3.1303449409299504,
+        1.4184373728240818
+      ],
+      "ate_rmse_m": 0.03874459124292569,
+      "ate_mean_m": 0.026803009373407564,
+      "ate_median_m": 0.018308610615973633,
+      "ate_std_m": 0.027977527394507543,
+      "ate_min_m": 0.0010380792442878076,
+      "ate_max_m": 0.1751627756850509,
+      "rpet_rmse_m": 0.01781010845368826,
+      "rpet_mean_m": 0.012622360849523855,
+      "rpet_median_m": 0.008973421703538122,
+      "rpet_std_m": 0.01256487046159034,
+      "rpet_min_m": 0.00046214190655154353,
+      "rpet_max_m": 0.1555513317671334,
+      "rpe_delta": 1,
+      "rper_rmse_deg": 0.39965388772214966,
+      "rper_mean_deg": 0.3301002960363378,
+      "rper_median_deg": 0.28440803401332054,
+      "rper_max_deg": 2.342025185613654
+    },
+    {
+      "ground_truth": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_milddilate_wxyz/sequence/groundtruth.txt",
+      "estimate": "CameraTrajectory.txt",
+      "ground_truth_poses": 2884,
+      "estimated_poses": 859,
+      "matched_poses": 857,
+      "trajectory_coverage": 0.29715672676837723,
+      "alignment": "sim3",
+      "alignment_method": "similarity_umeyama_sim3",
+      "alignment_scale": 0.9613767956085479,
+      "alignment_rotation": [
+        [
+          0.9965594627302364,
+          0.08251881859285101,
+          -0.0077383345018506855
+        ],
+        [
+          0.022510557469169523,
+          -0.17962731602237317,
+          0.9834771487640297
+        ],
+        [
+          0.0797653561720221,
+          -0.9802676532032659,
+          -0.18086684615515292
+        ]
+      ],
+      "alignment_translation": [
+        -0.7325155029648082,
+        -3.124674445460473,
+        1.4168826681324502
+      ],
+      "ate_rmse_m": 0.03684285120146873,
+      "ate_mean_m": 0.025612780157972175,
+      "ate_median_m": 0.016921115469621058,
+      "ate_std_m": 0.02648360204415088,
+      "ate_min_m": 0.0021074254404626655,
+      "ate_max_m": 0.16727094320306563,
+      "rpet_rmse_m": 0.01712261217745374,
+      "rpet_mean_m": 0.012140989029248934,
+      "rpet_median_m": 0.008686234617962288,
+      "rpet_std_m": 0.012073948532735433,
+      "rpet_min_m": 0.0002231191781586158,
+      "rpet_max_m": 0.14994630347574506,
+      "rpe_delta": 1,
+      "rper_rmse_deg": 0.39965388772214966,
+      "rper_mean_deg": 0.3301002960363378,
+      "rper_median_deg": 0.28440803401332054,
+      "rper_max_deg": 2.342025185613654
+    },
+    {
+      "ground_truth": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_milddilate_wxyz/sequence/groundtruth.txt",
+      "estimate": "CameraTrajectory.txt",
+      "ground_truth_poses": 2884,
+      "estimated_poses": 859,
+      "matched_poses": 857,
+      "trajectory_coverage": 0.29715672676837723,
+      "alignment": "origin",
+      "alignment_method": "origin_translation",
+      "alignment_scale": 1.0,
+      "alignment_rotation": [
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "alignment_translation": [
+        -0.698635988,
+        -3.1106603030000004,
+        1.4219752760000002
+      ],
+      "ate_rmse_m": 0.45619550424540367,
+      "ate_mean_m": 0.3578845813288453,
+      "ate_median_m": 0.27386765970217497,
+      "ate_std_m": 0.28290098009868264,
+      "ate_min_m": 0.0,
+      "ate_max_m": 1.121783691997646,
+      "rpet_rmse_m": 0.021013942458755333,
+      "rpet_mean_m": 0.016794616259590226,
+      "rpet_median_m": 0.014340605321283383,
+      "rpet_std_m": 0.01263038567712751,
+      "rpet_min_m": 0.001265571300642132,
+      "rpet_max_m": 0.1553457581475758,
+      "rpe_delta": 1,
+      "rper_rmse_deg": 0.39965388772214966,
+      "rper_mean_deg": 0.3301002960363378,
+      "rper_median_deg": 0.28440803401332054,
+      "rper_max_deg": 2.342025185613654
+    }
+  ]
+}

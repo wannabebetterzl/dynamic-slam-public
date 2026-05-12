@@ -1,0 +1,34 @@
+{
+  "detectors": {
+    "open_vocab_detector": {
+      "enabled": true,
+      "type": "yolo_world",
+      "model": "weights/yolov8s-world.pt",
+      "device": "auto",
+      "imgsz": 640,
+      "conf": 0.20,
+      "iou": 0.45,
+      "classes": [
+        "person",
+        "pedestrian",
+        "worker"
+      ],
+      "source_name": "open_vocab_detector"
+    }
+  },
+  "segmenter": {
+    "type": "sam",
+    "checkpoint": "weights/sam_vit_b_01ec64.pth",
+    "model_type": "vit_b",
+    "device": "auto",
+    "multimask": false,
+    "allow_box_fallback": true
+  },
+  "runtime": {
+    "detector_interval": 5,
+    "dilate_pixels": 5,
+    "mask_blur_kernel": 21,
+    "rgb_fill_mode": "blur",
+    "max_inpaint_area_ratio": 0.12
+  }
+}

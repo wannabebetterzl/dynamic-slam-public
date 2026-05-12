@@ -1,0 +1,12 @@
+date: 2026-05-11T17:44:12+08:00
+purpose: old image-level YOLOE+SAM3 frontend, backend receives no mask, geometry-only ablation
+sequence: /home/lj/d-drive/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_milddilate_wxyz/sequence
+mask_arg_passed: no
+associations: 859
+rgb_files: 859
+depth_files: 827
+mask_files_present_but_not_passed: 859
+2026-05-11 16:19:26.219760740 +0800 /home/lj/dynamic_SLAM/stslam_backend/lib/libORB_SLAM3.so
+2026-05-11 16:19:26.802889530 +0800 /home/lj/dynamic_SLAM/stslam_backend/Examples/RGB-D/rgbd_tum
+029af0fb58d22053db115304222ede2eaadc4c4cc0ec02cf44d472ceb37ea4c6  /home/lj/dynamic_SLAM/stslam_backend/Examples/RGB-D/rgbd_tum
+415cda1ec70604bc4386db28a19c5e85ec052b47ba3ae10044ca056f191ac5c8  /home/lj/dynamic_SLAM/stslam_backend/lib/libORB_SLAM3.so

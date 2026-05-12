@@ -1,0 +1,8 @@
+date: 2026-05-11T17:08:40+08:00
+sequence: /home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/sequence
+associations: 859
+rgb_files: 859
+depth_files: 827
+mask_files: 859
+2026-05-11 16:19:26.219760740 +0800 /home/lj/dynamic_SLAM/stslam_backend/lib/libORB_SLAM3.so
+2026-05-11 16:19:26.802889530 +0800 /home/lj/dynamic_SLAM/stslam_backend/Examples/RGB-D/rgbd_tum

@@ -1,0 +1,24 @@
+{
+  "experiment_name": "20260504_yoloe_sam3_milddilate_wxyz",
+  "sequence_root": "/mnt/d/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_xyz/rgbd_dataset_freiburg3_walking_xyz",
+  "export_root": "/mnt/d/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_milddilate_wxyz/sequence",
+  "config_path": "/mnt/d/CODEX/basic_model_based_SLAM/config/world_sam_pipeline_foundation_panoptic_person_v2_milddilate_local.json",
+  "config_note": "SAM3 + detector box fallback with a mild mask expansion change: runtime.dilate_pixels from 5 to 7.",
+  "frontend_summary": {
+    "exported_frames": 859,
+    "mean_runtime_ms": 506.849092154897,
+    "mean_mask_ratio": 0.14682124927240978,
+    "mean_filtered_detections": 1.119906868451688,
+    "mean_foundation": 0.49718022037487974
+  },
+  "trajectory_metrics": {
+    "matched_poses": 857,
+    "ground_truth_poses": 2884,
+    "estimated_poses": 859,
+    "trajectory_coverage": 0.29715672676837723,
+    "alignment_method": "rigid_umeyama_se3",
+    "ate_rmse_m": 0.01626799377573982,
+    "ate_mean_m": 0.014102825685410022,
+    "rpe_rmse_m": 0.012386622203309187
+  }
+}

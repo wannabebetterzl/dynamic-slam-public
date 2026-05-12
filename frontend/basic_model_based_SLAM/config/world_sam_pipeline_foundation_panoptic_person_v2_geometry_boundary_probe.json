@@ -1,0 +1,181 @@
+{
+  "detectors": {
+    "drone_detector": {
+      "enabled": false
+    },
+    "open_vocab_detector": {
+      "enabled": true,
+      "classes": [
+        "person",
+        "pedestrian",
+        "worker"
+      ]
+    }
+  },
+  "fusion": {
+    "enabled": true,
+    "iou": 0.5,
+    "class_agnostic": false,
+    "source_priority": {
+      "open_vocab_detector": 1.0
+    }
+  },
+  "runtime": {
+    "detector_interval": 3,
+    "dilate_pixels": 5,
+    "mask_blur_kernel": 21,
+    "rgb_fill_mode": "blur",
+    "max_inpaint_area_ratio": 0.12
+  },
+  "depth_filter": {
+    "enabled": true,
+    "dilate_pixels": 12,
+    "depth_margin_mm": 250.0,
+    "min_valid_pixels": 40,
+    "min_keep_ratio": 0.18
+  },
+  "mask_boundary_refine": {
+    "enabled": true,
+    "edge_width": 3,
+    "min_boundary_pixels": 24,
+    "min_keep_ratio": 0.62,
+    "depth_margin_mm": 110.0,
+    "image_grad_threshold": 16.0
+  },
+  "geometry_consistency": {
+    "enabled": true,
+    "motion_weight": 0.30,
+    "static_weight": 0.28,
+    "dynamic_confirm_threshold": 0.6,
+    "static_veto_threshold": 0.72,
+    "static_veto_min_hits": 3,
+    "static_veto_min_confirmation": 0.52,
+    "weak_scene_context_threshold": 0.18,
+    "dynamic_margin": 0.08,
+    "motion_margin": 0.05,
+    "ring_dilate_pixels": 7
+  },
+  "task_relevance": {
+    "enabled": true,
+    "min_score": 0.5,
+    "default_semantic_weight": 0.5,
+    "semantic_weights": {
+      "person": 0.99,
+      "pedestrian": 0.99,
+      "worker": 0.98,
+      "drone": 0.15
+    },
+    "weights": {
+      "semantic": 0.34,
+      "area": 0.12,
+      "center": 0.14,
+      "depth": 0.12,
+      "confidence": 0.12,
+      "sam": 0.08,
+      "foundation": 0.08
+    },
+    "area_norm_ratio": 0.06,
+    "depth_norm_mm": 1400.0
+  },
+  "foundation_reliability": {
+    "enabled": true,
+    "min_score": 0.34,
+    "min_mask_pixels": 96,
+    "min_mask_ratio": 0.00018,
+    "border_margin_pixels": 14,
+    "boundary_quality": {
+      "enabled": true,
+      "edge_width": 3,
+      "min_boundary_pixels": 24,
+      "image_grad_norm": 34.0,
+      "depth_norm_mm": 160.0
+    },
+    "weights": {
+      "detector_confidence": 0.26,
+      "segment_quality": 0.21,
+      "mask_area": 0.14,
+      "compactness": 0.13,
+      "border": 0.1,
+      "boundary": 0.16
+    }
+  },
+  "panoptic_memory": {
+    "enabled": true,
+    "match_iou": 0.35,
+    "max_age": 4,
+    "min_hits": 2,
+    "confirm_threshold": 0.52,
+    "motion_filter_threshold": 0.15,
+    "static_protection_threshold": 0.84,
+    "high_confidence_override": 0.82,
+    "ema_momentum": 0.65,
+    "center_motion_norm": 0.04,
+    "depth_motion_norm_mm": 600.0,
+    "class_motion_thresholds": {
+      "person": 0.13,
+      "pedestrian": 0.13,
+      "worker": 0.13
+    },
+    "class_high_confidence_overrides": {
+      "person": 0.78,
+      "pedestrian": 0.78,
+      "worker": 0.78
+    },
+    "class_static_protection_thresholds": {
+      "person": 0.9,
+      "pedestrian": 0.9,
+      "worker": 0.9
+    },
+    "class_confirmed_hit_requirements": {
+      "person": 2,
+      "pedestrian": 2,
+      "worker": 2
+    },
+    "confirmed_support_classes": [
+      "person",
+      "pedestrian",
+      "worker"
+    ],
+    "appearance_bins": [
+      8,
+      8
+    ],
+    "association_weights": {
+      "bbox_iou": 0.3,
+      "mask_iou": 0.24,
+      "appearance": 0.28,
+      "depth": 0.18
+    },
+    "tube_motion_threshold": 0.28,
+    "tube_min_hits": 3,
+    "tube_displacement_norm_ratio": 0.12,
+    "tube_support_classes": [],
+    "class_tube_motion_thresholds": {},
+    "class_motion_foundation_ceiling": {
+      "person": 0.92,
+      "pedestrian": 0.92,
+      "worker": 0.92
+    },
+    "weak_dynamic_guard": {
+      "enabled": true,
+      "classes": [
+        "person",
+        "pedestrian",
+        "worker"
+      ],
+      "scene_context_threshold": 0.14,
+      "motion_threshold": 0.2,
+      "dynamic_memory_threshold": 0.82,
+      "static_score_floor": 0.68
+    }
+  },
+  "dynamic_memory": {
+    "enabled": true,
+    "min_score": 0.64,
+    "foundation_floor": 0.38,
+    "static_ceiling": 0.9,
+    "min_motion_score_for_activation": 0.1,
+    "min_tube_motion_score_for_activation": 0.18,
+    "min_dynamic_evidence": 0.18
+  }
+}
