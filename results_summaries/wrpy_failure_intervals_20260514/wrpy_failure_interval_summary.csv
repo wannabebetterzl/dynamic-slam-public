@@ -1,0 +1,17 @@
+case,interval,start_frame,end_frame,frames,path_delta_m,mappoint_delta,keyframe_delta,mean_inliers_after_pose,ckf_accepted_depth_candidates,ckf_boundary_budget,ckf_boundary_existing_supported_candidates,ckf_boundary_skipped_new_candidates,ckf_control_skipped_nonboundary_new_candidates,ckf_direct_vetoed_candidates,lm_boundary_budget,lm_control_skipped_nonboundary_pairs,lm_kept_pairs_after_boundary,lm_kept_pairs_after_control,lm_kept_static_pairs_after_instance,lm_skipped_boundary_pairs,lm_skipped_instance_pairs
+wrpy_d2ma_b_r5,early LM boundary,48,65,18,0.279284,182.0,10.0,213.55555555555554,5700,0,174,239,0,4794,0,0,263,0,327,86,572
+wrpy_d2ma_b_r5,middle CKF/LM,239,290,52,0.9306580000000002,650.0,35.0,159.23076923076923,25664,0,239,763,0,11268,0,0,507,0,1080,91,771
+wrpy_d2ma_b_r5,mid-late CKF,574,593,20,0.6467379999999991,138.0,13.0,166.55,7319,0,213,621,0,5725,0,0,13,0,27,25,1004
+wrpy_d2ma_b_r5,late CKF/path,812,825,14,0.4006469999999993,484.0,-1.0,140.71428571428572,6099,0,195,372,0,2734,0,0,67,0,123,17,94
+wrpy_d2ma_min,early LM boundary,48,65,18,0.23961700000000002,-7.0,6.0,229.77777777777777,4693,0,0,0,0,3824,0,0,0,0,247,0,300
+wrpy_d2ma_min,middle CKF/LM,239,290,52,1.0612450000000004,489.0,39.0,161.92307692307693,25023,0,0,0,0,10948,0,0,0,0,1248,0,638
+wrpy_d2ma_min,mid-late CKF,574,593,20,0.6569839999999996,98.0,10.0,170.75,5813,0,0,0,0,4372,0,0,0,0,21,0,152
+wrpy_d2ma_min,late CKF/path,812,825,14,0.3905790000000007,563.0,8.0,146.14285714285714,6824,0,0,0,0,2826,0,0,0,0,92,0,59
+wrpy_raw,early LM boundary,48,65,18,0.205457,303.0,12.0,322.22222222222223,0,0,0,0,0,0,0,0,0,0,0,0,0
+wrpy_raw,middle CKF/LM,239,290,52,1.2657420000000004,1224.0,42.0,182.40384615384616,0,0,0,0,0,0,0,0,0,0,0,0,0
+wrpy_raw,mid-late CKF,574,593,20,0.7310990000000004,547.0,18.0,162.75,0,0,0,0,0,0,0,0,0,0,0,0,0
+wrpy_raw,late CKF/path,812,825,14,0.40165700000000015,853.0,11.0,151.71428571428572,0,0,0,0,0,0,0,0,0,0,0,0,0
+wrpy_samecount_nonboundary_r5,early LM boundary,48,65,18,0.2882489999999999,111.0,8.0,217.0,3854,172,0,0,172,3770,4,4,0,232,232,0,303
+wrpy_samecount_nonboundary_r5,middle CKF/LM,239,290,52,1.0752540000000002,591.0,37.0,163.09615384615384,25762,927,0,0,927,11182,20,20,0,1043,940,0,463
+wrpy_samecount_nonboundary_r5,mid-late CKF,574,593,20,1.0773220000000006,287.0,15.0,147.0,9023,552,0,0,552,6635,36,8,0,74,69,0,1281
+wrpy_samecount_nonboundary_r5,late CKF/path,812,825,14,0.4110170000000011,580.0,7.0,141.0,6099,324,0,0,324,2734,8,7,0,204,116,0,67

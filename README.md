@@ -86,6 +86,10 @@ Local execution helpers:
 - `tools/check_rgbd_sequence_integrity.py`
 - `tools/validate_d2ma_sidechannel_protocol.py`
 - `tools/summarize_backend_runs.py`
+- `tools/summarize_sidechannel_repeats.py`
+- `tools/parse_map_admission_events.py`
+- `tools/plot_wrpy_failure_intervals.py`
+- `tools/evaluate_association_clean_sensitivity.py`
 
 ## Current Metrics To Explain
 
@@ -129,6 +133,7 @@ Detailed CSV and protocol validation artifacts are in:
 
 ```text
 results_summaries/canonical_sidechannel_six_20260513/
+results_summaries/canonical_repeat_matrix_20260514/
 results_summaries/experiments_0512_0517.csv
 ```
 
@@ -138,6 +143,32 @@ Interpretation:
 - `D²MA-B r5` is the current main method.
 - `samecount_nonboundary_r5` is a negative control showing the gain is not just generic sparsification.
 - `walking_rpy` remains the hardest sequence and should be reported with coverage and repeat variance.
+
+### Latest Robustness / Negative-Control Diagnostics
+
+The following 2026-05-14 diagnostics are intended to make the paper-facing
+claim auditable rather than tuned to a single ATE value:
+
+```text
+results_summaries/wrpy_frame_causal_probe_20260514/
+results_summaries/wrpy_failure_intervals_20260514/
+results_summaries/association_clean_sensitivity_20260514/
+results_summaries/static_negative_control_20260514/
+```
+
+Key outcomes:
+
+| Diagnostic | Main result |
+|---|---|
+| Canonical repeat matrix | `wxyz_d2ma_b_r5`, `wrpy_d2ma_b_r5`, `whalfsphere_d2ma_b_r5`, and `wrpy_samecount_nonboundary_r5` are bit-level stable in the current side-channel-isolated protocol. |
+| `walking_rpy` failure intervals | D²MA-B r5 suppresses failure-interval MapPoint/path inflation more effectively than same-count non-boundary deletion. |
+| Association-clean sensitivity | Strict RGB-depth/GT association filtering does not remove the D²MA-B advantage on `walking_rpy` or `walking_halfsphere`. |
+| `walking_static` negative control | In 3 repeats, `raw` gives ATE-SE3 `0.073350±0.000000`, while `D²MA-B r5` gives `0.010972±0.000000`; this is a low-dynamic foreground sanity check, not a pure static no-object claim. |
+
+These results support the narrower claim that D²MA-B is a
+side-channel-isolated dynamic-depth / boundary-risk static-map admission
+control. They should not be read as a full dynamic-object modeling system or
+as a general-purpose dynamic SLAM SOTA claim.
 
 ### Strong Image-Level Frontend Baseline
 

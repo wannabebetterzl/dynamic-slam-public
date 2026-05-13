@@ -4068,3 +4068,260 @@ cause-probe 结果：
 - 当前六条是 clean single-run canonical，还需要在论文最终主表前补 repeat mean/std，尤其是 `walking_rpy`。
 - 需要进一步统计 CKF / LocalMapping 中 boundary veto 的 frame-level 分布、KF/MP admission 改变量，以及这些量和 ATE/scale 的关系。
 - 需要请 5.5 Pro 按审稿人标准检查：当前证据是否足以支持 “targeted boundary/support-aware map admission” 的创新性叙事，以及下一步最小补强实验应优先做 repeat、frame-level causality 还是更多序列。
+
+### 10.24 Canonical repeat matrix：主方法与负对照 repeat mean/std
+
+触发原因：
+
+- 5.5 Pro 十二次回答明确指出：canonical six 仍是 single-run，最容易被审稿人攻击为 cherry-pick。
+- 因此先补最小 repeat 证据，而不是继续扩展新模块。
+
+本轮 run root：
+
+- `/home/lj/dynamic-slam-public/runs/canonical_repeat_matrix_20260514_002248`
+- raw 表：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/canonical_repeat_matrix_raw_20260514.csv`
+- summary 表：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/canonical_repeat_matrix_summary_20260514.csv`
+- 同步到总表：`experiments_0512_0517.csv`，新增 `canonical_repeat_matrix_20260514_*` 共 12 行。
+
+实验矩阵：
+
+- `wxyz_d2ma_b_r5`：3 repeats
+- `wrpy_d2ma_b_r5`：3 repeats
+- `whalfsphere_d2ma_b_r5`：3 repeats
+- `wrpy_samecount_nonboundary_r5`：3 repeats
+
+所有 repeat 均使用 `scripts/run_d2ma_sidechannel_isolated.sh`，且 `d2ma_protocol_validation.json` 全部 pass。
+
+repeat summary：
+
+| case | n | protocol | matched mean±std | ATE-SE3 mean±std | ATE-Sim3 mean±std | Sim3 scale mean±std |
+|---|---:|---:|---:|---:|---:|---:|
+| `wxyz_d2ma_b_r5` | 3 | pass | 857.0±0.0 | 0.017884±0.000000 | 0.016043±0.000000 | 0.974357±0.000000 |
+| `wrpy_d2ma_b_r5` | 3 | pass | 906.0±0.0 | 0.269999±0.000000 | 0.120722±0.000000 | 0.361678±0.000000 |
+| `whalfsphere_d2ma_b_r5` | 3 | pass | 1064.0±0.0 | 0.156093±0.000000 | 0.118844±0.000000 | 0.823258±0.000000 |
+| `wrpy_samecount_nonboundary_r5` | 3 | pass | 906.0±0.0 | 0.604425±0.000000 | 0.156306±0.000000 | 0.138884±0.000000 |
+
+关键结论：
+
+- 在 side-channel isolation protocol 下，D²MA-B r5 主方法在 `wxyz / wrpy / whalfsphere` 上均为 bit-level repeat stable。
+- `wrpy_samecount_nonboundary_r5` 负对照同样 bit-level stable，且显著差于 `wrpy_d2ma_b_r5`：`ATE-SE3=0.604425` vs `0.269999`，`Sim3 scale=0.138884` vs `0.361678`。
+- 因此当前最合理的判断是：之前所谓“不稳定/大误差”主要来自实验协议事故，而不是 ORB-SLAM3 后端天然随机波动。
+- `walking_rpy` 仍是残余困难序列，但它不是 repeat 随机失败；它是可复现的系统性 residual failure，应进入 frame-level causal logging 分析。
+- 论文表述应避免说 D²MA-B “完全解决 wrpy”，而应写成：D²MA-B 稳定压制一个主要 failure channel，但 wrpy 仍暴露旋转主导/边界支撑/尺度路径一致性的剩余问题。
+
+下一步优先级：
+
+1. 先做 `wrpy` frame-level causal logging：比较 raw / D²MA-min / D²MA-B / same-count 的 boundary-risk accepted/vetoed、new MPs、local inliers、path ratio。
+2. 再做 association-clean sensitivity：`wrpy` 与 `halfsphere` 的 strict subset 评估。
+3. 之后补 low-dynamic/static negative control，确认 D²MA-B 不因 false-positive mask 伤害静态/低动态序列。
+
+### 10.25 `walking_rpy` 零改代码 frame-level causal probe 初版
+
+目的：
+
+- 在正式改后端日志前，先解析现有 `stdout.log` 中的 map-admission event 与 `observability_frame_stats.csv`。
+- 检查现有日志是否已经足够支撑 “D²MA-B 的收益不是 generic sparsification，而是 boundary-risk targeted admission control”。
+
+新增解析工具：
+
+- `/home/lj/dynamic-slam-public/tools/parse_map_admission_events.py`
+
+输出文件：
+
+- summary：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/wrpy_frame_causal_probe_summary_20260514.csv`
+- per-frame：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/wrpy_frame_causal_probe_per_frame_20260514.csv`
+
+使用 run：
+
+- raw：`/home/lj/dynamic-slam-public/runs/external_wrpy_d2ma_min_20260513_170248/raw_baseline`
+- D²MA-min：`/home/lj/dynamic-slam-public/runs/canonical_sidechannel_six_20260513_233737/wrpy_d2ma_min`
+- D²MA-B r5：`/home/lj/dynamic-slam-public/runs/canonical_repeat_matrix_20260514_002248/wrpy_d2ma_b_r5/r1`
+- same-count non-boundary r5：`/home/lj/dynamic-slam-public/runs/canonical_repeat_matrix_20260514_002248/wrpy_samecount_nonboundary_r5/r1`
+
+summary：
+
+| case | ATE-SE3 | scale | final KFs | final MPs | CKF direct veto | CKF boundary skip/control | LM boundary/control |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `wrpy_raw` | 0.997057 | 0.084939 | 575 | 13872 | 0 | 0/0 | 0/0 |
+| `wrpy_d2ma_min` | 0.474824 | 0.172691 | 430 | 7347 | 102698 | 0/0 | 0/0 |
+| `wrpy_d2ma_b_r5` | 0.269999 | 0.361678 | 370 | 6006 | 103407 | 8179/0 | 587/0 |
+| `wrpy_samecount_nonboundary_r5` | 0.604425 | 0.138884 | 427 | 7389 | 104739 | 0/7988 | 0/209 |
+
+初步结论：
+
+- raw baseline 存在明显 map inflation：`575` KFs / `13872` MPs，ATE-SE3 `0.997057`，Sim3 scale `0.084939`。
+- D²MA-min 只做 direct dynamic-depth admission gate，已经大幅压低 map size：`430` KFs / `7347` MPs，ATE-SE3 `0.474824`。
+- D²MA-B r5 在 direct gate 基础上额外跳过 CKF boundary-risk new candidates `8179` 个、LM boundary pairs `587` 对，最终 `370` KFs / `6006` MPs，ATE-SE3 `0.269999`，scale `0.361678`。
+- same-count non-boundary control 跳过了相近数量的非边界候选：CKF `7988` 个、LM `209` 对，但结果退化到 `427` KFs / `7389` MPs，ATE-SE3 `0.604425`，scale `0.138884`。
+- 因此现有日志已经给出一个强中间证据：收益不是“删掉差不多数量的点”，而是边界/支撑位置的 targeted veto 更有效。
+
+仍不足：
+
+- 当前 summary 是事件总量与 final map size，还没有形成真正的 failure interval 图。
+- 需要基于 per-frame CSV 继续找出 `estimated_accum_path_m` 跳变、local inliers 下降、boundary veto 高峰之间的时间对应关系。
+- 如果要进入论文机制图，仍建议补充或派生：segment-level ATE / path-ratio、per-frame cumulative CKF/LM veto 曲线、new MPs 增量曲线。
+
+候选重点区间：
+
+- 早期 `frame 48-65`：LM boundary pairs 高峰，D²MA-B 在 `frame 57` 跳过 LM boundary pairs `18`，是早期地图污染入口候选。
+- 中段 `frame 239-290`：D²MA-B CKF boundary skip 与 LM boundary pairs 均较高，same-count control 在此段也大量跳过非边界点但效果更差。
+- 中后段 `frame 574-593`：D²MA-B CKF boundary skip 连续高峰，`frame 574/581/585/593` 均超过 `61`。
+- 后段 `frame 812-825`：D²MA-B 与 same-count control 都有高跳过量，但 same-count 的累计路径和 map size 更大，可能是解释 residual scale/path drift 的重点区间。
+
+### 10.26 `walking_rpy` failure interval 图与区间统计
+
+目的：
+
+- 将 `observability_frame_stats.csv` 与 D²MA event logs 对齐，形成可以进入论文机制分析的 failure-interval 图。
+- 对比 raw / D²MA-min / D²MA-B r5 / same-count non-boundary r5 在路径长度、地图规模、inlier、boundary/control 累积事件上的差异。
+
+新增工具：
+
+- `/home/lj/dynamic-slam-public/tools/plot_wrpy_failure_intervals.py`
+
+输出文件：
+
+- 图：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/wrpy_failure_intervals_20260514.png`
+- 时序表：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/wrpy_failure_interval_timeseries_20260514.csv`
+- 区间统计：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/wrpy_failure_interval_summary_20260514.csv`
+
+图的四个子图：
+
+- estimated accumulated path
+- MapPoints
+- inliers after pose
+- cumulative CKF / LM boundary-control events
+
+关键读法：
+
+- raw 的 estimated path 与 MapPoints 全程显著高于 D²MA 系列，尤其后半段 raw MapPoints 接近 `14000`，符合 map inflation / path-length inflation 的失败模式。
+- D²MA-min 显著压低 direct dynamic-depth 导致的地图膨胀，但仍保留较多 boundary-risk contamination。
+- D²MA-B r5 在 D²MA-min 基础上进一步压低 MapPoints，最终约 `6006`，并使路径曲线更接近 D²MA-min 下方。
+- same-count non-boundary r5 的 cumulative CKF/control 曲线与 D²MA-B r5 的 boundary veto 曲线接近，但 MapPoints 与 path 明显更差，说明“删同等数量非边界点”不能替代 targeted boundary-risk veto。
+
+区间统计摘录：
+
+| interval | case | path delta | MP delta | keyframe delta | mean inliers | CKF boundary/control | LM boundary/control |
+|---|---|---:|---:|---:|---:|---:|---:|
+| `48-65` | raw | 0.205457 | 303 | 12 | 322.22 | 0/0 | 0/0 |
+| `48-65` | D²MA-B r5 | 0.279284 | 182 | 10 | 213.56 | 239/0 | 86/0 |
+| `48-65` | same-count | 0.288249 | 111 | 8 | 217.00 | 0/172 | 0/4 |
+| `239-290` | raw | 1.265742 | 1224 | 42 | 182.40 | 0/0 | 0/0 |
+| `239-290` | D²MA-B r5 | 0.930658 | 650 | 35 | 159.23 | 763/0 | 91/0 |
+| `239-290` | same-count | 1.075254 | 591 | 37 | 163.10 | 0/927 | 0/20 |
+| `574-593` | raw | 0.731099 | 547 | 18 | 162.75 | 0/0 | 0/0 |
+| `574-593` | D²MA-B r5 | 0.646738 | 138 | 13 | 166.55 | 621/0 | 25/0 |
+| `574-593` | same-count | 1.077322 | 287 | 15 | 147.00 | 0/552 | 0/8 |
+| `812-825` | raw | 0.401657 | 853 | 11 | 151.71 | 0/0 | 0/0 |
+| `812-825` | D²MA-B r5 | 0.400647 | 484 | -1 | 140.71 | 372/0 | 17/0 |
+| `812-825` | same-count | 0.411017 | 580 | 7 | 141.00 | 0/324 | 0/7 |
+
+阶段结论：
+
+- D²MA-B r5 的优势不仅体现在最终 ATE，也能在 failure interval 中看到 map growth 抑制。
+- same-count control 在 CKF 跳过量相近的条件下，不能复现 D²MA-B 的路径/地图优势，进一步支持 boundary-risk targeting。
+- 但 inlier 曲线不是单调改善，说明 D²MA-B 的收益主要来自抑制错误地图固化，而不是简单提升每帧 tracking inliers。
+
+### 10.27 Association-clean sensitivity
+
+目的：
+
+- 检查 `walking_rpy` 与 `walking_halfsphere` 的 D²MA-B 相对收益是否由 RGB-depth / GT timestamp association outlier 造成。
+- 对 current association、strict `rgb_depth_time_diff <= 0.03 && gt_time_diff <= 0.03`、loose `<= 0.05` 三种口径分别评估。
+
+新增工具：
+
+- `/home/lj/dynamic-slam-public/tools/evaluate_association_clean_sensitivity.py`
+
+输出文件：
+
+- `/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/association_clean_sensitivity_20260514.csv`
+
+结果：
+
+| case | variant | matched | ATE-SE3 | ATE-Sim3 | scale | filtered/full |
+|---|---|---:|---:|---:|---:|---:|
+| `wrpy_raw` | current | 906 | 0.997057 | 0.157951 | 0.084939 | full |
+| `wrpy_raw` | strict_003 | 884 | 0.994092 | 0.158237 | 0.085159 | 884/909 |
+| `wrpy_d2ma_b_r5` | current | 906 | 0.269999 | 0.120722 | 0.361678 | full |
+| `wrpy_d2ma_b_r5` | strict_003 | 884 | 0.269325 | 0.120832 | 0.362819 | 884/909 |
+| `halfsphere_raw` | current | 1064 | 0.506439 | 0.290979 | 0.484404 | full |
+| `halfsphere_raw` | strict_003 | 1038 | 0.507191 | 0.291515 | 0.484412 | 1038/1067 |
+| `halfsphere_d2ma_b_r5` | current | 1064 | 0.156093 | 0.118844 | 0.823258 | full |
+| `halfsphere_d2ma_b_r5` | strict_003 | 1038 | 0.155420 | 0.118698 | 0.824752 | 1038/1067 |
+
+补充数据质量：
+
+- `walking_rpy` association rows `909`，strict clean `884`；`rgb_depth_bad=23`，`gt_bad=2`。
+- `walking_halfsphere` association rows `1067`，strict clean `1038`；`rgb_depth_bad=26`，`gt_bad=3`。
+
+结论：
+
+- strict association-clean subset 下，raw 与 D²MA-B 的相对差距没有消失。
+- `walking_rpy`：raw `0.994092` vs D²MA-B `0.269325`。
+- `walking_halfsphere`：raw `0.507191` vs D²MA-B `0.155420`。
+- 因此当前主结论不是 timestamp association artifact。
+
+下一步：
+
+- 可以把 association-clean sensitivity 放入 appendix 或 robustness table。
+- 下一项建议补 low-dynamic/static negative control，或把当前 repeat + failure interval + association-clean 统一回传给 5.5 Pro 做下一轮审稿式判断。
+
+### 10.28 `walking_static` low-dynamic/static negative control
+
+目的：
+
+- 回应审稿风险：D²MA-B r5 是否会在低动态/近静态序列上误伤静态结构。
+- 检查该机制是否只是 generic map sparsification，或者是否仍表现为有协议边界的 map-admission control。
+- 全部使用 side-channel isolation protocol，避免混入 RGB masking、feature filtering、depth invalidation、pose-level dynamic weighting。
+
+协议：
+
+- dataset：`external_wstatic_rawrgb_rawdepth_mask`
+- profile：`hybrid_sequential_semantic_only`
+- methods：`raw`、`d2ma_b_r5`
+- repeat：各 3 次
+- 关键固定项：`ORB_SLAM3_MASK_MODE=off`，`STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY=1`
+- validator：6/6 `protocol_valid=1`
+
+新增工具：
+
+- `/home/lj/dynamic-slam-public/tools/summarize_sidechannel_repeats.py`
+
+输出文件：
+
+- `/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/static_negative_control_raw.csv`
+- `/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/static_negative_control_summary.csv`
+- repo mirror：`/home/lj/dynamic-slam-public/results_summaries/static_negative_control_20260514/`
+
+结果：
+
+| case | n | valid | matched | ATE-SE3 mean±std | ATE-Sim3 mean±std | scale mean±std | RPEt mean±std | RPER mean±std | final KFs | final MPs |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `raw` | 3 | 1 | 740 | 0.073350±0.000000 | 0.014798±0.000000 | 0.224276±0.000000 | 0.017895±0.000000 | 0.340557±0.000000 | 270 | 4430 |
+| `d2ma_b_r5` | 3 | 1 | 740 | 0.010972±0.000000 | 0.008703±0.000000 | 0.782028±0.000000 | 0.010462±0.000000 | 0.219777±0.000000 | 141 | 1791 |
+
+事件统计：
+
+| case | CKF direct veto | CKF boundary skip | LM instance skip | LM boundary skip |
+|---|---:|---:|---:|---:|
+| `raw` | 0 | 0 | 0 | 0 |
+| `d2ma_b_r5` | 86402 | 3916 | 675 | 117 |
+
+阶段结论：
+
+- `walking_static` 在 canonical protocol 下 repeat 完全稳定，raw 与 D²MA-B r5 都是 bit-level stable。
+- D²MA-B r5 没有造成 low-dynamic/static 序列退化；相反，它显著减少 final MapPoints，并降低 SE3 / Sim3 / RPE。
+- 该结果可以作为 sanity check：D²MA-B r5 不是通过随机破坏 tracking 得到收益，也没有在低动态场景中出现明显静态误伤。
+- 但不应把该结果过度写成“静态场景也一定受益”。`walking_static` 仍包含被 mask 标记的人体/边界 foreground structure，D²MA-B r5 的收益更可能来自抑制这些 foreground / near-boundary depth observation 固化为静态地图，而不是证明所有静态场景都适用。
+
+论文使用建议：
+
+- 放入 robustness / negative control 表，而不是主性能表。
+- 表注中说明：`walking_static` 是 low-dynamic foreground sanity check，不是 pure static no-object sequence。
+- 与 same-count non-boundary control、association-clean sensitivity、failure interval probe 联合使用，形成“不是 generic sparsification、不是 timestamp artifact、不是静态误伤”的补强证据链。
+
+下一步：
+
+- 将 `canonical_repeat_matrix_20260514`、`wrpy_failure_intervals_20260514`、`association_clean_sensitivity_20260514`、`static_negative_control_20260514` 与新增工具整理上传 GitHub。
+- 回传 5.5 Pro 时重点要求其按审稿人标准检查：static negative control 是否应进主表、是否需要 pure static no-mask 序列、以及 `walking_static` 的 low Sim3 scale 在解释上是否仍需降权。
