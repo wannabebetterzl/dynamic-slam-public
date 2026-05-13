@@ -12,7 +12,6 @@ https://github.com/wannabebetterzl/dynamic-slam-public
 - `docs/CODE_MAP.md`
 - `docs/ABANDONED_ROUTES.md`
 - `data/datasets.json`
-- `docs/动态改进Visual SLAM实验记录.md`
 - `docs/动态改进Orb SLAM3.md`
 - `backend/orb_slam3_dynamic/src/Tracking.cc`
 - `backend/orb_slam3_dynamic/include/Tracking.h`
@@ -29,6 +28,10 @@ https://github.com/wannabebetterzl/dynamic-slam-public
 - `tools/validate_d2ma_sidechannel_protocol.py`
 - `tools/summarize_backend_runs.py`
 - `results_summaries/`
+
+Full private experiment records and 5.5 Pro feedback threads are not mirrored
+in this public repository. If needed, the user will submit those documents
+separately alongside this repository.
 
 ## Background
 

@@ -44,10 +44,9 @@ tools/
   Evaluation and KITTI preparation utilities.
 
 docs/
-  Experiment records, route decisions, code map, and deep-thinking prompt.
-  The current 5.5 Pro follow-up plan is in
-  docs/SLAM_5_5_PRO_FEEDBACK_ACTION_PLAN.md, and the full current feedback
-  thread is mirrored in docs/5.5_PRO_回馈.md.
+  Route decisions, public code map, public scope notes, and deep-thinking prompt.
+  Full private experiment records and 5.5 Pro feedback threads are intentionally
+  not mirrored here; the user provides those separately when needed.
 
 results_summaries/
   Small markdown/json/txt summaries only. Full datasets and frame dumps are
