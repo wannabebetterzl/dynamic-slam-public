@@ -1,0 +1,72 @@
+{
+  "sequence_root": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_halfsphere_raw_rgb_raw_depth_mask/sequence",
+  "associations": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_halfsphere_raw_rgb_raw_depth_mask/sequence/associations.txt",
+  "association_rows": 1067,
+  "valid_association_rows": 1067,
+  "parse_error_rows": 0,
+  "parse_error_examples": [],
+  "rgb": {
+    "unique_paths": 1067,
+    "missing_count": 0,
+    "missing_examples": []
+  },
+  "depth": {
+    "unique_paths": 1021,
+    "duplicate_reuse_count": 46,
+    "missing_count": 0,
+    "missing_examples": [],
+    "valid_ratio": {
+      "count": 0,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "median": null
+    },
+    "valid_ratio_unreadable_count": 0
+  },
+  "mask": {
+    "mask_root": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_halfsphere_raw_rgb_raw_depth_mask/sequence/mask",
+    "expected_count": 1067,
+    "missing_count": 0,
+    "missing_examples": []
+  },
+  "timestamp": {
+    "rgb_depth_abs_diff": {
+      "count": 1067,
+      "min": 3.0994415283203125e-06,
+      "max": 0.03253316879272461,
+      "mean": 0.0014359086277111737,
+      "median": 2.193450927734375e-05
+    },
+    "rgb_depth_over_threshold_count": 26,
+    "rgb_depth_over_threshold_examples": [
+      0.03201794624328613,
+      0.03223991394042969,
+      0.032061100006103516,
+      0.03200221061706543,
+      0.03221487998962402,
+      0.031260013580322266,
+      0.03187108039855957,
+      0.03131103515625,
+      0.03040599822998047,
+      0.031252145767211914
+    ],
+    "groundtruth_abs_diff": {
+      "count": 1067,
+      "min": 3.0994415283203125e-05,
+      "max": 0.11671590805053711,
+      "mean": 0.0027881035094185196,
+      "median": 0.0027589797973632812
+    },
+    "groundtruth_over_threshold_count": 3,
+    "groundtruth_over_threshold_examples": [
+      0.11671590805053711,
+      0.08067488670349121,
+      0.04869699478149414
+    ]
+  },
+  "issues": [
+    "rgb_depth_time_diff>0.03=26",
+    "gt_time_diff>0.03=3"
+  ]
+}

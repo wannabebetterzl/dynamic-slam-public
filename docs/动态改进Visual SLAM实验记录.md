@@ -907,7 +907,7 @@ Layer 设置：
 
 因此，我们并不是要照搬它，而是可以把它作为一个很好的“过渡型参照物”：
 
-> 它证明了“语义候选 + 几何约束”这条路是合理的；  
+> 它证明了“语义候选 + 几何约束”这条路是合理的；
 > 而我们要进一步回答的是：这种协同在 SLAM 的不同阶段应如何介入，才不会因为删点过强或过弱而伤害整体系统。
 
 ### 对论文写作的直接启发
@@ -959,7 +959,7 @@ Layer 设置：
 
 这里要特别提醒自己：
 
-> 原有 `premask/postfilter/layer2/layer3` 这条线仍然重要，但它现在的角色主要是  
+> 原有 `premask/postfilter/layer2/layer3` 这条线仍然重要，但它现在的角色主要是
 > **基线、对照组、解释性实验平台**，而不是后续论文最值得押注的主创新方向。
 
 ### 7.2 主线 B：DynoSAM 复现与后续接入
@@ -976,7 +976,7 @@ Layer 设置：
 
 ## 7.3 下一轮实验计划表
 
-这一节不是实验结果，而是**计划与控制板**。  
+这一节不是实验结果，而是**计划与控制板**。
 后续每做一轮实验，都应该对照这里标记：
 
 - 是否按原计划执行
@@ -1078,8 +1078,8 @@ Layer 设置：
 
 一句话总结当前排序原则：
 
-> 先回答“语义和几何怎么协同”这个主问题，  
-> 再回答“这种协同在 SLAM 各层怎么落地”，  
+> 先回答“语义和几何怎么协同”这个主问题，
+> 再回答“这种协同在 SLAM 各层怎么落地”，
 > 最后再回头用旧的三层删点实验做解释和对照。
 
 ---
@@ -1184,7 +1184,7 @@ Layer 设置：
 
 因此当前默认策略是：
 
-> 前两处阶段保持保守强删，  
+> 前两处阶段保持保守强删，
 > 只在 `track_local_map_pre_pose` 用几何证据对少量静态点做受控救回。
 
 工程实现上，新增环境变量：
@@ -1857,6 +1857,815 @@ smoke30：
    - 对比 `before_local_map`、`track_local_map_pre_pose`、`before_create_keyframe` 哪一层最先造成支撑断裂；
    - 将 sparse-flow 从“删点规则”降级为诊断变量，先观察它与失败段的相关性。
 
+### 8.14 2026-05-12 5.5 Pro 反馈后 full 序列阶段消融
+
+本轮根据网页端 5.5 Pro 首次反馈推进，不再继续盲调 sparse-flow 或复杂动态因子，而是先验证一个更基础的问题：
+
+> 当前 mask-only 后端精度崩坏，是不是因为动态证据在错误阶段被过早、过硬地用于删点，尤其在 `track_local_map_pre_pose` 阶段切断了位姿估计所需的静态支撑？
+
+工作方向暂定为：
+
+```text
+Support-Preserving Dynamic Evidence SLAM
+```
+
+#### 本轮代码与工具修改
+
+已同步到公开仓库：
+
+- `https://github.com/wannabebetterzl/dynamic-slam-public`
+- commit：`025f474 Add stage-gated dynamic filtering follow-up`
+
+实际后端源码也已同步修改并编译通过：
+
+- `/home/lj/dynamic_SLAM/stslam_backend/src/Tracking.cc`
+
+新增/修正内容：
+
+- 新增 `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES`，使硬删除可按阶段启用。
+- `scripts/run_backend_rgbd.sh` 改为保留外部传入的 `STSLAM_*` 环境变量，避免消融命令被 wrapper 悄悄覆盖。
+- 新增 `tools/check_rgbd_sequence_integrity.py`，用于检查 RGB-D association、mask、GT 对齐和有效深度比例。
+
+#### 序列完整性复查
+
+数据集：
+
+- `backend_maskonly_full_wxyz`
+- `/home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/sequence`
+
+复查结果：
+
+| 项目 | 结果 |
+|---|---:|
+| associations | 859 |
+| missing RGB/depth/mask | 0 / 0 / 0 |
+| RGB-depth 最大时间差 | 0.038096 s |
+| RGB-depth 超过 0.03 s | 21 |
+| RGB-depth 超过 0.04 s | 0 |
+| GT 0.03 s 内匹配 | 857 / 859 |
+
+结论：此前 `depth_files=827` 的疑点不被当前磁盘序列支持；当前问题不是缺帧，而是少量时间同步阈值和后端接入策略问题。
+
+#### 本轮 full 消融矩阵
+
+统一使用：
+
+```bash
+bash scripts/run_backend_rgbd.sh backend_maskonly_full_wxyz semantic_only <out_dir>
+```
+
+结果目录：
+
+- `/home/lj/dynamic-slam-public/runs/full_stage_ablation_20260512`
+
+| 组别 | 环境变量 | 状态 | matched | ATE-SE3 RMSE (m) | ATE-Sim3 RMSE (m) | Sim3 scale | RPEt-SE3 RMSE (m) | `Fail to track local map!` |
+|---|---|---|---:|---:|---:|---:|---:|---:|
+| `before_local_map` | `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=before_local_map` | done | 857 | 0.388275 | 0.248433 | 0.362142 | 0.026060 | 0 |
+| `track_local_map_pre_pose` | `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=track_local_map_pre_pose` | done | 857 | 0.274240 | 0.247344 | 0.590789 | 0.019668 | 0 |
+| `before_create_keyframe` | `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=before_create_keyframe` | done | 857 | 0.566043 | 0.265760 | 0.219656 | 0.023246 | 0 |
+| `none_metadata_only` | `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`; `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=none` | done | 851 | 0.191482 | 0.167528 | 0.729600 | 0.051918 | 12 |
+
+#### 运行中观察
+
+- 2026-05-12 11:23 CST：开始 full 序列阶段消融，先运行 `before_local_map`。
+- `before_local_map` 已完成：matched 857，ATE-SE3 0.388275 m，ATE-Sim3 0.248433 m，Sim3 scale 0.362142，RPEt-SE3 0.026060 m；日志中 `Fail to track local map!` 为 0。该组只在 `before_local_map` 触发 613 次动态硬过滤，累计 `removed_matches=3698`、`tagged_outliers=88711`。结果明显差于此前 `semantic_only` 约 0.303 m，说明“只在 local-map 前删”不是正确方向。
+- 2026-05-12 约 11:25 CST：开始运行 `track_local_map_pre_pose` full 消融。
+- `track_local_map_pre_pose` 已完成：matched 857，ATE-SE3 0.274240 m，ATE-Sim3 0.247344 m，Sim3 scale 0.590789，RPEt-SE3 0.019668 m；日志中 `Fail to track local map!` 为 0。该组触发 613 次动态硬过滤，累计 `removed_matches=52043`、`tagged_outliers=90193`。结果优于此前 `semantic_only` 约 0.303 m，也优于 `before_local_map`，说明“pre-pose 阶段硬删必然破坏支撑”的强假设不成立；更准确的判断应是：该阶段可能改善局部相对运动，但仍存在全局尺度/路径一致性问题，Sim3 scale 仍明显偏离 1。
+- 2026-05-12 约 11:26 CST：开始运行 `before_create_keyframe` full 消融。
+- `before_create_keyframe` 已完成：matched 857，ATE-SE3 0.566043 m，ATE-Sim3 0.265760 m，Sim3 scale 0.219656，RPEt-SE3 0.023246 m；日志中 `Fail to track local map!` 为 0。该组只触发 313 次动态硬过滤，累计 `removed_matches=21349`、`tagged_outliers=20585`。结果显著恶化，说明“完全延迟到建关键帧前清理”太晚，动态污染已经影响轨迹尺度和路径形状。
+- 2026-05-12 约 11:27 CST：开始运行 `none_metadata_only` full 消融，用作“不硬删，仅保留 mask/meta side-channel”的基线。
+- `none_metadata_only` 已完成：matched 851，ATE-SE3 0.191482 m，ATE-Sim3 0.167528 m，Sim3 scale 0.729600，RPEt-SE3 0.051918 m，RPER 1.136524 deg；日志中 `Fail to track local map!` 为 12，且没有任何 `[STSLAM_FORCE_DYNAMIC_FILTER]` 日志。该组全局 ATE 最好，但局部 RPE 最差，说明不删动态点可能保留了更多几何支撑并改善全局对齐，却让局部相对运动受动态点污染更严重。
+
+#### 本轮阶段消融结论
+
+按 `ATE-SE3` 排名：
+
+| 排名 | 组别 | ATE-SE3 RMSE (m) | RPEt-SE3 RMSE (m) | 解释 |
+|---:|---|---:|---:|---|
+| 1 | `none_metadata_only` | 0.191482 | 0.051918 | 全局最好，但局部相对运动最差，动态点仍污染短时运动估计 |
+| 2 | `track_local_map_pre_pose` | 0.274240 | 0.019668 | 局部指标最好，说明 pre-pose 删点能压制局部动态污染，但全局尺度仍偏 |
+| 3 | `before_local_map` | 0.388275 | 0.026060 | 太早或位置不对，删点收益不足且尺度更差 |
+| 4 | `before_create_keyframe` | 0.566043 | 0.023246 | 太晚，动态污染已进入跟踪过程，关键帧前清理无法挽回 |
+
+当前最重要的新事实：
+
+1. **完全不硬删的全局 ATE 反而最好**，这说明当前 hard-delete 规则确实会破坏某些长期几何支撑。
+2. **`track_local_map_pre_pose` 的局部 RPE 最好**，说明语义动态信息并非无效，它对短时相对运动有帮助。
+3. **全局 ATE 与局部 RPE 出现冲突**：不删更利于全局轨迹形状/尺度，pre-pose 删除更利于局部相对稳定。这正是“support-preserving dynamic evidence”应该解决的核心矛盾。
+4. 下一步不应继续做单一阶段 hard-delete，而应改成：
+   - 默认不删除或少删除，保留支撑；
+   - 在 `track_local_map_pre_pose` 将动态证据转为 soft weight / risk score；
+   - 对每帧删除比例设置上限；
+   - 当静态 inlier 或局部地图支撑不足时禁止硬删；
+   - 评估时同时看 ATE-SE3 与 RPEt/RPER，不再只追单一 ATE。
+
+下一轮建议实验：
+
+```bash
+STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0
+STSLAM_GEOMETRIC_DYNAMIC_REJECTION=1
+STSLAM_GEOMETRIC_DYNAMIC_REJECTION_ACTION=soft_weight
+STSLAM_GEOMETRIC_DYNAMIC_REJECTION_STAGES=track_local_map_pre_pose
+STSLAM_GEOMETRIC_DYNAMIC_REJECTION_MAX_REJECT_RATIO=0.10
+STSLAM_GEOMETRIC_DYNAMIC_REJECTION_PROTECT_MIN_INLIERS=45
+```
+
+如果代码暂时没有 `ACTION=soft_weight`，则下一步先实现这个开关，而不是继续增加硬删除规则。
+
+### 8.15 2026-05-12 soft/capped 动态证据实现与 repeat protocol 修正
+
+本节接续 5.5 Pro 反馈后的路线修正。关键变化不是单纯新增一个 soft weight 开关，而是发现 full `walking_xyz` 的后端结果存在明显运行分叉：同一源码、同一参数下，matched poses、关键帧数量、尺度和 ATE 都会出现大幅波动。因此后续 full 消融必须采用 repeat protocol，不能再用单次结果直接做路线判断。
+
+#### 本轮后端实现
+
+实际后端源码：
+
+- `/home/lj/dynamic_SLAM/stslam_backend/include/Frame.h`
+- `/home/lj/dynamic_SLAM/stslam_backend/src/Frame.cc`
+- `/home/lj/dynamic_SLAM/stslam_backend/src/Tracking.cc`
+- `/home/lj/dynamic_SLAM/stslam_backend/src/Optimizer.cc`
+
+新增能力：
+
+- `STSLAM_GEOMETRIC_DYNAMIC_REJECTION_ACTION=hard_delete|soft_weight|risk_only`
+- `STSLAM_GEOMETRIC_DYNAMIC_REJECTION_SOFT_WEIGHT`
+- `STSLAM_GEOMETRIC_DYNAMIC_REJECTION_MAX_REJECT_RATIO`
+- `STSLAM_GEOMETRIC_DYNAMIC_REJECTION_PROTECT_MIN_INLIERS`
+- 几何动态拒绝现在可以在 `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0` 时独立运行，避免被语义 hard-delete 总开关误伤。
+- soft weight 不再修改 `Frame` 内存布局，而是用 `frame.mnId -> feature weight` 的外部表传入 pose-only optimization；在 no-op 时优化器尽量保持原始 information matrix 路径。
+
+公开仓库本地新增/修正工具：
+
+- `scripts/run_backend_rgbd.sh`：修正 profile 默认值顺序，`geom_dynamic_reject` 现在会真的默认启用 `STSLAM_GEOMETRIC_DYNAMIC_REJECTION=1`。
+- `tools/check_rgbd_sequence_integrity.py`：检查 association、mask、GT 最近邻、depth 有效比例。
+- `scripts/run_backend_repeat_matrix.sh`：full 序列重复消融并生成 `summary_raw.csv` 与 `summary_stats.csv`。
+
+注意：截至本节记录时，这批新增工具和 active backend soft 实现还没有推送到 GitHub，原因是 full no-op 基线仍未稳定复现，暂不应把不稳定代码当作公开结论。
+
+#### 序列完整性复查
+
+命令输出：
+
+- `/home/lj/dynamic-slam-public/runs/sequence_integrity_20260512_124521.json`
+
+结果摘要：
+
+| 项目 | 结果 |
+|---|---:|
+| association rows | 859 |
+| missing RGB/depth/mask | 0 / 0 / 0 |
+| unique RGB paths | 859 |
+| unique depth paths | 827 |
+| depth duplicate reuse | 32 |
+| depth valid ratio median | 0.615540 |
+| RGB-depth max abs diff | 0.038096 s |
+| RGB-depth diff > 0.03 s | 21 |
+| GT nearest diff > 0.03 s | 2 |
+
+判断：
+
+1. 当前不是缺 RGB/depth/mask 文件导致的直接失败。
+2. `depth_files=827` 的现象来自 depth 复用，不是缺失文件。
+3. 21 行 RGB-depth 时间差超过 0.03 s，是必须记录的数据桥风险项；它不一定解释全部漂移，但足以要求后续做 association 修复/阈值敏感性实验。
+
+#### no-op 基线复现问题
+
+在 active backend 当前代码下，所有新机制关闭：
+
+```bash
+STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0
+STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=none
+STSLAM_GEOMETRIC_DYNAMIC_REJECTION=0
+STSLAM_RGBD_DYNAMIC_FRONTEND_SPLIT=0
+ORB_SLAM3_MASK_MODE=postfilter
+```
+
+重复结果：
+
+| run | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt-SE3 | RPER |
+|---|---:|---:|---:|---:|---:|---:|
+| `noop_full_external_weight_store_20260512_122656` | 857 | 0.687759 | 0.279203 | 0.150836 | 0.023517 | 0.621266 |
+| `noop_full_external_weight_store_repeat1_20260512_122902` | 767 | 0.280431 | 0.220475 | 0.552003 | 0.057533 | 0.862874 |
+| `noop_full_external_weight_store_repeat2_20260512_122935` | 705 | 0.419997 | 0.218183 | 0.346462 | 0.084586 | 1.626898 |
+| `noop_full_sleep_repeat_20260512_123007` | 711 | 0.444570 | 0.273202 | 0.309291 | 0.053979 | 1.778426 |
+
+临时构建“公开仓库上传前快照”后，同样不稳定：
+
+| run | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt-SE3 | RPER |
+|---|---:|---:|---:|---:|---:|---:|
+| `noop_full_public_snapshot_rebuild_20260512_124009` | 715 | 0.264150 | 0.215445 | 0.514509 | 0.087643 | 2.054586 |
+| `noop_full_public_snapshot_rebuild_repeat1_20260512_124056` | 772 | 0.689153 | 0.265102 | 0.165103 | 0.046712 | 1.336547 |
+
+判断：
+
+1. 基线漂移不完全是 soft weight 新补丁导致，因为上传前快照重新编译后也出现大幅分叉。
+2. 当前 full 结果高度受 ORB-SLAM3 前后端线程时序、关键帧插入分支或数据 association 细节影响。
+3. 历史 `none_metadata_only=0.191482m` 仍是重要参考，但在当前编译/运行条件下尚未稳定复现，因此不能作为后续 soft 消融的唯一控制值。
+
+#### full repeat matrix，REPEATS=2
+
+命令：
+
+```bash
+REPEATS=2 bash scripts/run_backend_repeat_matrix.sh \
+  /home/lj/dynamic-slam-public/runs/full_repeat_ablation_20260512_124542
+```
+
+汇总文件：
+
+- `/home/lj/dynamic-slam-public/runs/full_repeat_ablation_20260512_124542/summary_raw.csv`
+- `/home/lj/dynamic-slam-public/runs/full_repeat_ablation_20260512_124542/summary_stats.csv`
+
+| 组别 | n | matched median | ATE-SE3 median | ATE-SE3 range | ATE-Sim3 median | Sim3 scale median | RPEt median | RPER median |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `noop_metadata_only` | 2 | 823.5 | 0.587776 | 0.582992-0.592561 | 0.282076 | 0.178936 | 0.051388 | 1.080141 |
+| `geom_riskonly_cap010` | 2 | 857.0 | 0.630016 | 0.602359-0.657674 | 0.273165 | 0.181463 | 0.023803 | 0.614926 |
+| `geom_hard_cap010_protect45` | 2 | 819.5 | 0.767787 | 0.735647-0.799927 | 0.281122 | 0.135234 | 0.056210 | 1.097175 |
+| `geom_soft_cap010_w025` | 2 | 761.5 | 0.359969 | 0.305325-0.414613 | 0.240567 | 0.387380 | 0.090098 | 1.347623 |
+| `geom_soft_cap005_w050` | 2 | 814.5 | 0.794404 | 0.789705-0.799103 | 0.284536 | 0.121076 | 0.040972 | 0.731012 |
+
+日志聚合确认新动作确实触发：
+
+| 组别 | 日志行数 | 动作累计 |
+|---|---:|---:|
+| `geom_riskonly_cap010` | 1716 | `geom_dyn_risk_only=83965` |
+| `geom_hard_cap010_protect45` | 1626 | `geom_dyn_removed_matches=76906` |
+| `geom_soft_cap010_w025` | 1483 | `geom_dyn_soft_weighted=61464` |
+
+#### strict association 临时测试
+
+为验证 `RGB-depth diff > 0.03s` 的 21 行是否是主因，临时生成严格 association：
+
+- `/home/lj/dynamic-slam-public/runs/strict_assoc_003/associations_strict003.txt`
+- kept 838，dropped 21
+
+单次 no-op 结果：
+
+| run | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt-SE3 | RPER |
+|---|---:|---:|---:|---:|---:|---:|
+| `noop_full_strict_assoc003_20260512_125252` | 766 | 0.596010 | 0.290294 | 0.150050 | 0.042791 | 0.847933 |
+
+判断：简单剔除超阈值 association 没有带来正信号，因此时间同步风险需要继续记录，但它不是当前 full ATE 漂移的单点修复。
+
+#### 本节判断
+
+1. `geom_soft_cap010_w025` 是当前唯一出现正向 SE3 信号的新策略，单次最低达到 `0.305325m`，但 repeat median 只有 `0.359969m`，且 RPE 明显恶化，不能视为已达标。
+2. `risk_only` 作为理论 no-op 控制仍改变结果，进一步说明 full pipeline 的线程/时序分叉非常强；后续必须以多次 repeat 和统计区间报告。
+3. `hard_cap010_protect45` 与 `soft_cap005_w050` 均明显差，不应继续沿这两个参数方向加码。
+4. 当前不建议把“soft 已经有效”作为结论发给 5.5 Pro；更合适的回传问题是：**如何让 ORB-SLAM3-derived backend 的 full evaluation 稳定可复现，以及是否应先修 association/同步和前后端时序，再继续做动态证据策略优化。**
+
+下一步优先级：
+
+1. 为 full evaluation 增加 deterministic/sequential local mapping 或至少固定前后端同步点，降低关键帧插入分叉。
+2. 对 `backend_maskonly_full_wxyz` 重新生成更严格的 RGB-depth association，消除 `>0.03s` 的 21 行时间差后复跑 no-op。
+3. 若 no-op 稳定后，再保留 `geom_soft_cap010_w025` 作为唯一候选 soft 路线，进行 `REPEATS>=5` 的正式 full 消融。
+4. 当前阶段暂不推送 active backend soft 代码到公开仓库主线；等 no-op 控制组稳定后再同步。
+
+
+### 8.16 可复现性接入进度：deterministic profile + LocalMapping 同步 smoke 验证
+
+日期：2026-05-12
+
+本轮目的不是继续追求单次 ATE，而是先把 8.15 中暴露出的非确定性问题规训起来。当前已接入第一、二层可复现性脚手架：
+
+1. `rgbd_tum` 新增 `STSLAM_SYNC_LOCAL_MAPPING`，每帧 Track 后等待 LocalMapping 队列清空并恢复接受关键帧。
+2. 后端新增 `SaveKeyFrameTimeline("KeyFrameTimeline.csv")`，导出关键帧 id、源 frame id、timestamp、map id 与位姿，用于判断关键帧分支是否复现。
+3. public wrapper 新增 deterministic profile，默认设置 `STSLAM_SYNC_LOCAL_MAPPING=1`、`STSLAM_DISABLE_FRAME_SLEEP=1`、`OMP_NUM_THREADS=1`、`OPENCV_FOR_THREADS_NUM=1`、`OPENBLAS_NUM_THREADS=1`、`MKL_NUM_THREADS=1`。
+4. wrapper 支持 `DSLAM_CPUSET=0` 通过 `taskset` 固定 CPU core，并将这些环境变量写入 `run_manifest.txt`。
+
+编译验证：
+
+```bash
+cmake --build build --target rgbd_tum -j4
+```
+
+结果：`[100%] Built target rgbd_tum`
+
+单次 deterministic smoke：
+
+- run: `/home/lj/dynamic-slam-public/runs/deterministic_noop_smoke30_20260512_141116`
+- returncode: `0`
+- `run_manifest.txt` 已记录 `DSLAM_CPUSET=0`、`STSLAM_SYNC_LOCAL_MAPPING=1`、线程数限制等字段。
+- `stdout.log` 显示 `Sync local mapping: true`
+- 已生成 `KeyFrameTimeline.csv`
+
+| alignment | matched | ATE RMSE | RPEt RMSE | Sim3 scale |
+|---|---:|---:|---:|---:|
+| SE3 | 28 | 0.029722 | 0.010421 | 1.000000 |
+| Sim3 | 28 | 0.013790 | 0.006943 | 0.666322 |
+| origin | 28 | 0.198734 | 0.017650 | 1.000000 |
+
+同配置 smoke repeat 两次：
+
+- base: `/home/lj/dynamic-slam-public/runs/deterministic_smoke_repeat_20260512_141209`
+- 两次均 matched 28，CameraTrajectory 均 30 行，KeyFrameTimeline 均 23 行。
+- 但 `KeyFrameTimeline.csv` 与 `CameraTrajectory.txt` 的 sha256 不一致，说明接入已跑通但尚未实现强确定性。
+
+| run | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt-SE3 |
+|---|---:|---:|---:|---:|
+| run_1 | 0.029394 | 0.014518 | 0.672077 | 0.010338 |
+| run_2 | 0.028324 | 0.013685 | 0.679616 | 0.010038 |
+
+关键发现：
+
+1. 当前同步点能固定关键帧数量与关键帧 frame id 序列，但不能固定关键帧位姿数值。
+2. 这说明误差不仅来自“是否插入关键帧”的离散分支，还来自 LocalMapping/BA/MapPoint 更新的连续数值路径与异步写入顺序。
+3. 第一层运行规训与第二层同步观测已经接入；下一步应进入第三层：实现更强的顺序化 evaluation backend，或者至少在论文实验模式下让 LocalMapping 以固定顺序、固定边界处理关键帧。
+4. 在 full 消融继续扩大前，必须先把 no-op 控制组稳定性作为主线，否则动态策略的单次提升仍可能被线程时序噪声淹没。
+
+
+### 8.17 第三层接入：sequential evaluation backend 初版
+
+日期：2026-05-12
+
+本轮目的：在第一层运行规训和第二层 LocalMapping 同步等待仍无法完全复现的基础上，进一步消除 ORB-SLAM3 后端异步调度。新增 evaluation-only 顺序化模式，优先服务论文实验可复现性。
+
+已实现：
+
+1. `LocalMapping::RunOneStep()`：把原本 `LocalMapping::Run()` 中的一次队列处理拆成可由主线程调用的单步函数。
+2. `STSLAM_SEQUENTIAL_LOCAL_MAPPING=1`：打开后 `System` 不启动 LocalMapping 后台线程。
+3. `STSLAM_SEQUENTIAL_LOOP_CLOSING=1`：sequential profile 默认不启动 LoopClosing 后台线程，避免异步回环或 GBA 改写地图。
+4. `System::ProcessSequentialLocalMappingQueue(maxSteps)`：每帧 Track 后由 `rgbd_tum` 主线程主动处理 LocalMapping 队列，直到队列清空或达到步数上限。
+5. public wrapper 新增 `sequential_semantic_only` 与 `sequential_geom_dynamic_reject` profile，继承 deterministic 环境约束并记录 sequential 环境变量。
+
+编译验证：
+
+```bash
+cmake --build build --target rgbd_tum -j4
+```
+
+结果：`[100%] Built target rgbd_tum`
+
+#### smoke repeat，sequential no-op
+
+命令核心：
+
+```bash
+DSLAM_CPUSET=0 \
+STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0 \
+STSLAM_GEOMETRIC_DYNAMIC_REJECTION=0 \
+bash scripts/run_backend_rgbd.sh \
+  backend_maskonly_smoke30_wxyz sequential_semantic_only ...
+```
+
+结果目录：
+
+- `/home/lj/dynamic-slam-public/runs/sequential_smoke_repeat_20260512_142942`
+
+两次运行结果完全一致：
+
+- `KeyFrameTimeline.csv` sha256: `3fbb02cad43a1f41291e34d41ba058d12c7bef15810044c63d03651f271cec72`
+- `CameraTrajectory.txt` sha256: `142a971220581c2463a70e01c29116f60729ae65404cf275bbc4ae5ea9fa2df4`
+
+| run | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt-SE3 |
+|---|---:|---:|---:|---:|---:|
+| run_1 | 28 | 0.030436 | 0.013154 | 0.657715 | 0.010277 |
+| run_2 | 28 | 0.030436 | 0.013154 | 0.657715 | 0.010277 |
+
+#### full repeat，sequential no-op
+
+结果目录：
+
+- `/home/lj/dynamic-slam-public/runs/sequential_full_noop_repeat_20260512_143012`
+
+两次完整序列运行也完全一致：
+
+- `KeyFrameTimeline.csv` sha256: `5c00cc443cbdc8df460e6d9002e61506022934537c77e093305581b20814bd4b`
+- `CameraTrajectory.txt` sha256: `d566c362b27ac705fdc58b07defb2154853183c161493f305fd1561f7b2ca9f4`
+- `KeyFrameTimeline.csv`: 244 行，即 243 个关键帧。
+- `CameraTrajectory.txt`: 859 行。
+
+| run | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt-SE3 | RPER-SE3 |
+|---|---:|---:|---:|---:|---:|---:|
+| run_1 | 857 | 0.814559 | 0.288934 | 0.098576 | 0.042155 | 0.806528 |
+| run_2 | 857 | 0.814559 | 0.288934 | 0.098576 | 0.042155 | 0.806528 |
+
+#### 本节判断
+
+1. 第三层初版成功把 smoke 与 full 的 no-op 控制组变成 bit-level 可复现：关键帧时间线、相机轨迹、ATE/RPE 全部一致。
+2. 这强力证明此前 full 消融的大幅漂移主要来自后端异步调度，而不是数据集文件随机变化或评估脚本随机性。
+3. 当前 sequential no-op 的 SE3 ATE 退化到 `0.814559m`，说明“完全顺序化”改变了原系统的前后端行为，不能直接作为最终精度实验协议。
+4. 下一步不应立刻做动态策略 full 消融，而应实现“保持精度的准顺序化”模式：固定 LocalMapping 处理边界，但尽量复刻原 ORB-SLAM3 的关键帧接受节奏与 BA 触发节奏。
+5. 对论文来说，当前结果已经可以支撑一个重要方法学结论：必须同时报告 deterministic protocol 与 repeat statistics，否则动态 SLAM 改动的单次精度提升不可解释。
+
+下一步建议：
+
+1. 增加 `STSLAM_SEQUENTIAL_LOCAL_MAPPING_DRAIN_PERIOD` 或 fixed-lag barrier，而不是每帧后立即 drain 队列，以减少对关键帧插入节奏的改变。
+2. 记录每次 run 的关键帧 frame-id 序列、BA 次数、关键帧数量、MapPoint 数量，作为可复现性 fingerprint。
+3. 在 no-op 精度恢复到接近历史基线后，再重启 `geom_soft_cap010_w025` 等动态策略 full repeat 消融。
+
+#### 8.17 补充试验：准顺序化 drain 策略
+
+为避免 `period=1` 的“每帧立即 drain”过度改变原始系统节奏，又新增了以下控制变量：
+
+- `STSLAM_SEQUENTIAL_LOCAL_MAPPING_DRAIN_PERIOD_FRAMES`
+- `STSLAM_SEQUENTIAL_LOCAL_MAPPING_MAX_QUEUE_BEFORE_DRAIN`
+- `STSLAM_SEQUENTIAL_LOCAL_MAPPING_HOLD_ACCEPT_WHEN_QUEUED`
+
+其目标是让 Tracking 在队列积压时感知到 LocalMapping 忙碌，但又不必每一帧都立刻执行一次完整 LocalMapping。
+
+1. `period=1, max_queue=3`：
+   结果与前述 sequential 初版一致，smoke 仍是 bit-level 可复现，说明这些新控制没有破坏稳定性。
+2. `period=0, max_queue=3`：
+   full no-op 在初始化后很快出现
+   `Fail to track local map! frame=1 current_matches=0 reference_kf=0`
+   并进入
+   `LM: Active map reset recieved`
+   `LM: Active map reset, waiting...`
+   说明“完全只靠队列阈值触发 drain”对初始化过于激进，地图建立来不及完成。
+3. `period=5, max_queue=3`：
+   smoke repeat 可复现，但关键帧数显著下降：
+   - `/home/lj/dynamic-slam-public/runs/sequential_period5_smoke_repeat_20260512_145053`
+   - `KeyFrameTimeline.csv` 仅 8 行
+   - SE3 ATE `0.036551m`
+   full no-op 在约 500 帧附近失跟并触发 active map reset：
+   `Fail to track local map! frame=497...501`
+   随后重新建图并再次进入 reset waiting，不能作为可用实验协议。
+
+补充判断：
+
+1. “降低 drain 频率”确实能让关键帧节奏更接近原系统，但会明显增加初始化和长序列中途失跟风险。
+2. 当前最稳的 sequential 配置仍然是 `period=1`，它解决了复现性，却牺牲了全序列精度。
+3. 这意味着下一步不应继续盲调 `drain period`，而应改为更细粒度地模拟原系统中 `AcceptKeyFrames`、`InterruptBA` 与 reset 协议的时序边界。
+
+#### 8.18 两阶段 sequential mapper：在保持可复现的同时回收精度
+
+时间：`2026-05-12`
+
+本轮不再继续扫 `drain period`，而是直接修改 LocalMapping 的顺序化方式：
+
+1. `RunOneStep()` 只保留轻量路径：`ProcessNewKeyFrame`、`MapPointCulling`、`CreateNewMapPoints`、`UpdateInstanceStructure`。
+2. 将重维护逻辑拆到 `RunMaintenanceStep(force)`：`SearchInNeighbors`、`LBA` / `LocalInertialBA`、`KeyFrameCulling`、后续 inertial maintenance 与 loop closer 插入。
+3. 为顺序化模式补充 `QueueReset` / `QueueResetActiveMap` / `ServicePendingResetRequests`，避免没有后台线程时 reset 协议互相等待。
+4. 新增 `STSLAM_SEQUENTIAL_LOCAL_MAPPING_MAINTENANCE_PERIOD`，允许“每处理 N 个关键帧才做一次重维护”，从而更接近原始异步 LocalMapping 的节奏。
+
+#### 中间发现：wrapper 的 hybrid profile 一开始并没有真正覆盖 maintenance period
+
+排查时发现 `run_backend_rgbd.sh` 中 `set_hybrid_sequential_defaults()` 先继承了 sequential 默认值，再用 `set_default` 试图改成 `4`，结果 `maintenance_period` 实际仍然是 `1`。
+
+在这一错误 profile 下先得到一个有价值的中间结果：
+
+- 目录：`/home/lj/dynamic-slam-public/runs/hybrid_full_repeat_20260512_1536/r1`
+- `STSLAM_SEQUENTIAL_LOCAL_MAPPING_MAINTENANCE_PERIOD=1`
+- full no-op：
+  - matched `857`
+  - ATE-SE3 `0.484819`
+  - ATE-Sim3 `0.283585`
+  - Sim3 scale `0.202737`
+  - RPEt-SE3 `0.012083`
+  - RPER-SE3 `0.477890`
+
+这说明即便重维护仍是“每个关键帧都做一次”，仅通过“两阶段拆分 + 顺序化 reset service”，也已经把 full no-op 从旧 sequential 的 `0.814559m` 拉回到了 `0.484819m`。
+
+随后修复 wrapper，使 hybrid profile 在未显式指定时真正使用 `maintenance_period=4`。
+
+#### smoke repeat，true hybrid (`maintenance_period=4`)
+
+目录：
+
+- `/home/lj/dynamic-slam-public/runs/hybrid_true_smoke_repeat_20260512_1540`
+
+`run_manifest.txt` 确认：
+
+- `profile=hybrid_sequential_semantic_only`
+- `STSLAM_SEQUENTIAL_LOCAL_MAPPING_MAINTENANCE_PERIOD=4`
+
+两次 smoke 完全一致：
+
+- `CameraTrajectory.txt` sha256: `33312912a7a8d16c0e0f8f0ef579ec46dfff50d3dc0b553f0aa610c6bb33ba0a`
+- `KeyFrameTimeline.csv` sha256: `cfb385afae21c1107d6fad1e6b5c4d78c8a25105cc89cdf3ca3e5fdc4da0bbc5`
+
+| run | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt-SE3 | RPER-SE3 |
+|---|---:|---:|---:|---:|---:|---:|
+| run_1 | 28 | 0.036226 | 0.013284 | 0.609968 | 0.012849 | 0.505577 |
+| run_2 | 28 | 0.036226 | 0.013284 | 0.609968 | 0.012849 | 0.505577 |
+
+#### full repeat，true hybrid (`maintenance_period=4`)
+
+目录：
+
+- `/home/lj/dynamic-slam-public/runs/hybrid_true_full_repeat_20260512_1541`
+
+两次完整序列运行也完全一致：
+
+- `CameraTrajectory.txt` sha256: `36e0ce12b19076ab5bb761ccc782b9fe9b9552d1d1126cfdee922a6b28d895e5`
+- `KeyFrameTimeline.csv` sha256: `cac955e6c1ebf12b0f77b11dc53b3adcc41a09e892eced49209bdec657eb2bac`
+- `returncode=0`
+- `matched poses=857`
+
+| run | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt-SE3 | RPER-SE3 |
+|---|---:|---:|---:|---:|---:|
+| run_1 | 0.329051 | 0.270971 | 0.411179 | 0.019523 | 0.525301 |
+| run_2 | 0.329051 | 0.270971 | 0.411179 | 0.019523 | 0.525301 |
+
+附记：
+
+1. `stderr.log` 中出现过 `virtual int g2o::SparseOptimizer::optimize(int, bool): 0 vertices to optimize...`，但不影响完整运行、轨迹保存与重复一致性。
+2. 这条 true hybrid baseline 已经同时满足：
+   - full 序列 bit-level 可复现；
+   - SE3 ATE 从 `0.814559m` 明显回收到 `0.329051m`；
+   - 相比“两阶段但 period=1”的 `0.484819m`，继续提升。
+
+#### 本节结论更新
+
+1. 第三层现在不再只是“稳定控制组”，而是已经形成一条可用的 full-sequence baseline：`hybrid_sequential_semantic_only + maintenance_period=4`。
+2. 当前最可信的论文实验基线，应从旧的 `sequential_semantic_only(period=1)` 切换为这条 true hybrid baseline。
+3. 下一步终于可以回到动态策略本身，在这个可复现实验协议上重跑 `geom_soft_cap010_w025` 等 full repeat 消融，而不是继续卡在后端时序噪声里。
+
+#### 8.19 迁移到 stable protocol：前端强参考与旧 soft 路线复测
+
+时间：`2026-05-12`
+
+本轮目标是把三类关键对照统一迁移到同一条稳定协议上：
+
+1. 前端图像级强参考：`frontend_imagelevel_milddilate_full_wxyz`
+2. 前端图像级次强参考：`frontend_imagelevel_boxfallback_full_wxyz`
+3. 旧 backend 候选 soft 路线：`geom_soft_cap010_w025`
+
+其中前端图像级参考采用：
+
+- `profile=hybrid_sequential_semantic_only`
+- `STSLAM_SEQUENTIAL_LOCAL_MAPPING_MAINTENANCE_PERIOD=4`
+- `DSLAM_PASS_MASK_ARG=0`
+- `ORB_SLAM3_MASK_MODE=off`
+- `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`
+
+这保证它代表“前端已改输入序列，后端不再额外使用 mask side-channel 删点”的纯前端参考。
+
+#### frontend milddilate，stable no-mask hybrid
+
+目录：
+
+- `/home/lj/dynamic-slam-public/runs/stable_protocol_migration_20260512/frontend_milddilate_nomask_hybrid`
+
+两次 full 运行完全一致：
+
+- `CameraTrajectory.txt` sha256: `91983235c1207bc7169dbbce5a4dcb3f2c3f93d944e63c23efcee1905c8a92a3`
+- `KeyFrameTimeline.csv` sha256: `0c133a3c06be511349fa1c19c266467b69d3455efdef49031ae50e247fee276e`
+
+| run | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt-SE3 | RPER-SE3 |
+|---|---:|---:|---:|---:|---:|---:|
+| run_1 | 857 | 0.018459 | 0.016328 | 0.972125 | 0.012051 | 0.365270 |
+| run_2 | 857 | 0.018459 | 0.016328 | 0.972125 | 0.012051 | 0.365270 |
+
+与 registry 中的历史前端参考 `0.016268m` 相比，这条 stable-protocol 结果略高，但仍处于同一量级，说明稳定调度没有破坏其“强前端参考”属性。
+
+#### frontend boxfallback，stable no-mask hybrid
+
+目录：
+
+- `/home/lj/dynamic-slam-public/runs/stable_protocol_migration_20260512/frontend_boxfallback_nomask_hybrid`
+
+两次 full 运行完全一致：
+
+- `CameraTrajectory.txt` sha256: `f1153edd018a4c3e5aaa6e61275f2527b4e531e673c83c25d43f4c0773bc84be`
+- `KeyFrameTimeline.csv` sha256: `db8cb2490cda85a51b40e0f95c39c928a639cee4b9dff7ab5648f19ddf66c2f9`
+
+| run | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt-SE3 | RPER-SE3 |
+|---|---:|---:|---:|---:|---:|---:|
+| run_1 | 857 | 0.017319 | 0.015419 | 0.974408 | 0.011779 | 0.366396 |
+| run_2 | 857 | 0.017319 | 0.015419 | 0.974408 | 0.011779 | 0.366396 |
+
+这说明前端图像级两条旧强参考在 stable protocol 下都保持了 bit-level 可复现，并继续显著优于 backend mask-only 路线。
+
+#### backend `geom_soft_cap010_w025`，stable hybrid repeat
+
+目录：
+
+- `/home/lj/dynamic-slam-public/runs/stable_protocol_migration_20260512/backend_geom_soft_cap010_w025_hybrid`
+
+配置核心：
+
+- `profile=hybrid_sequential_geom_dynamic_reject`
+- `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`
+- `STSLAM_GEOMETRIC_DYNAMIC_REJECTION_ACTION=soft_weight`
+- `STSLAM_GEOMETRIC_DYNAMIC_REJECTION_SOFT_WEIGHT=0.25`
+- `STSLAM_GEOMETRIC_DYNAMIC_REJECTION_MAX_REJECT_RATIO=0.10`
+- `STSLAM_GEOMETRIC_DYNAMIC_REJECTION_PROTECT_MIN_INLIERS=45`
+- `STSLAM_SEQUENTIAL_LOCAL_MAPPING_MAINTENANCE_PERIOD=4`
+
+两次 full 运行完全一致：
+
+- `CameraTrajectory.txt` sha256: `14b37047e9b9ddd8ba6832401cb4ad8738e4f876a2f11912184a3339fa2a12d4`
+- `KeyFrameTimeline.csv` sha256: `455447856e924bfafc23adbf867fae7ea24360286b851bbe517abfe577e66f7f`
+
+| run | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt-SE3 | RPER-SE3 |
+|---|---:|---:|---:|---:|---:|---:|
+| run_1 | 772 | 0.531003 | 0.287200 | 0.177044 | 0.057179 | 1.069764 |
+| run_2 | 772 | 0.531003 | 0.287200 | 0.177044 | 0.057179 | 1.069764 |
+
+补充观察：
+
+1. 日志显示 `track_local_map_pre_pose` 阶段确实发生了稳定的 soft weighting，但 `geom_dyn_capped` 也长期很高，说明大量候选被 cap 限制。
+2. 这条路线在稳定协议下不仅没有优于 no-op baseline，反而明显更差：
+   - stable no-op hybrid：`ATE-SE3 = 0.329051m`
+   - stable `geom_soft_cap010_w025`：`ATE-SE3 = 0.531003m`
+3. `matched poses` 从 `857` 掉到 `772`，`RPEt` 和 `RPER` 也显著恶化，说明它不是“全局精度换局部稳定”的温和退化，而是整体跟踪质量一起下降。
+
+#### 本节结论
+
+1. 前端 image-level 强参考在 stable protocol 下依旧极强，并且现在也具备了 bit-level 可复现性。
+2. backend mask-only stable baseline 目前最可信的数字仍然是 `0.329051m`。
+3. 旧 `geom_soft_cap010_w025` 在稳定协议下复现的是稳定负结果，因此它不再适合作为当前主候选路线。
+4. 这意味着反馈给 5.5 Pro 时，叙事应当更新为：
+   - “前端强，后端弱”不是偶然单次现象；
+   - stable protocol 已证实这一差距是真实结构性差距；
+   - 下一轮候选方法不应继续沿用旧 soft route 原样推进。
+
+#### 8.20 下一步计划板：防止从机制主线跑偏
+
+时间：`2026-05-12`
+
+本节作为下一阶段的执行约束。若与前文旧计划冲突，以本节为准。
+
+核心路线更新：
+
+> 主线从“继续调后端 soft weight / 动态因子”转向
+> **前端 image-level dynamic support allocation + 后端 static-observability diagnostics + 轻量 map-admission guard**。
+
+当前最重要的实验事实：
+
+| case | matched | ATE-SE3 | Sim3 scale | 判断 |
+|---|---:|---:|---:|---|
+| frontend boxfallback no-mask stable hybrid | 857 | 0.017319 | 0.974408 | 当前最强前端参考 |
+| frontend milddilate no-mask stable hybrid | 857 | 0.018459 | 0.972125 | 强前端参考 |
+| backend mask-only stable hybrid no-op | 857 | 0.329051 | 0.411179 | 当前 mask-only 稳定基线 |
+| backend `geom_soft_cap010_w025` stable hybrid | 772 | 0.531003 | 0.177044 | 稳定负结果，停止作为主线 |
+
+##### 执行原则
+
+1. `smoke30` 只用于工程健康检查，不再作为精度判断依据。
+2. 所有路线判断必须基于 full `walking_xyz`，优先使用 stable hybrid protocol。
+3. 旧 `geom_soft_cap010_w025` 不再继续做参数扫描；若保留，只作为负结果 ablation。
+4. 下一步优先解释机制，而不是直接堆新模块。
+5. 后端 mask side-channel 暂不参与 `track_local_map_pre_pose` 的强决策；优先做日志、诊断、map admission 层轻量保护。
+
+##### 任务 1：Static Observability Fingerprint
+
+目的：解释 image-level 为什么保持 `Sim3 scale≈0.97`，而 backend mask-only no-op 只有 `0.411`，soft route 更低到 `0.177`。
+
+先实现一个逐帧 CSV，例如：
+
+- `tracking_observability.csv`
+
+每帧至少记录：
+
+- `frame_id`
+- `timestamp`
+- `tracking_state`
+- `num_orb_features`
+- `num_features_inside_mask`
+- `num_features_outside_mask`
+- `num_tracked_map_points`
+- `num_local_map_matches_before_pose`
+- `num_inliers_after_pose`
+- `inlier_margin`
+- `num_keyframes`
+- `num_mappoints`
+- `delta_t_est`
+- `delta_t_gt`
+- `delta_t_ratio`
+- `accum_path_est`
+- `accum_path_gt`
+- `accum_path_ratio`
+- `lost_flag`
+- `reset_flag`
+- `relocalization_flag`
+
+每个 keyframe 另记录：
+
+- `kf_id`
+- `frame_id`
+- `num_new_mappoints`
+- `num_close_points`
+- `num_static_candidate_points`
+- `num_dynamic_candidate_points`
+- `num_points_entering_local_mapping`
+- `num_points_culled_after_lba`
+
+先重跑三组 full：
+
+1. `frontend_imagelevel_boxfallback_full_wxyz`
+   - `profile=hybrid_sequential_semantic_only`
+   - `DSLAM_PASS_MASK_ARG=0`
+   - `ORB_SLAM3_MASK_MODE=off`
+   - `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`
+2. `backend_maskonly_full_wxyz`
+   - `profile=hybrid_sequential_semantic_only`
+   - stable no-op baseline
+3. `backend_maskonly_full_wxyz`
+   - `profile=hybrid_sequential_geom_dynamic_reject`
+   - 旧 `geom_soft_cap010_w025`
+
+成功判据：
+
+1. 能定位 backend mask-only 的 `delta_t_ratio / accum_path_ratio` 从哪些 interval 开始偏离。
+2. 能定位 soft route 的 `matched poses` 下降和 `inlier_margin` / support collapse 是否对应。
+3. 能说明 image-level route 是否通过更稳定的静态支撑保持 `Sim3 scale≈1`。
+
+失败判据：
+
+1. 三组 fingerprint 几乎一致，但 ATE 和 scale 差巨大。
+2. 若出现这种情况，优先转查数据桥、timestamp association、evaluator，而不是继续做 SLAM 策略。
+
+##### 任务 2：Early Intervention Causal Ablation
+
+目的：回答 image-level 的优势来自 RGB feature support、depth support，还是二者共同作用。
+
+固定后端条件：
+
+- `profile=hybrid_sequential_semantic_only`
+- `maintenance_period=4`
+- `DSLAM_PASS_MASK_ARG=0`
+- `ORB_SLAM3_MASK_MODE=off`
+- `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`
+
+构造四个输入版本：
+
+| 输入版本 | RGB | depth | 用途 |
+|---|---|---|---|
+| A | raw RGB | raw depth | 原始输入基线 |
+| B | filtered RGB | raw depth | 验证 ORB 提点/描述子支撑重分配 |
+| C | raw RGB | dynamic depth invalidated/filtered | 验证动态 depth 对路径长度/scale 的影响 |
+| D | filtered RGB | filtered/invalidated dynamic depth | 当前 image-level 强参考近似版本 |
+
+成功判据：
+
+1. 若 B 已接近 D，说明核心优势来自 RGB 提点前 feature support reallocation。
+2. 若 C 明显改善 scale 但 ATE 仍高，说明 depth 动态污染影响路径长度，但 RGB 支撑仍是主因。
+3. 若只有 D 接近 `ATE≈0.017-0.018m` 且 `Sim3 scale≈0.97`，说明 RGB 与 depth 必须同步处理。
+
+失败判据：
+
+1. B/C/D 都无法复现 image-level 强结果。
+2. 此时先查前端导出差异、association、depth 有效区域和 evaluator，不急于加后端算法。
+
+##### 任务 3：Frontend Strong + Backend Map-Admission Guard
+
+目的：测试后端 side-channel 是否还能作为“轻量保护”而不是 pose 阶段动态权重。
+
+基线：
+
+- `dataset=frontend_imagelevel_boxfallback_full_wxyz`
+- `profile=hybrid_sequential_semantic_only`
+- `DSLAM_PASS_MASK_ARG=0`
+- `ORB_SLAM3_MASK_MODE=off`
+- `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`
+
+guard 版本：
+
+- `dataset=frontend_imagelevel_boxfallback_full_wxyz`
+- `profile=hybrid_sequential_semantic_only`
+- `DSLAM_PASS_MASK_ARG=1`
+- `ORB_SLAM3_MASK_MODE=off`
+- `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`
+- `STSLAM_GEOMETRIC_DYNAMIC_REJECTION=0`
+- 新增或复用：
+  - `STSLAM_DYNAMIC_RISK_ONLY=1`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_GUARD=1`
+  - `STSLAM_DYNAMIC_GUARD_STAGE=before_create_keyframe`
+  - `STSLAM_DYNAMIC_GUARD_MIN_STATIC_INLIERS=80`
+  - `STSLAM_DYNAMIC_GUARD_MAX_VETO_RATIO=0.10`
+
+设计原则：
+
+1. tracking pose optimization 不改权重。
+2. `track_local_map_pre_pose` 不删点、不降权。
+3. 只在 `before_create_keyframe` / map admission 阶段，对高风险 dynamic candidate 做保守 veto。
+4. 如果当前静态 inliers 不足，则不 veto。
+5. veto ratio 必须 capped。
+
+成功判据：
+
+- `matched=857`
+- `ATE-SE3 <= 0.020m`
+- `Sim3 scale >= 0.95`
+- `RPEt-SE3` 不比 image-level baseline 恶化超过 10%
+- 动态区域进入长期 map 的点数下降
+
+失败判据：
+
+- `ATE-SE3 > 0.025m`
+- matched poses 下降
+- scale 明显偏离 1
+
+若失败，结论不是“后端完全无价值”，而是：当前 ORB-SLAM3 RGB-D pipeline 中，mask side-channel 不应参与 tracking / mapping 的强决策，只适合作为诊断与可视化证据。
+
+##### 暂停投入路线
+
+1. 暂停 `geom_soft_cap010_w025` 及其周边参数扫描。
+2. 暂停把 `smoke30` 指标写入论文主结果。
+3. 暂缓 DynoSAM / 复杂 SLAMMOT 联合优化。
+4. 暂缓单纯更换更强 foundation model；当前主要瓶颈是接入机制，不是 mask 能力本身。
+5. `premask/postfilter/layer2/layer3` 排列组合降级为控制实验，除非它服务于 support allocation 机制解释。
+
+##### 下一步开始顺序
+
+1. 先实现 `Static Observability Fingerprint` CSV。
+2. 用 full sequence 重跑三组机制诊断。
+3. 根据 fingerprint 决定 Early Intervention Ablation 的数据导出方式。
+4. 只有当前两步解释清楚后，再实现 map-admission guard。
+
 
 ## 9. 当前最简总括
 
@@ -1873,3 +2682,1389 @@ smoke30：
 > 初始化、特征层删点时机、以及后端对动态约束的容忍方式，是决定成败的核心。
 
 这份文档后续应作为总实验史持续追加，而不是被新的单次实验摘要替代。
+
+## 10. 2026-05-12 Static Observability Fingerprint 首轮执行
+
+### 10.1 先修复 full 诊断前的可运行性问题
+
+在重编 `stslam_backend` 后，`backend_maskonly_smoke30_wxyz + hybrid_sequential_semantic_only` 一度在第 1 帧 `TrackReferenceKeyFrame -> Optimizer::PoseOptimization` 内崩溃。定位过程：
+
+- `observability` 关闭后仍崩，说明不是 CSV 写盘导致。
+- debug breadcrumb 显示已完成 BoW 匹配，`matches=232`，崩在 `optimizer.optimize()` 内部。
+- `PoseOptimization` 增加边界/非有限值防护和可选 debug 日志。
+- RGB-D pinhole 下的 depthless mono edge 改用 g2o 原生 `EdgeSE3ProjectXYZOnlyPose`，避免自定义 camera Jacobian 路径影响当前稳定基线。
+- g2o 重新编译并重新链接后，`smoke30` 与 `STSLAM_OBSERVABILITY_LOG=1` 均恢复可运行。
+
+验证结果：
+
+| run | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER |
+|---|---:|---:|---:|---:|---:|---:|
+| `observability_sanity_smoke30_20260512_1807` | 28 | 0.033785 | 0.012155 | 0.626960 | 0.010511 | 0.500028 |
+
+### 10.2 三组 full fingerprint 结果
+
+输出目录：
+
+- `/home/lj/dynamic-slam-public/runs/fingerprint_full_20260512_1810/`
+- 汇总：`fingerprint_summary_v3.csv`
+- 100 帧区间：`fingerprint_intervals_100f.csv`
+- matched path 诊断：`fingerprint_path_diagnostics.csv`
+
+| case | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | has pose | first no pose | final KFs | final MPs |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `frontend_boxfallback_nomask_hybrid` | 857 | 0.018163 | 0.016225 | 0.973531 | 0.011928 | 0.361599 | 859 | none | 185 | 4062 |
+| `backend_maskonly_hybrid` | 857 | 0.381938 | 0.271534 | 0.324759 | 0.012486 | 0.519099 | 859 | none | 415 | 11155 |
+| `backend_geom_soft_cap010_w025_hybrid` | 773 | 0.539582 | 0.286258 | 0.176382 | 0.027629 | 0.681808 | 770 | 770 | 324 | 11067 |
+
+初步判断：
+
+- `frontend_boxfallback_nomask_hybrid` 仍是强基线，scale 接近 1，ATE 和 RPE 都稳定。
+- `backend_maskonly_hybrid` 没有 tracking lost，matched 仍是 857，但最终关键帧和地图点显著膨胀，说明失败更像是 map/keyframe admission 与支撑结构漂移，而不是简单丢帧。
+- `backend_geom_soft_cap010_w025_hybrid` 在第 770 帧开始无 pose，`recently_lost` 持续到序列末尾，matched 从 857 降到 773，旧 soft route 继续作为负结果成立。
+- 原先 `est_gt_accum_ratio` 与 ATE/Sim3 scale 不一致，并不是 ATE 评估被污染，而是该指标本质上测的是轨迹弧长/局部 zigzag，不应直接解释全局尺度。后续全局尺度以 evaluator 的 Umeyama `Sim3 scale` 为准，弧长比例仅作为局部抖动/运动曲折度诊断。
+
+### 10.3 派生 path 指标修正
+
+新增工具：
+
+- `/home/lj/dynamic-slam-public/tools/compute_matched_path_diagnostics.py`
+
+该工具复用 `evaluate_trajectory_ate.py` 的 timestamp association 与 alignment 逻辑，并输出：
+
+- raw matched arc length ratio；
+- endpoint displacement ratio；
+- per-segment motion ratio 分位数；
+- SE3 / Sim3 对齐后的 arc ratio；
+- Umeyama Sim3 scale。
+
+三组修正后 path 诊断：
+
+| case | raw arc ratio | endpoint ratio | segment median | Sim3 scale | Sim3 arc ratio |
+|---|---:|---:|---:|---:|---:|
+| `frontend_boxfallback_nomask_hybrid` | 1.657543 | 1.055940 | 1.551833 | 0.973531 | 1.613670 |
+| `backend_maskonly_hybrid` | 1.248811 | 1.796745 | 1.174199 | 0.324759 | 0.405563 |
+| `backend_geom_soft_cap010_w025_hybrid` | 1.601890 | 5.305802 | 1.255965 | 0.176382 | 0.282545 |
+
+解释修正：
+
+- ATE / RPE / Sim3 scale 是独立 evaluator 结果，不受 observability CSV 派生指标影响。
+- `raw arc ratio` 偏大不能直接推出全局 scale 偏大；它更敏感于局部抖动、zigzag 和轨迹曲折。
+- `frontend_boxfallback` 虽然 raw arc ratio 偏大，但 endpoint ratio 接近 1，Sim3 scale 接近 1，说明其全局尺度仍可靠。
+- `backend_maskonly` 的 endpoint ratio 明显偏大且 Sim3 scale 很低，说明其问题不是 tracking lost，而是全局轨迹形状/地图结构已经漂移。
+- `backend_soft` 同时出现第 770 帧后无 pose、endpoint ratio 极高、Sim3 scale 极低，可作为旧 soft route 的明确负例。
+
+### 10.4 下一步执行顺序
+
+1. 暂停继续扫描 `geom_soft_cap010_w025` 周边参数。
+2. 先做 Early Intervention Causal Ablation：A 原始 RGB/原始 depth，B filtered RGB/原始 depth，C 原始 RGB/filtered depth，D filtered RGB/filtered depth。
+3. 优先确认 image-level 优势来自 RGB feature support reallocation、depth 动态污染抑制，还是二者共同作用。
+4. 在 A/B/C/D 解释清楚之前，不急着实现 map-admission guard。
+5. 后续论文中明确区分“全局尺度指标 Sim3 scale”和“轨迹弧长/抖动指标 raw arc ratio”。
+
+### 10.5 Early Intervention Causal Ablation 首轮结果
+
+目的：
+
+- 固定后端为 `hybrid_sequential_semantic_only`、`maintenance_period=4`。
+- 关闭 backend mask 接入：`DSLAM_PASS_MASK_ARG=0`、`ORB_SLAM3_MASK_MODE=off`、`STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`。
+- 只改变输入 RGB / depth，判断 image-level 强基线的收益主要来自 RGB feature support reallocation，还是 depth 动态污染抑制。
+
+数据构造：
+
+- A：raw RGB + raw depth。
+- B：filtered RGB + raw depth。
+- C：raw RGB + filtered depth。
+- D：filtered RGB + filtered depth。
+
+输出位置：
+
+- sequence 构造：`/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/`
+- run 目录：`/home/lj/dynamic-slam-public/runs/early_intervention_ablation_20260512_2026/`
+- 汇总：`/home/lj/dynamic-slam-public/runs/early_intervention_ablation_20260512_2026/early_intervention_ablation_summary.csv`
+- 主实验表已追加：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/experiments_0512_0517.csv`
+
+首轮 full sequence 结果：
+
+| case | RGB | depth | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | final KFs | final MPs |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| A | raw | raw | 857 | 0.593504 | 0.254945 | 0.229283 | 0.019608 | 0.498886 | 478 | 10045 |
+| B | filtered | raw | 857 | 0.357958 | 0.267740 | 0.365518 | 0.016928 | 0.489887 | 376 | 6598 |
+| C | raw | filtered | 857 | 0.018457 | 0.016026 | 0.970406 | 0.012053 | 0.371801 | 190 | 3302 |
+| D | filtered | filtered | 857 | 0.018362 | 0.016258 | 0.972360 | 0.012353 | 0.368723 | 190 | 3750 |
+
+path 诊断补充：
+
+| case | raw arc ratio | endpoint ratio | segment median | Sim3 arc ratio |
+|---|---:|---:|---:|---:|
+| A | 2.110069 | 4.362093 | 1.818557 | 0.483802 |
+| B | 1.846859 | 1.038467 | 1.672290 | 0.675061 |
+| C | 1.657860 | 1.036442 | 1.565461 | 1.608798 |
+| D | 1.681507 | 1.037561 | 1.559595 | 1.635030 |
+
+初步结论：
+
+- 四组均 matched 857，且 `has_pose_frames=859`、`lost_frames=0`，因此差异不是 tracking lost 造成的。
+- A 的 scale 明显塌缩，地图点膨胀到 10045，说明 raw RGB-D 在动态场景中会把错误深度支撑长期写入地图。
+- B 只过滤 RGB 有改善，但仍然 ATE-SE3=0.358m、Sim3 scale=0.366，无法恢复可用精度；这说明 RGB feature support reallocation 不是主要矛盾。
+- C 只过滤 depth 已经恢复到 ATE-SE3=0.0185m、Sim3 scale=0.970，几乎等价于 D。
+- D 相对 C 只带来极小差异，说明当前 `walking_xyz` 上 image-level 强基线的决定性机制更可能是 **动态 depth 污染抑制**，而不是 RGB 纹理过滤本身。
+- 这给第三层改动提供了更强支点：后续优先研究 depth-side early intervention / map-admission guard，而不是继续在 RGB mask postfilter 上扫参数。
+
+稳定性补充：
+
+- C / D 各重跑一次，ATE、Sim3 scale、trajectory sha256、KeyFrameTimeline sha256 均与 run_1 完全一致。
+- `C_raw_rgb_filtered_depth` trajectory sha256：`505c166a38e8ec7196827acd4980c477bf0fb979f18c21b69299b42f4ad68d91`
+- `D_filtered_rgb_filtered_depth` trajectory sha256：`cc72d150ed539e16a4662710f99c7fdeb70068f6e61177891db12adfbee81044`
+- repeat 汇总：`/home/lj/dynamic-slam-public/runs/early_intervention_ablation_20260512_2026/early_intervention_cd_repeat_check.csv`
+
+下一步：
+
+1. 统计 filtered depth 的无效化区域、动态 mask 区域与 keyframe / mappoint admission 的对应关系。
+2. 将第三层方案收敛为“depth provenance / dynamic-depth-aware map admission”，避免继续扩大到复杂动态因子图。
+3. 若需要向 5.5 Pro 回传，优先提交本节 A/B/C/D 因果消融与 C/D bit-level repeat，而不是继续提交旧 soft route 参数扫描。
+
+### 10.6 5.5 Pro 第三次反馈与 depth invalidation 初步统计
+
+5.5 Pro 第三次反馈判断：
+
+- 当前 A/B/C/D 消融结论在 `walking_xyz` 当前稳定协议内可信度高，约 85-90% 支持 “filtered depth 是 image-level 强基线的决定性因素”。
+- 论文级还需要排除两个主要混杂：一是 “C/D 好只是因为 MapPoint 数量减少”，二是 “filtered depth 是否改变了数据桥、时间戳、scale 或使用了不可在线获得的信息”。
+- 后续主线应收敛为 **foundation-model assisted dynamic-depth suppression and map admission for RGB-D ORB-SLAM3**。
+- 最推荐顺序：先做 depth provenance / MapPoint admission 统计，再做 mask-guided depth invalidation vs random dropout 控制，最后实现 backend-side dynamic-depth-aware admission。
+
+本地已先完成不改算法的 depth invalidation 统计：
+
+- 工具：`/home/lj/dynamic-slam-public/tools/compute_depth_invalidation_stats.py`
+- CSV：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/depth_invalidation_stats_boxfallback.csv`
+- JSON summary：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/depth_invalidation_stats_boxfallback_summary.json`
+- run 目录备份：`/home/lj/dynamic-slam-public/runs/early_intervention_ablation_20260512_2026/`
+
+统计设置：
+
+- raw depth：`/home/lj/dynamic_SLAM/results/20260505_yoloe_sam3_maskonly_wxyz/sequence`
+- filtered depth：`/home/lj/d-drive/CODEX/basic_model_based_SLAM/experiments/20260504_yoloe_sam3_boxfallback_wxyz/sequence`
+- mask：boxfallback sequence 的 `mask/`
+- association：boxfallback sequence 的 `associations.txt`
+- boundary 定义：`dilate(mask, r=5) - erode(mask, r=5)`
+
+关键统计：
+
+| item | value |
+|---|---:|
+| frames | 859 |
+| unique depth paths | 827 |
+| mean mask area ratio | 0.136234 |
+| mean raw valid depth ratio | 0.598216 |
+| mean filtered valid depth ratio | 0.477276 |
+| total raw-valid depth invalidated ratio | 0.202168 |
+| invalidated pixels inside mask share | 0.997409 |
+| invalidated pixels outside mask share | 0.002591 |
+| invalidated pixels on mask boundary share | 0.134656 |
+| nonzero depth value changed but still valid | 0 |
+
+初步解释：
+
+- filtered depth 主要是 **将 raw valid depth 置为 invalid**，没有发现 “raw>0 且 filtered>0 但数值被改写” 的情况。
+- 总体上约 20.2% 的 raw-valid depth 被无效化，其中 99.74% 位于动态 mask 内，mask 外仅 0.26%。
+- 这初步排除了 “filtered depth 在 mask 外大规模改写数据” 的混杂，也强化了 “C/D 的收益来自定向 dynamic depth invalidation，而不是任意 depth 改动” 的解释。
+- 但这还不能排除 “只要随机减少同等数量 depth 也能变好” 的替代解释；下一步必须做 random/static dropout control。
+
+下一步执行顺序更新：
+
+1. 补 A/B 双跑 repeat，形成 A/B/C/D 全组 repeat hash。
+2. 构造 `C_random_same_ratio` 与 `C_static_same_ratio`，检验是否只是 depth sparsification 生效。
+3. 若 random/static control 不能接近 C，则进入 backend-side V1：在 Frame depth association 阶段用 mask side-channel 无效化 dynamic depth，目标复现 C。
+4. V1 成功后，再做 V2：map-admission-only veto，用来证明 “早期 depth association guard 是否必要”。
+
+### 10.7 A/B repeat 与 depth dropout control
+
+#### A/B repeat
+
+目的：补齐 A/B/C/D 全组 repeat，避免只对强结果 C/D 做重复验证。
+
+结果：
+
+| case | repeat | ATE-SE3 | Sim3 scale | trajectory sha256 |
+|---|---|---:|---:|---|
+| A raw RGB + raw depth | run_2 | 0.593504 | 0.229283 | `602c91e5b1b20b00c881faa0c5fb9c7ece6b115316d24dbec8ade1e854d8a1d7` |
+| B filtered RGB + raw depth | run_2 | 0.357958 | 0.365518 | `25fdb2d855c2b461d931e5b2cb835213d8d09f43043f17de0780f6983d9a6884` |
+
+结论：
+
+- A/B 的 run_2 与 run_1 指标、trajectory sha256、KeyFrameTimeline sha256 完全一致。
+- 至此 A/B/C/D 四组均有 bit-level repeat，当前稳定协议下的因果消融具备较强可复现性。
+- repeat 汇总：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/early_intervention_ab_repeat_check.csv`
+
+#### depth dropout controls
+
+目的：排除 “C/D 好只是因为 depth/MapPoint 变少” 的替代解释。
+
+构造：
+
+- `C_random_same_count`：raw RGB + raw depth；按唯一 depth 文件匹配 filtered depth 的无效化像素数量，在 raw-valid depth 全图随机置零。
+- `C_static_same_count`：raw RGB + raw depth；按唯一 depth 文件匹配 filtered depth 的无效化像素数量，但只在 dynamic mask union 外置零。
+- 两组都使用 `seed=20260512` 的确定性构造；后端仍固定为 `hybrid_sequential_semantic_only`、`maintenance_period=4`、关闭 backend mask。
+- 因为原 association 存在 827 个唯一 depth path、859 行 frame association，所以 dropout 构造按唯一 depth 文件匹配 `30,867,270` 个目标无效化像素；上一节 per-frame 统计的 `31,914,213` 包含 depth 复用行的重复计数。
+
+输出：
+
+- sequence：`/home/lj/dynamic-slam-public/data/depth_dropout_controls_20260512/`
+- run：`/home/lj/dynamic-slam-public/runs/depth_dropout_controls_20260512_2348/`
+- 汇总：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/depth_dropout_controls_summary.csv`
+- manifest：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/dropout_controls_manifest.json`
+
+结果：
+
+| case | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | final KFs | final MPs |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| C exact dynamic-depth invalidation | 857 | 0.018457 | 0.016026 | 0.970406 | 0.012053 | 0.371801 | 190 | 3302 |
+| random same-count dropout | 857 | 0.585112 | 0.279105 | 0.178698 | 0.018144 | 0.480719 | 494 | 8832 |
+| static-region same-count dropout | 857 | 0.628315 | 0.280966 | 0.160108 | 0.019951 | 0.513641 | 523 | 10010 |
+
+path 诊断：
+
+| case | raw arc ratio | endpoint ratio | segment median | Sim3 arc ratio |
+|---|---:|---:|---:|---:|
+| random same-count dropout | 1.903797 | 2.310337 | 1.731239 | 0.340205 |
+| static-region same-count dropout | 2.089340 | 1.274100 | 1.794354 | 0.334519 |
+
+解释：
+
+- 两个 dropout control 都 matched 857、`has_pose_frames=859`、`lost_frames=0`，因此失败仍不是 tracking lost。
+- random same-count 与 static same-count 都没有接近 C；ATE-SE3 分别为 0.585m 和 0.628m，Sim3 scale 分别为 0.179 和 0.160。
+- static-region same-count 删除了同等数量的 raw-valid depth，但刻意避开 dynamic mask union，结果 final MPs 仍膨胀到 10010，几乎回到 A 的 10045。
+- 这说明 C 的收益不是来自 “depth 总量减少 / MapPoint 数量减少”，而是来自 **动态区域 depth 被定向无效化**。
+- 当前证据链从 “ABCD 指标现象” 前进一步，已经具备对抗审稿人 “只是稀疏化 depth” 质疑的初步控制实验。
+
+下一步：
+
+1. 进入 backend-side V1：raw RGB + raw depth + mask side-channel，在 Frame depth association 阶段将 dynamic mask 内 depth 置为 invalid，目标复现 C。
+2. 若 V1 成功，再做 V2 map-admission-only veto，以证明干预必须早到 depth association，还是 LocalMapping 准入也足够。
+3. 在实现 V1/V2 前，先确认 ORB-SLAM3 Frame 中 depth 读取、`mvDepth`、`mvuRight`、`UnprojectStereo`、new MapPoint creation 的具体代码路径，避免误改 pose optimization 或 RGB feature extraction。
+
+### 10.8 Backend-side V1 dynamic depth invalidation
+
+目的：把上一节离线 filtered depth 的因果证据迁移到后端在线机制中。输入保持 raw RGB + raw depth，仅将 mask 作为 side-channel；不删除 RGB keypoints，不启用 postfilter，不改 pose optimization，只在 Frame depth association 后将 dynamic mask 内 keypoint 的 `mvDepth` 和 `mvuRight` 置为 invalid。
+
+实现位置：
+
+- `/home/lj/dynamic_SLAM/stslam_backend/include/Frame.h`
+- `/home/lj/dynamic_SLAM/stslam_backend/src/Frame.cc`
+- `/home/lj/dynamic_SLAM/stslam_backend/src/Tracking.cc`
+
+核心机制：
+
+- 新增 `Frame::InvalidateDepthInPanopticMask()`。
+- 若 keypoint 的 `mvPanopticIds[i] > 0` 且 `mvDepth[i] > 0`，则置 `mvDepth[i] = -1`、`mvuRight[i] = -1`。
+- 新增 depth provenance 与计数：`masked_features`、`invalidated_features`、`no_depth_masked_features`。
+- 通过环境变量 `STSLAM_DYNAMIC_DEPTH_INVALIDATION=1` 启用。
+- 本次运行同时设置 `STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY=1`、`ORB_SLAM3_MASK_MODE=off`、`STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`，确保 mask 只作为 depth side-channel，不参与 RGB feature 硬删除。
+
+运行设置：
+
+- dataset：`ablation_ei_A_raw_rgb_raw_depth_wxyz`
+- profile：`hybrid_sequential_semantic_only`
+- maintenance period：4
+- run：`/home/lj/dynamic-slam-public/runs/backend_dynamic_depth_v1_20260513_002527/`
+- 汇总 CSV：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/backend_dynamic_depth_v1_summary.csv`
+
+结果：
+
+| case | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | final KFs | final MPs |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| A raw RGB + raw depth | 857 | 0.593504 | 0.254945 | 0.229283 | 0.019608 | 0.498886 | 478 | 10045 |
+| C raw RGB + filtered depth | 857 | 0.018457 | 0.016026 | 0.970406 | 0.012053 | 0.371801 | 190 | 3302 |
+| backend V1 raw RGB + raw depth + dynamic depth invalidation | 857 | 0.033068 | 0.030440 | 0.958602 | 0.016215 | 0.429665 | 184 | 3136 |
+
+V1 repeat：
+
+| repeat | trajectory sha256 | KeyFrameTimeline sha256 |
+|---|---|---|
+| run_1 | `ca11d0300db7c7b4221649e6e73a11fb38fd00e84fd6735d91869bc63693a452` | `e79064d18a7a51eccd302edbc6a4fc755f9bd364e52de0db7121f2089af4a77e` |
+| run_2 | `ca11d0300db7c7b4221649e6e73a11fb38fd00e84fd6735d91869bc63693a452` | `e79064d18a7a51eccd302edbc6a4fc755f9bd364e52de0db7121f2089af4a77e` |
+
+depth invalidation 统计：
+
+| item | value |
+|---|---:|
+| frames with invalidation log | 859 |
+| masked keypoint observations | 135406 |
+| invalidated depth keypoint observations | 123484 |
+| masked but already no-depth observations | 11922 |
+| mean invalidated depth features / frame | 143.753 |
+
+path 诊断：
+
+| case | raw arc ratio | endpoint ratio | segment median | Sim3 arc ratio |
+|---|---:|---:|---:|---:|
+| backend V1 | 1.729306 | 1.320196 | 1.530949 | 1.657716 |
+
+解释：
+
+- V1 从 A 的 `ATE-SE3=0.5935`、`scale=0.2293` 恢复到 `ATE-SE3=0.0331`、`scale=0.9586`，说明主要收益可以由后端在线 dynamic-depth invalidation 复现。
+- V1 的 final KFs/MPs 为 184/3136，接近 C 的 190/3302，远低于 A 的 478/10045；这支持 “动态 depth 污染导致地图点和关键帧接纳膨胀” 的机制解释。
+- V1 repeat 与 run_1 bit-level 一致，当前稳定协议下可复现。
+- V1 尚未完全达到 C/D 的 0.018m 量级，说明离线 filtered depth 与 keypoint-level backend invalidation 之间仍存在细小机制差异；可能来自 mask/keypoint 采样边界、panoptic id assignment 与 pixel-level depth 文件无效化不完全等价，或少量初始化/近点策略差异。
+
+下一步：
+
+1. 做 V1b：对 keypoint depth invalidation 加入可控 mask dilation / boundary sensitivity，对齐离线 filtered depth 的像素级作用范围，检查 ATE 是否继续接近 C。
+2. 做 V2：map-admission-only veto，即不改当前帧 pose 的 depth association，只在 new MapPoint / keyframe admission 阶段拒绝 dynamic-mask depth 生成的点；若 V2 明显弱于 V1，则证明干预需要足够早。
+3. 追加一列 paper-facing 机制表：`raw depth pollution -> dynamic-depth invalidation -> MapPoint/KF admission contraction -> scale recovery`。
+
+### 10.9 V1b mask boundary sensitivity
+
+目的：解释 V1 与离线 C/D 之间的残余差距。V1 只在 keypoint 中心点落入 mask 时失效 depth；而离线 filtered depth 是像素级 depth 文件无效化，边界采样口径可能略有不同。因此加入可控半径查询：
+
+- 新环境变量：`STSLAM_DYNAMIC_DEPTH_INVALIDATION_DILATION_RADIUS_PX`
+- 默认值：0，即完全保持 V1 行为。
+- radius > 0 时，在 keypoint 周围正方形窗口内查询 raw panoptic mask，只要邻域存在 `panopticId > 0`，则该 keypoint depth 失效。
+- 不改变 RGB feature extraction，不启用 postfilter，不改 pose optimization。
+
+输出：
+
+- run：`/home/lj/dynamic-slam-public/runs/backend_dynamic_depth_v1b_20260513_0039/`
+- 汇总：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/backend_dynamic_depth_v1b_radius_summary.csv`
+
+结果：
+
+| case | radius | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | final KFs | final MPs |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| V1 | 0 | 857 | 0.033068 | 0.030440 | 0.958602 | 0.016215 | 0.429665 | 184 | 3136 |
+| V1b radius=1 | 1 | 857 | 0.019391 | 0.017721 | 0.974438 | 0.012219 | 0.368174 | 170 | 3225 |
+| V1b radius=2 | 2 | 857 | 0.019848 | 0.017441 | 0.969405 | 0.012144 | 0.363908 | 147 | 2835 |
+| C raw RGB + filtered depth | pixel-level | 857 | 0.018457 | 0.016026 | 0.970406 | 0.012053 | 0.371801 | 190 | 3302 |
+| D filtered RGB + filtered depth | pixel-level | 857 | 0.018362 | 0.016258 | 0.972360 | 0.012353 | 0.368723 | 190 | 3750 |
+
+repeat：
+
+| case | trajectory sha256 | KeyFrameTimeline sha256 |
+|---|---|---|
+| radius=1 run_1 | `3529e44c834a98501efd3590b8ecc2e1996e9424fced4b138a6077aef4d05dbd` | `b530fbb8c42f0992f7a5c449b775a53eea688ac25bd0a8c7cd65b79f3cdb6160` |
+| radius=1 run_2 | `3529e44c834a98501efd3590b8ecc2e1996e9424fced4b138a6077aef4d05dbd` | `b530fbb8c42f0992f7a5c449b775a53eea688ac25bd0a8c7cd65b79f3cdb6160` |
+
+depth invalidation 统计：
+
+| case | masked keypoint obs | invalidated depth keypoint obs | mean invalidated / frame |
+|---|---:|---:|---:|
+| radius=0 | 135406 | 123484 | 143.753 |
+| radius=1 | 143700 | 129697 | 150.986 |
+| radius=2 | 150408 | 134551 | 156.637 |
+
+path 诊断：
+
+| case | raw arc ratio | endpoint ratio | segment median | Sim3 arc ratio |
+|---|---:|---:|---:|---:|
+| radius=0 | 1.729306 | 1.320196 | 1.530949 | 1.657716 |
+| radius=1 | 1.655721 | 1.056041 | 1.547027 | 1.613397 |
+| radius=2 | 1.647851 | 1.069665 | 1.530303 | 1.597435 |
+
+解释：
+
+- radius=1 将 V1 的 SE3 ATE 从 0.0331m 降到 0.0194m，几乎贴近离线 C/D；Sim3 scale 从 0.9586 提升到 0.9744。
+- radius=2 的 Sim3 ATE 和 RPER 略优于 radius=1，但 final KFs/MPs 收缩到 147/2835，已经明显比 C/D 更激进；这提示继续扩大 mask 可能进入过度深度失效化区域。
+- radius=1 repeat bit-level 一致，因此当前可作为后端在线主候选。
+- 这组结果强烈支持：C/D 的收益并非依赖离线改 depth 文件本身，而可以被在线 mask side-channel 的 dynamic-depth-aware association 复现；残差主要来自边界采样口径。
+
+当前推荐论文主线：
+
+1. 主方法先用 `radius=1` 作为 dynamic-depth-aware association 默认设置。
+2. radius=0/1/2 作为 boundary sensitivity ablation。
+3. 下一步仍需做 V2 map-admission-only veto，回答 “只在建图准入阶段拦截是否足够”。
+4. 若时间允许，再做 radius=1 在另一条动态序列上的外推验证；若时间不足，至少保留当前序列的 bit-level repeat 与 dropout control。
+
+### 10.10 V2 map-admission-only veto
+
+目的：做一个更强的因果拆分。V1/V1b 会在 Frame 层把 dynamic-mask keypoint 的 depth 置为无效，因此同时影响当前帧的 tracking / pose association 与后续 MapPoint / keyframe admission。V2 刻意不改当前帧 depth，只把 mask 作为建图准入侧信号，验证 “收益到底来自当前帧 pose depth correction，还是来自阻止动态深度进入地图”。
+
+实现口径：
+
+- 新环境变量：`STSLAM_DYNAMIC_MAP_ADMISSION_VETO=1`
+- 显式关闭：`STSLAM_DYNAMIC_DEPTH_INVALIDATION=0`
+- 同时设置：`STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY=1`、`ORB_SLAM3_MASK_MODE=off`、`STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`、`STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=none`
+- 拦截点：
+  - `StereoInitialization()`：动态 mask feature 不生成初始 MapPoint。
+  - `NeedNewKeyFrame()`：动态 close depth feature 不参与 close-point 新关键帧触发统计。
+  - `CreateNewKeyFrame()`：动态 close depth feature 不进入新关键帧 MapPoint 创建候选。
+  - `LocalMapping::CreateNewMapPoints()`：如果匹配对任一端 feature 属于 dynamic instance，则不做三角化建图，关闭 LocalMapping backdoor。
+
+运行：
+
+- dataset：`ablation_ei_A_raw_rgb_raw_depth_wxyz`
+- profile：`hybrid_sequential_semantic_only`
+- maintenance period：4
+- run：`/home/lj/dynamic-slam-public/runs/backend_map_admission_v2_20260513_133243/`
+- 汇总：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/backend_map_admission_v2_summary.csv`
+- 统一因果表：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/causal_ablation_unified_summary_20260513.csv`
+
+V2 结果：
+
+| case | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | final KFs | final MPs |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| A raw RGB + raw depth | 857 | 0.593504 | 0.254945 | 0.229283 | 0.019608 | 0.498886 | 478 | 10045 |
+| C raw RGB + filtered depth | 857 | 0.018457 | 0.016026 | 0.970406 | 0.012053 | 0.371801 | 190 | 3302 |
+| D filtered RGB + filtered depth | 857 | 0.018362 | 0.016258 | 0.972360 | 0.012353 | 0.368723 | 190 | 3750 |
+| V1b radius=1 dynamic depth invalidation | 857 | 0.019391 | 0.017721 | 0.974438 | 0.012219 | 0.368174 | 170 | 3225 |
+| V2 map-admission-only veto | 857 | 0.018192 | 0.016019 | 0.972089 | 0.012130 | 0.372424 | 214 | 3592 |
+
+V2 repeat：
+
+| repeat | trajectory sha256 | KeyFrameTimeline sha256 |
+|---|---|---|
+| run_1 | `2347b2727a0def47d4ba4ea55bfe205ea6a872a96eddb102c718c0d0d4558d58` | `c1fcba0b72c379975f57fbbf86d22c49b2a974f942084014db300c8a9c0522c5` |
+| run_2 | `2347b2727a0def47d4ba4ea55bfe205ea6a872a96eddb102c718c0d0d4558d58` | `c1fcba0b72c379975f57fbbf86d22c49b2a974f942084014db300c8a9c0522c5` |
+
+V2 veto 计数：
+
+| item | value |
+|---|---:|
+| map-admission veto log lines | 1592 |
+| depth invalidation log lines | 0 |
+| stereo initialization vetoed candidates | 372 |
+| NeedNewKeyFrame dynamic close vetoed | 119960 |
+| CreateNewKeyFrame vetoed candidates | 56974 |
+| CreateNewKeyFrame accepted depth candidates | 161662 |
+| LocalMapping skipped instance pairs | 2091 |
+| LocalMapping kept static pairs | 9621 |
+
+path 诊断：
+
+| case | raw arc ratio | endpoint ratio | segment median | Sim3 arc ratio |
+|---|---:|---:|---:|---:|
+| V2 map-admission-only veto | 1.663761 | 1.030132 | 1.557891 | 1.617324 |
+
+解释：
+
+- V2 在不改当前帧 depth 的前提下达到 `ATE-SE3=0.018192m`、`scale=0.972089`，与 C/D 几乎一致，且 repeat 的轨迹与关键帧时间线 bit-level 一致。
+- 这说明当前序列的主要病灶不是 “pose optimization 中短期使用了动态 depth” 本身，而是动态 depth 被允许进入 MapPoint / keyframe admission 后，长期污染地图并放大 scale drift。
+- V2 的 final KFs/MPs 为 214/3592，比 C 的 190/3302 略多，但远低于 A 的 478/10045；这更像是 “在线建图准入约束” 与 “离线 depth 文件失效化” 的口径差异，而不是机制失败。
+- 与 V1b radius=1 相比，V2 的 SE3 ATE 略好，RPER 略差，整体同量级；这提示论文方法可以优先收敛为 dynamic-depth-aware map admission，而不是必须在 Frame 层修改 depth。
+- 需要保持谨慎：目前该强结论只在当前 full sequence 上成立。下一步应做至少一条额外动态序列验证，或在同一序列上做 V2 的关键拦截点 ablation。
+
+下一步建议：
+
+1. 先把 V2 作为当前主方法候选：`dynamic-depth-aware map admission veto`。
+2. 做 V2 拦截点消融：`init only`、`NeedNewKeyFrame only`、`CreateNewKeyFrame only`、`LocalMapping only`、`CreateNewKeyFrame + LocalMapping`，确认最小有效机制。
+3. 如果时间紧，优先做 `CreateNewKeyFrame + LocalMapping` 对比完整 V2，因为这最贴近 “地图准入” 的论文表述。
+4. 将当前 A/C/D/V1b/V2 统一表回传给 5.5 Pro，请其判断论文主线、方法命名和下一组最小消融。
+
+### 10.11 V2 gate-level ablation
+
+依据 5.5 Pro 第五轮反馈，当前 V2 仍是 composite gate stack。为回答 “到底是初始化、keyframe scheduling、直接 MapPoint admission，还是 LocalMapping backdoor prevention 起主要作用”，加入四个细分开关：
+
+- `STSLAM_DYNAMIC_MAP_ADMISSION_VETO_STEREO_INITIALIZATION`
+- `STSLAM_DYNAMIC_MAP_ADMISSION_VETO_NEED_NEW_KEYFRAME`
+- `STSLAM_DYNAMIC_MAP_ADMISSION_VETO_CREATE_NEW_KEYFRAME`
+- `STSLAM_DYNAMIC_MAP_ADMISSION_VETO_LOCAL_MAPPING_CREATE_NEW_MAPPOINTS`
+
+兼容性：若不设置细分开关，则默认继承 `STSLAM_DYNAMIC_MAP_ADMISSION_VETO`，因此原完整 V2 行为不变。
+
+运行共同设置：
+
+- dataset：`ablation_ei_A_raw_rgb_raw_depth_wxyz`
+- profile：`hybrid_sequential_semantic_only`
+- maintenance period：4
+- `STSLAM_DYNAMIC_DEPTH_INVALIDATION=0`
+- `STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY=1`
+- `ORB_SLAM3_MASK_MODE=off`
+- `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`
+- `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=none`
+- run root：`/home/lj/dynamic-slam-public/runs/backend_map_admission_v2_gate_ablation_20260513_144136/`
+- 汇总：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/backend_map_admission_v2_gate_ablation_summary.csv`
+
+结果：
+
+| case | stereo init | NeedNewKF | CreateNewKF | LocalMapping | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | final KFs | final MPs |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| full V2 compat | 1 | 1 | 1 | 1 | 857 | 0.018192 | 0.016019 | 0.972089 | 0.012130 | 0.372424 | 214 | 3592 |
+| CreateNewKeyFrame + LocalMapping | 0 | 0 | 1 | 1 | 857 | 0.017934 | 0.016274 | 0.975517 | 0.012161 | 0.367759 | 224 | 3561 |
+| StereoInitialization only | 1 | 0 | 0 | 0 | 857 | 0.602691 | 0.280673 | 0.168261 | 0.019679 | 0.509767 | 484 | 9873 |
+| Full V2 minus NeedNewKeyFrame | 1 | 0 | 1 | 1 | 857 | 0.017466 | 0.015513 | 0.973968 | 0.012085 | 0.384479 | 223 | 3584 |
+
+repeat：
+
+| case | trajectory sha256 | KeyFrameTimeline sha256 |
+|---|---|---|
+| CreateNewKeyFrame + LocalMapping run_1 | `963b004699db984fc94ca6c902aeadf3ae7d888cc8e171ba037f15d49c8f58dd` | `ca4a144976a04230e5528c4172e5d906786fe06f6f7f785845565cef8fc51de2` |
+| CreateNewKeyFrame + LocalMapping run_2 | `963b004699db984fc94ca6c902aeadf3ae7d888cc8e171ba037f15d49c8f58dd` | `ca4a144976a04230e5528c4172e5d906786fe06f6f7f785845565cef8fc51de2` |
+| Full V2 minus NeedNewKeyFrame run_1 | `a9c91a31f069b0147f4cef0c6bcfd1946503b68d96ffbb3984be2c3dafc4e427` | `acd244b0ba32e135055f7dc75d150db46f3037a99ebdf509e0b16b755df8df8f` |
+| Full V2 minus NeedNewKeyFrame run_2 | `a9c91a31f069b0147f4cef0c6bcfd1946503b68d96ffbb3984be2c3dafc4e427` | `acd244b0ba32e135055f7dc75d150db46f3037a99ebdf509e0b16b755df8df8f` |
+
+gate 计数：
+
+| case | log lines | depth invalidation log lines | init vetoed | NeedNewKF dynamic close vetoed | CreateNewKF vetoed | CreateNewKF accepted | LocalMapping skipped pairs | LocalMapping kept pairs |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| full V2 compat | 1592 | 0 | 372 | 119960 | 56974 | 161662 | 2091 | 9621 |
+| CreateNewKeyFrame + LocalMapping | 928 | 0 | 0 | 0 | 67232 | 160457 | 2259 | 9577 |
+| StereoInitialization only | 1 | 0 | 372 | 0 | 0 | 0 | 0 | 0 |
+| Full V2 minus NeedNewKeyFrame | 951 | 0 | 372 | 0 | 65299 | 163852 | 2437 | 9671 |
+
+解释：
+
+- 兼容性 full V2 与 10.10 旧 V2 完全一致，说明新增细分开关没有改变完整 V2 默认行为。
+- `CreateNewKeyFrame + LocalMapping` 单独就达到 `ATE-SE3=0.017934`、`scale=0.975517`，并且 repeat bit-level 一致。这是目前最强的机制证据：核心恢复来自 persistent static-map admission control。
+- `StereoInitialization only` 仍然接近 A 的失败 regime：`ATE-SE3=0.602691`、`scale=0.168261`、final KFs/MPs=484/9873。因此不能把 V2 的成功解释为 “只清理了初始地图”。
+- `Full V2 minus NeedNewKeyFrame` 仍然强：`ATE-SE3=0.017466`、`scale=0.973968`，repeat bit-level 一致。尽管完整 V2 中 NeedNewKeyFrame dynamic close veto 计数很大，但它不是当前序列恢复的必要 gate。
+- 因此当前论文主线可以进一步收敛：D²MA 的核心不是 keyframe scheduling，也不是初始化；而是 `CreateNewKeyFrame` 的 RGB-D close-depth MapPoint 候选准入 + `LocalMapping::CreateNewMapPoints` 的 triangulation backdoor prevention。
+
+当前结论：
+
+1. 方法命名 `D²MA: Dynamic-Depth-Aware Map Admission` 更稳，因为最小有效机制确实落在 MapPoint/static-map admission。
+2. NeedNewKeyFrame gate 可以作为辅助稳定项或完整系统配置，但不是论文核心贡献的必要组件。
+3. 下一步最缺的是外部动态序列 sanity check，而不是继续做同一序列上的 2^4 全组合扫描。
+4. 如果还要做一个同序列补充，优先 `CreateNewKeyFrame only`，用于判断 LocalMapping backdoor 是否必要；但就论文主线而言，现在已经足够支持 “CreateNewKeyFrame + LocalMapping” 作为最小主方法。
+
+### 10.12 六次反馈后的收敛决策
+
+5.5 Pro 对 10.11 gate-level ablation 的判断：
+
+- 正式把 D²MA-min 收敛为 `CreateNewKeyFrame + LocalMapping` 两个 static-map admission gate。
+- NeedNewKeyFrame gate 从主方法中移除，作为 optional safety guard / D²MA-full 配置保留。
+- `StereoInitialization only` 的失败足以反驳 “只是初始化清理带来收益” 的质疑。
+- 停止同一序列上的 2^4 gate 全组合扫描。
+- 同序列只补一个 `CreateNewKeyFrame only`，用于判断 LocalMapping triangulation backdoor 是否必要。
+- 随后优先转向外部动态序列 sanity check，例如 `fr3/walking_rpy`、`fr3/walking_halfsphere`，再补静态/低动态负例。
+
+当前待执行：
+
+1. 跑 `CreateNewKeyFrame only`：
+   - `STSLAM_DYNAMIC_MAP_ADMISSION_VETO_STEREO_INITIALIZATION=0`
+   - `STSLAM_DYNAMIC_MAP_ADMISSION_VETO_NEED_NEW_KEYFRAME=0`
+   - `STSLAM_DYNAMIC_MAP_ADMISSION_VETO_CREATE_NEW_KEYFRAME=1`
+   - `STSLAM_DYNAMIC_MAP_ADMISSION_VETO_LOCAL_MAPPING_CREATE_NEW_MAPPOINTS=0`
+2. 判读：
+   - 若 `ATE-SE3 <= 0.025` 且 `scale >= 0.95`，说明 direct RGB-D close-depth admission 是主导污染入口，LocalMapping 是安全补丁。
+   - 若明显退化，则说明 LocalMapping backdoor 是 D²MA-min 的必要组成。
+
+补充消融结果：
+
+| case | repeat | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | final KFs | final MPs |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| CreateNewKeyFrame only | run_1 | 857 | 0.025601 | 0.024892 | 0.980431 | 0.013677 | 0.386654 | 217 | 3957 |
+| CreateNewKeyFrame only | run_2 | 857 | 0.025601 | 0.024892 | 0.980431 | 0.013677 | 0.386654 | 217 | 3957 |
+| CreateNewKeyFrame + LocalMapping | run_1 | 857 | 0.017934 | 0.016274 | 0.975517 | 0.012161 | 0.367759 | 224 | 3561 |
+
+repeat：
+
+| case | trajectory sha256 | KeyFrameTimeline sha256 |
+|---|---|---|
+| CreateNewKeyFrame only run_1 | `14f327ed40c766bce77f0030735111bb244275b8536fd843a1ba5b074d20af56` | `5d428e5546cf7ecf6993fadebea1c5186145bb4df4ca57e3ec595e62fc2a25e4` |
+| CreateNewKeyFrame only run_2 | `14f327ed40c766bce77f0030735111bb244275b8536fd843a1ba5b074d20af56` | `5d428e5546cf7ecf6993fadebea1c5186145bb4df4ca57e3ec595e62fc2a25e4` |
+
+gate 计数：
+
+| case | log lines | depth invalidation log lines | CreateNewKF vetoed | CreateNewKF accepted | LocalMapping skipped pairs |
+|---|---:|---:|---:|---:|---:|
+| CreateNewKeyFrame only | 608 | 0 | 104928 | 233832 | 0 |
+| CreateNewKeyFrame + LocalMapping | 928 | 0 | 67232 | 160457 | 2259 |
+
+解释：
+
+- `CreateNewKeyFrame only` 已经显著脱离 A 的失败 regime，并保持 `scale=0.980431`，说明 direct RGB-D close-depth MapPoint admission 是主导污染入口。
+- 但其 `ATE-SE3=0.025601` 略高于预设 `0.025m` 判据，且 final MPs=3957，高于 `CreateNewKeyFrame + LocalMapping` 的 3561；加入 LocalMapping gate 后 ATE 回到 0.017934，说明 LocalMapping triangulation backdoor 不是纯装饰，而是 D²MA-min 中有实际贡献的后门防护。
+- 当前最稳表述：`CreateNewKeyFrame` 是主导 gate，`LocalMapping` 是必要的 backdoor guard；D²MA-min 保持两者共同开启。
+- 同序列 gate ablation 至此可以停止，下一步转向外部动态序列 sanity check。
+
+外部序列准备状态：
+
+- 当前 `dynamic-slam-public/data/datasets.json` 只注册了 `walking_xyz` 系列及其 ablation/dropout 派生序列。
+- 本地可见原始 TUM 序列包括：
+  - `/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_static/rgbd_dataset_freiburg3_walking_static`
+  - `/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_sitting_xyz/rgbd_dataset_freiburg3_sitting_xyz`
+  - `/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_sitting_static/rgbd_dataset_freiburg3_sitting_static`
+- 暂未在本机发现已下载/注册的 `walking_rpy` 或 `walking_halfsphere`。
+- 因此外部验证需要先做数据准备：下载或定位 `walking_rpy / walking_halfsphere`，或先用 `walking_static / sitting_xyz` 做低动态/负例 sanity；同时需要生成与当前 D²MA side-channel 兼容的 mask/metadata 和 association。
+
+### 10.13 外部/低动态 sanity：walking_static raw RGB-D + mask side-channel
+
+目的：
+
+- 不再继续在 `walking_xyz` 上做 2^4 gate 扫描。
+- 先用本机已有的 `fr3/walking_static` 做一组外部/低动态 sanity，检查 D²MA-min 是否只是在 `walking_xyz` 上偶然有效。
+- 该序列不是理想的外部动态运动序列：相机运动很小，GT matched coverage 约 0.298，不能替代 `walking_rpy / walking_halfsphere`。但它可以作为 “动态人物 + 低相机运动/负例风险” 的早期检查。
+
+数据准备：
+
+- raw TUM root：`/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_static/rgbd_dataset_freiburg3_walking_static`
+- frontend mask donor：`/home/lj/dynamic-slam-public/runs/frontend_mask_full_wstatic_20260513_160712/sequence`
+- D²MA side-channel sequence：`/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_static_raw_rgb_raw_depth_mask/sequence`
+- 新增工具：`/home/lj/dynamic-slam-public/tools/prepare_mask_sidechannel_sequence.py`
+- registry id：`external_wstatic_rawrgb_rawdepth_mask`
+- 汇总 CSV：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/external_wstatic_d2ma_min_summary.csv`
+- run root：`/home/lj/dynamic-slam-public/runs/external_wstatic_d2ma_min_20260513_162610/`
+
+integrity：
+
+| item | value |
+|---|---:|
+| association rows | 743 |
+| valid rows | 743 |
+| unique RGB paths | 743 |
+| unique depth paths | 717 |
+| duplicate depth reuse | 26 |
+| missing RGB/depth/mask | 0 / 0 / 0 |
+| RGB-depth time diff > 0.03s | 17 |
+| GT time diff > 0.03s | 3 |
+
+运行设置：
+
+- profile：`hybrid_sequential_semantic_only`
+- maintenance period：4
+- raw baseline：`DSLAM_PASS_MASK_ARG=0`，D²MA gates off
+- D²MA-min：仅开启 `CreateNewKeyFrame + LocalMapping`
+- `STSLAM_DYNAMIC_DEPTH_INVALIDATION=0`
+- `ORB_SLAM3_MASK_MODE=off`
+- `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`
+- raw RGB-D 图像不修改，只使用 mask/meta side-channel 做 static-map admission veto
+
+结果：
+
+| case | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | has pose | lost | final KFs | final MPs |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| raw baseline | 740 | 0.043770 | 0.015914 | 0.328297 | 0.022354 | 0.400347 | 743 | 0 | 251 | 4419 |
+| D²MA-min | 740 | 0.017037 | 0.011695 | 0.646556 | 0.012511 | 0.247557 | 743 | 0 | 183 | 2508 |
+
+D²MA-min 计数：
+
+| item | value |
+|---|---:|
+| CreateNewKeyFrame log rows | 419 |
+| CreateNewKeyFrame vetoed candidates | 92041 |
+| CreateNewKeyFrame accepted depth candidates | 142400 |
+| LocalMapping log rows | 204 |
+| LocalMapping skipped instance pairs | 1102 |
+| LocalMapping kept static pairs | 3971 |
+
+path 诊断：
+
+| case | raw arc ratio | Sim3 aligned arc ratio | trajectory sha256 | KeyFrameTimeline sha256 |
+|---|---:|---:|---|---|
+| raw baseline | 14.330887 | 4.704783 | `afb6ad9ef2460c19d950137174e95d0a627d061fa7d01ab54a152b5232189004` | `f0ca9ca657df97a3ae39bc853b0c78b07106cf2a2e2ddd2b07540cc8a6c43e04` |
+| D²MA-min | 12.146206 | 7.853203 | `fd1ed211f47dd700fb03f39514a8a5a1e125b54630366e95f96d5aa4078a7c79` | `651234b59dd9a45487ddb7b976612d6f81f897b1c65c291c1ad2edad83888fd8` |
+
+解释：
+
+- `walking_static` 上 D²MA-min 相比 raw baseline 明显改善：`ATE-SE3` 从 0.043770 降到 0.017037，RPEt 从 0.022354 降到 0.012511，RPER 从 0.400347 降到 0.247557，final MPs 从 4419 降到 2508。
+- matched poses 与 has-pose frames 完全一致，lost frames 均为 0，因此这次收益不是 “少跑/丢帧” 换来的。
+- Sim3 scale 从 0.328 提升到 0.647，但仍没有接近 1；因此该结果支持 D²MA-min 的外部正向趋势，但不能宣称已经完全解决 `walking_static` 的尺度/路径问题。
+- 该序列 GT matched coverage 较低，且存在少量 association timing warning；论文中如使用这组结果，应定位为 sanity/negative-control support，而不是主外部动态验证。
+- 当前最稳结论：D²MA-min 不只是 `walking_xyz` 单序列上的偶然 gate trick；在 `walking_static` 上也能减少动态深度进入静态地图后的累积污染。但下一步仍必须补真正的外部动态相机运动序列。
+
+下一步：
+
+1. 优先定位或下载 `fr3/walking_rpy` / `fr3/walking_halfsphere`，复用 `prepare_mask_sidechannel_sequence.py` 生成 raw RGB-D + mask side-channel。
+2. 若短时间内无法获得上述序列，先对 `sitting_xyz` 或 `sitting_static` 生成 mask side-channel，作为低动态/误伤负例。
+3. 对外部序列至少跑 `raw baseline` 与 `D²MA-min`，必要时再补 D²MA-min repeat，确认可复现性。
+
+### 10.14 外部动态相机序列：walking_rpy D²MA-min 验证
+
+目的：
+
+- 回应 5.5 Pro “必须补外部动态序列 sanity check” 的要求。
+- 验证 D²MA-min 是否能从 `walking_xyz` 推广到另一条 TUM dynamic camera motion 序列。
+- 该序列比 `walking_static` 更重要：相机存在 rpy 运动，动态人物仍持续进入视野，是更接近审稿质疑的外部验证。
+
+数据准备：
+
+- 官方 TUM 包：`rgbd_dataset_freiburg3_walking_rpy.tgz`，约 509 MB。
+- raw root：`/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_rpy/rgbd_dataset_freiburg3_walking_rpy`
+- raw count：RGB=910，depth=872，GT=3062。
+- frontend donor：`/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence`
+- D²MA side-channel sequence：`/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_rpy_raw_rgb_raw_depth_mask/sequence`
+- registry id：`external_wrpy_rawrgb_rawdepth_mask`
+- run root：`/home/lj/dynamic-slam-public/runs/external_wrpy_d2ma_min_20260513_170248/`
+- 汇总 CSV：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/external_wrpy_d2ma_min_summary.csv`
+
+frontend export summary：
+
+| item | value |
+|---|---:|
+| exported frames | 909 |
+| export runtime sec | 539.528 |
+| mean runtime ms/frame | 532.285 |
+| mean mask ratio | 0.113947 |
+| mean filtered detections | 1.042904 |
+| total instances | 956 |
+| stage5 dynamic memory gate | 777 |
+| stage6 motion gate | 154 |
+| stage8 high confidence override | 16 |
+| stage9 confirmed track gate | 1 |
+| kept insufficient temporal support | 8 |
+
+integrity：
+
+| item | value |
+|---|---:|
+| association rows | 909 |
+| valid rows | 909 |
+| unique RGB paths | 909 |
+| unique depth paths | 866 |
+| duplicate depth reuse | 43 |
+| missing RGB/depth/mask | 0 / 0 / 0 |
+| RGB-depth time diff > 0.03s | 23 |
+| GT time diff > 0.03s | 3 |
+
+运行设置：
+
+- profile：`hybrid_sequential_semantic_only`
+- maintenance period：4
+- raw baseline：`DSLAM_PASS_MASK_ARG=0`，D²MA gates off
+- D²MA-min：仅开启 `CreateNewKeyFrame + LocalMapping`
+- `STSLAM_DYNAMIC_DEPTH_INVALIDATION=0`
+- `ORB_SLAM3_MASK_MODE=off`
+- `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`
+- raw RGB-D 不修改，只使用 mask/meta side-channel 做 static-map admission veto
+
+结果：
+
+| case | repeat | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | has pose | lost | final KFs | final MPs |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| raw baseline | run_1 | 906 | 0.997057 | 0.157951 | 0.084939 | 0.026161 | 0.626247 | 909 | 0 | 575 | 13872 |
+| D²MA-min | run_1 | 906 | 0.367386 | 0.137205 | 0.260907 | 0.024261 | 0.591429 | 909 | 0 | 426 | 7331 |
+| D²MA-min | run_2 | 906 | 0.367386 | 0.137205 | 0.260907 | 0.024261 | 0.591429 | 909 | 0 | 426 | 7331 |
+
+D²MA-min 计数：
+
+| item | value |
+|---|---:|
+| CreateNewKeyFrame log rows | 585 |
+| CreateNewKeyFrame vetoed candidates | 104743 |
+| CreateNewKeyFrame accepted depth candidates | 275583 |
+| LocalMapping log rows | 994 |
+| LocalMapping skipped instance pairs | 4833 |
+| LocalMapping kept static pairs | 8465 |
+
+path 诊断：
+
+| case | raw arc ratio | Sim3 aligned arc ratio | trajectory sha256 | KeyFrameTimeline sha256 |
+|---|---:|---:|---|---|
+| raw baseline | 5.722309 | 0.486049 | `98f24b00e99e63ed42b6f0ff8250cc19654e3a34297611c971bc8d70acaf50e2` | `e2edf16c21f20f81e3ae5c690d47fc79607150f109b417ffe1f48ffbb06a2727` |
+| D²MA-min run_1 | 5.292963 | 1.380969 | `956f9f0b5aa75e0c68ac0c6e974441dc77daaa73f1cd113db6a157609a995bbe` | `de8ebd9ad2e07721f1bfa9c1fe6f44b2cd9dc8a4740d78f4ae816572b18fc44d` |
+| D²MA-min run_2 | 5.292963 | 1.380969 | `956f9f0b5aa75e0c68ac0c6e974441dc77daaa73f1cd113db6a157609a995bbe` | `de8ebd9ad2e07721f1bfa9c1fe6f44b2cd9dc8a4740d78f4ae816572b18fc44d` |
+
+解释：
+
+- D²MA-min 在真正外部动态相机序列上仍有显著正向作用：`ATE-SE3` 从 0.997 降到 0.367，Sim3 scale 从 0.085 提升到 0.261，final MPs 从 13872 降到 7331。
+- D²MA-min repeat 的 trajectory 与 KeyFrameTimeline sha 完全一致，说明该结果不是异步噪声或偶然运行造成。
+- 但 D²MA-min 没有把 `walking_rpy` 拉回 `walking_xyz` 的强性能区间；`ATE-SE3=0.367m` 和 `scale=0.261` 仍处于残余失败 regime。
+- matched poses 与 has-pose frames 相同，lost frames 均为 0，因此主要问题仍更像 map/path/scale drift，而不是 tracking lost。
+- 该结果非常关键：它既支持 D²MA 的机制方向，又暴露 D²MA-min 在更强外部相机运动下仍不足。论文主线需要避免写成 “完全解决动态 RGB-D SLAM”，更稳的说法是 “动态深度静态地图准入显著抑制污染，但外部 rpy 序列提示仍需要与前端 depth support allocation 或更强准入策略结合”。
+
+当前阶段判断：
+
+1. `walking_xyz`：D²MA-min 近似恢复 filtered-depth 强基线，支持核心方法。
+2. `walking_static`：D²MA-min 明显改善且不丢帧，但 scale 仍未完全恢复，作为低动态 sanity 有价值。
+3. `walking_rpy`：D²MA-min 可复现改善 raw failure，但残余尺度/路径漂移明显；这是下一轮必须回传给 5.5 Pro 的关键信息。
+
+下一步建议：
+
+1. 立即将 `walking_xyz + walking_static + walking_rpy` 的统一表回传 5.5 Pro，请其判断 D²MA 是否仍可作为主方法，还是需要把 full method 改成 “frontend depth support allocation + D²MA backend admission guard”。
+2. 本地可继续补 `walking_halfsphere`，但在 `walking_rpy` 出现残余 failure 后，优先级应低于机制复盘；否则容易变成盲目多序列堆实验。
+3. 若继续本地实现，下一候选不是更复杂 gate 扫描，而是检查 `walking_rpy` 中被 veto 后仍进入地图/BA 的污染路径，或者测试 D²MA-min + filtered depth / V1b radius 的组合上界。
+
+### 10.15 walking_rpy 机制挖掘：C/D 上界与 V1b 互补性
+
+依据 5.5 Pro 第七轮反馈，当前最重要的问题不是继续堆新序列，而是解释 `walking_rpy` 为什么 D²MA-min 只部分恢复。因此本节做两组机制诊断：
+
+1. Early intervention upper bound：A/B/C/D，判断 filtered depth / filtered RGB 是否能像 `walking_xyz` 一样恢复强性能。
+2. V1b / D²MA+V1b：判断 frame-level current-depth invalidation 是否能弥补 admission-only 太晚的问题。
+
+数据与记录：
+
+- A/B/C/D 数据根：`/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/`
+- A/B/C/D run root：`/home/lj/dynamic-slam-public/runs/wrpy_early_intervention_20260513_180140/`
+- V1b run root：`/home/lj/dynamic-slam-public/runs/wrpy_v1b_combo_20260513_181105/`
+- 汇总 CSV：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/wrpy_mechanism_diagnosis_20260513_summary.csv`
+- progressive CSV：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/wrpy_progressive_diagnostics_20260513.csv`
+- progressive summary：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/wrpy_progressive_diagnostics_20260513_summary.csv`
+- early window stats：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/wrpy_early_window_stats_20260513.csv`
+
+共同设置：
+
+- profile：`hybrid_sequential_semantic_only`
+- maintenance period：4
+- matched poses：906
+- estimated poses：909
+- has-pose frames：909
+- lost frames：0
+- 所有 A/B/C/D 均关闭 backend mask 接入：`DSLAM_PASS_MASK_ARG=0`，`ORB_SLAM3_MASK_MODE=off`
+
+核心结果：
+
+| case | intervention | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | final KFs | final MPs | final path |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| A | raw RGB + raw depth | 0.997057 | 0.157951 | 0.084939 | 0.026161 | 0.626247 | 575 | 13872 | 18.108613 |
+| D²MA-min | raw RGB-D + map admission | 0.367386 | 0.137205 | 0.260907 | 0.024261 | 0.591429 | 426 | 7331 | 15.729182 |
+| B | filtered RGB + raw depth | 0.472047 | 0.148503 | 0.191377 | 0.028759 | 0.652902 | 498 | 9623 | 17.491351 |
+| C | raw RGB + filtered depth | 0.292579 | 0.125720 | 0.333615 | 0.023897 | 0.583789 | 347 | 6320 | 14.999138 |
+| D | filtered RGB + filtered depth | 0.249133 | 0.123608 | 0.382943 | 0.025969 | 0.593776 | 361 | 7067 | 14.914669 |
+| V1b radius1 | frame-level dynamic depth invalidation | 0.555564 | 0.151689 | 0.159520 | 0.019056 | 0.551196 | 288 | 5791 | 12.805787 |
+| D²MA-min + V1b radius1 | admission + frame-level invalidation | 0.369391 | 0.139738 | 0.255511 | 0.025740 | 0.608669 | 335 | 5983 | 15.427209 |
+
+动态计数：
+
+| case | CreateNewKF vetoed | CreateNewKF accepted | LocalMapping skipped | LocalMapping kept | depth invalidation rows | invalidated features |
+|---|---:|---:|---:|---:|---:|---:|
+| D²MA-min | 104743 | 275583 | 4833 | 8465 | 0 | 0 |
+| V1b radius1 | 0 | 0 | 0 | 0 | 909 | 124623 |
+| D²MA-min + V1b radius1 | 102619 | 258546 | 4229 | 7504 | 909 | 124623 |
+
+path diagnostics：
+
+| case | raw arc ratio | Sim3 arc ratio | segment ratio median |
+|---|---:|---:|---:|
+| A | 5.722309 | 0.486049 | 6.443185 |
+| D²MA-min | 5.292963 | 1.380969 | 6.101469 |
+| B | 5.960051 | 1.140618 | 6.359554 |
+| C | 5.030005 | 1.678085 | 5.219772 |
+| D | 5.240289 | 2.006734 | 5.485933 |
+| V1b radius1 | 4.166227 | 0.664597 | 4.495097 |
+| D²MA-min + V1b radius1 | 5.320524 | 1.359454 | 5.855312 |
+
+progressive 诊断：
+
+| case | first checkpoint arc ratio > 2 | ratio at checkpoint | first checkpoint SE3 RMSE > 0.2 | RMSE at checkpoint | final arc ratio |
+|---|---:|---:|---:|---:|---:|
+| A | 200 | 2.721472 | 100 | 0.419418 | 5.722309 |
+| D²MA-min | 200 | 2.493781 | 100 | 0.230439 | 5.292963 |
+| B | 200 | 2.647648 | 100 | 0.238121 | 5.960051 |
+| C | 200 | 2.411034 | 200 | 0.362614 | 5.030005 |
+| D | 200 | 2.337276 | 200 | 0.237284 | 5.240289 |
+| V1b radius1 | 200 | 2.261422 | 100 | 0.305594 | 4.166227 |
+| D²MA-min + V1b | 200 | 2.592940 | 100 | 0.212008 | 5.320524 |
+
+第 200 帧窗口状态：
+
+| case | KFs | MPs | tracked MPs | inliers | estimated path | mask ratio |
+|---|---:|---:|---:|---:|---:|---:|
+| A | 150 | 5517 | 307 | 165 | 3.906259 | 0.000000 |
+| D²MA-min | 131 | 3888 | 262 | 191 | 3.565893 | 0.121540 |
+| B | 144 | 4928 | 282 | 180 | 3.926579 | 0.000000 |
+| C | 129 | 3791 | 221 | 141 | 3.426596 | 0.000000 |
+| D | 118 | 3755 | 241 | 141 | 3.270291 | 0.000000 |
+| V1b radius1 | 91 | 3512 | 232 | 153 | 3.139116 | 0.121540 |
+| D²MA-min + V1b | 118 | 3306 | 240 | 165 | 3.671715 | 0.121540 |
+
+关键解释：
+
+- `walking_rpy` 与 `walking_xyz` 的机制不同：在 `walking_xyz` 上 C/D 几乎恢复到 0.018m；但在 `walking_rpy` 上，C 只有 0.292579m，D 也只有 0.249133m，说明即使 image-level filtered depth/RGB 上界也不能完全恢复。
+- filtered depth 仍然是最重要的单一干预：C 优于 B，也优于 D²MA-min；但 C 不够强，说明 residual failure 不是单纯 “admission-only 太晚”。
+- filtered RGB 在 raw depth 下有帮助但有限：B 从 A 的 0.997 降到 0.472，说明 RGB feature support 对 rpy 有贡献；但 raw depth 污染仍然压制系统。
+- D 比 C 略好，说明 RGB + depth 同时干预存在小幅互补；但 D 仍远离强恢复，提示 mask/association/ORB-SLAM3 在 rpy 下还有更深层问题。
+- V1b radius1 改善局部 RPE 和路径长度膨胀，但全局 SE3 仍差，且 D²MA-min + V1b 基本不优于 D²MA-min；因此 “current-frame masked depth invalidation” 不是 rpy 残余失败的充分补丁。
+- progressive 诊断显示所有变体在第 200 个 matched pose 时累计路径比已超过 2；这不是后半段突然失败，而是序列早期就进入路径长度膨胀模式，只是不同干预把膨胀程度压低。
+- 第 200 帧时 raw 已有 150 个 KFs / 5517 个 MPs，D²MA-min 降到 131/3888，C/D/V1b 进一步压低地图规模；但 estimated path 仍约 3.1-3.9m，说明 “地图规模压缩” 与 “全局路径恢复” 不是一回事。
+
+当前最可信失败原因排序：
+
+1. `walking_rpy` 的失败不是单一路径污染，而是强旋转相机运动下的路径长度膨胀 / map consistency 问题；dynamic-depth admission 是重要通道，但不是唯一通道。
+2. mask/depth intervention 对动态人物有效，但仍可能存在边界漏检、深度空洞、遮挡边缘、动态边界处静态/动态混合像素等问题；这些在 rpy 旋转下更容易进入局部地图支持。
+3. ORB-SLAM3 RGB-D 在该序列上即使不 lost，也可能通过错误/不稳定的短期匹配持续积累路径尺度错误；这不是简单的 tracking lost。
+4. 仅靠更早的 depth invalidation 不够；V1b 能减少部分路径膨胀，但没有恢复全局一致性，且与 D²MA 不互补。
+
+阶段性结论：
+
+- D²MA-min 仍是有效 backend admission guard，但 `walking_rpy` 证明它不是完整解决方案。
+- `walking_rpy` 的论文价值在于给出边界条件：当动态深度污染不是唯一主因时，admission-only 可以压制地图膨胀但不能完全恢复尺度一致性。
+- 下一步不应继续盲目跑 `walking_halfsphere`，而应先做更细的 failure-path diagnostics：定位第 100-200 帧附近的动态 mask、关键帧、MapPoint admission、局部地图 inliers 和路径膨胀之间的关系。
+
+下一步建议：
+
+1. 导出 `walking_rpy` 第 0-220 帧的关键诊断窗口，重点看第 100/200 pose 附近的 mask ratio、keyframe creation、MapPoint 增长、estimated step/path ratio。
+2. 统计 accepted depth candidates 中靠近 mask boundary 的比例，判断是否是边界漏污染。
+3. 如果要继续算法尝试，优先做 support-aware admission：动态边界附近 close-depth candidate 降权/延迟 admission，而不是简单扩大 invalidation。
+
+### 10.16 walking_rpy 两项机制诊断：早期路径膨胀同步 + mask-boundary admission
+
+目标：
+
+- 诊断 1：确认 `walking_rpy` 的路径长度膨胀是否与早期 keyframe / MapPoint admission 同步出现，而不是全序列后期才突然崩坏。
+- 诊断 2：统计 D²MA-min 已经 veto 直接动态点之后，是否仍有“静态特征但靠近动态 mask 边界”的深度候选进入 keyframe admission，并进一步创建 MapPoint。
+
+代码与运行：
+
+- 后端新增诊断开关：`STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_DIAGNOSTICS=1`，半径参数 `STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_RADIUS_PX=5`。
+- 该补丁只输出 `[STSLAM_MAP_ADMISSION_BOUNDARY_DIAG]` 日志，不改变 `ShouldVetoDynamicMapAdmission` 的判断，也不改变默认实验路径。
+- 诊断 run：`/home/lj/dynamic-slam-public/runs/wrpy_boundary_diag_d2ma_min_20260513_185107`
+- 解析结果已复制到小论文目录：
+  - `wrpy_boundary_admission_diag_20260513.csv`
+  - `wrpy_boundary_admission_diag_summary_20260513.csv`
+  - `wrpy_boundary_path_sync_20260513.csv`
+
+注意：
+
+- 诊断 run 的 ATE-SE3 为 `0.427940m`，Sim3 scale 为 `0.209995`，差于此前稳定 D²MA-min 的 `0.367386m / 0.260907`。
+- 由于边界诊断逐 keypoint 扫描 mask 邻域，会增加运行时开销，可能改变线程调度；因此该 run 只用于机制诊断，不作为可比精度 baseline。
+
+边界 admission 汇总：
+
+| window | keyframe rows | valid depth pre-veto | direct dynamic valid ratio | accepted static-near-mask ratio | created static-near-mask ratio |
+|---|---:|---:|---:|---:|---:|
+| all | 593 | 371123 | 0.245140 | 0.054746 | 0.109338 |
+| frame 0-100 | 58 | 49032 | 0.324869 | 0.069480 | 0.097758 |
+| frame 0-200 | 148 | 91457 | 0.318587 | 0.080793 | 0.131341 |
+| frame 0-220 | 167 | 99613 | 0.298505 | 0.074959 | 0.124942 |
+| frame 221-end | 426 | 271510 | 0.225561 | 0.048029 | 0.103191 |
+
+与路径/地图状态同步：
+
+| checkpoint frame | KFs | MPs | estimated path | accepted static-near-mask cumulative | created static-near-mask cumulative | created static-near-mask ratio |
+|---:|---:|---:|---:|---:|---:|---:|
+| 50 | 29 | 1603 | 0.520374 | 1242 | 493 | 0.095321 |
+| 100 | 50 | 2606 | 1.263667 | 2300 | 837 | 0.097758 |
+| 150 | 84 | 3439 | 2.525301 | 4136 | 1635 | 0.121878 |
+| 200 | 131 | 3888 | 3.565893 | 5035 | 2048 | 0.131341 |
+| 220 | 149 | 4422 | 4.036887 | 5238 | 2155 | 0.124942 |
+| 908 | 422 | 7334 | 15.637800 | 15337 | 6673 | 0.109338 |
+
+诊断解读：
+
+- D²MA-min 对“直接落在动态 mask 内”的有效深度候选是有效的：全序列约 `24.5%` 的有效深度候选被 veto，前 200 帧该比例约 `31.9%`。
+- 但 veto 后仍有边界污染通道：前 200 帧 accepted depth candidates 中 `8.08%` 是“静态特征但 5px 内邻近动态 mask”的候选；更关键的是，新建 MapPoint 中这类点占 `13.13%`。
+- 这类边界候选在早期已经大量进入地图：第 200 帧前累计创建 `2048` 个 static-near-mask MapPoints，此时系统已达到 `131` 个 keyframes、`3888` 个 MapPoints、估计路径 `3.565893m`。
+- 这支持一个更细的失败假设：`walking_rpy` 不是 D²MA 完全无效，而是 D²MA 只堵住了“mask 内直接动态点”，但没有处理 mask 边缘、混合深度、遮挡边界和支持区域不确定性。
+- 因此下一步算法尝试应优先从 `support-aware / boundary-aware map admission` 入手，而不是继续扩大普通 depth invalidation 或继续扫 NeedNewKF gate。
+
+下一步收敛方向：
+
+- 设计 `D²MA-boundary`：对 direct dynamic mask 继续 hard veto；对 static-near-mask close-depth candidate 不直接创建 MapPoint，改为延迟 admission、需要跨帧静态支持，或要求更高 inlier/local support。
+- 优先在 `walking_rpy` 做小规模验证，再回到 `walking_xyz` 和 `walking_static` 做负面影响检查。
+- 新实验必须保持核心表述清楚：D²MA-min 是最小 backend guard，`D²MA-boundary` 是针对 rpy 暴露出的边界污染通道的第二层增强。
+
+### 10.17 D²MA-boundary / support-aware admission 初版验证
+
+目标：
+
+- 基于 10.16 的诊断结果，验证 `walking_rpy` 的残余失败是否确实来自“直接动态 mask 外侧的边界邻域污染”。
+- 在不修改 RGB、不 invalid 当前帧 depth、不改 pose optimization 权重的前提下，把动态先验继续限制在 static-map admission 入口。
+- 先做一个可控的 hard-veto 初版：直接动态点仍由 D²MA-min veto；对于静态特征但 5px 邻域内存在动态 mask support 的 close-depth / triangulation candidate，暂不允许进入持久静态地图。
+
+实现：
+
+- `KeyFrame` 新增 `mvStaticNearDynamicMask`，在 KeyFrame 从 Frame 构造时缓存每个特征是否属于 static-near-dynamic-mask。
+- `CreateNewKeyFrame` 新增 boundary admission veto：若 close-depth 新建 MapPoint 候选是 `static-near-dynamic-mask`，则跳过该新 MapPoint admission。
+- `LocalMapping::CreateNewMapPoints` 新增 boundary pair veto：若匹配对任一端特征是 `static-near-dynamic-mask`，则阻止通过 LocalMapping triangulation backdoor 创建新 MapPoint。
+- 新开关：
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_VETO=1`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_VETO_CREATE_NEW_KEYFRAME=1`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_VETO_LOCAL_MAPPING_CREATE_NEW_MAPPOINTS=1`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_RADIUS_PX=5`
+
+注意：
+
+- 该版本是 `D²MA-boundary r=5 hard admission veto`，是 support-aware admission 的第一版风险门控，不是最终的 delayed admission / multi-frame static support 版本。
+- 实验仍保持 D²MA-min 的核心边界：raw RGB-D 输入不变，mask 只作为 side-channel，depth invalidation off。
+
+结果文件：
+
+- 汇总表：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/d2ma_boundary_support_admission_summary_20260513.csv`
+- 总实验表已追加：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/experiments_0512_0517.csv`
+
+精度结果：
+
+| sequence | method | repeat | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| walking_rpy | D²MA-boundary r5 | run_1 | 906 | 0.269999 | 0.120722 | 0.361678 | 0.026173 | 0.606005 |
+| walking_rpy | D²MA-boundary r5 | run_2 | 906 | 0.269999 | 0.120722 | 0.361678 | 0.026173 | 0.606005 |
+| walking_xyz | D²MA-boundary r5 | run_1 | 857 | 0.017884 | 0.016043 | 0.974357 | 0.011772 | 0.375444 |
+| walking_static | D²MA-boundary r5 | run_1 | 740 | 0.010972 | 0.008703 | 0.782028 | 0.010462 | 0.219777 |
+
+机制计数：
+
+| sequence | repeat | final KFs | final MPs | skipped new boundary candidates | skipped LM boundary pairs | boundary new skip ratio | boundary LM skip ratio |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| walking_rpy | run_1 | 370 | 6006 | 8179 | 587 | 0.029898 | 0.144084 |
+| walking_rpy | run_2 | 370 | 6006 | 8179 | 587 | 0.029898 | 0.144084 |
+| walking_xyz | run_1 | 176 | 3155 | 6507 | 521 | 0.039457 | 0.067087 |
+| walking_static | run_1 | 141 | 1791 | 3916 | 117 | 0.029891 | 0.096854 |
+
+与既有结果对比：
+
+- `walking_rpy`：raw baseline `ATE-SE3=0.997057 / scale=0.084939`；D²MA-min `0.367386 / 0.260907`；D²MA-boundary r5 达到 `0.269999 / 0.361678`，Sim3 ATE 从 D²MA-min 的 `0.137205` 降到 `0.120722`。
+- `walking_rpy` run_1/run_2 trajectory sha 与 KeyFrameTimeline sha 完全一致，说明该结果具备 bit-level repeat stability。
+- `walking_xyz`：D²MA-min 为 `ATE-SE3=0.017934 / scale=0.975517`；D²MA-boundary r5 为 `0.017884 / 0.974357`，基本不退化。
+- `walking_static`：D²MA-min 为 `ATE-SE3=0.017037 / scale=0.646556`；D²MA-boundary r5 为 `0.010972 / 0.782028`，低动态 sanity 反而继续改善。
+
+阶段性解读：
+
+- 10.16 的边界污染诊断被正向验证：对 static-near-dynamic-mask 的 MapPoint admission 做约束后，`walking_rpy` 从残余失败区进一步恢复，且结果可重复。
+- 这说明 `walking_rpy` 不是 D²MA-min 方向错误，而是最小 D²MA 只处理了 mask 内直接动态点，漏掉了动态边界/混合深度/遮挡边缘这一类更隐蔽的静态地图污染通道。
+- `walking_xyz` 与 `walking_static` 的 sanity 结果说明 r5 hard-veto 当前没有明显误伤，暂时可以作为 D²MA-boundary 的候选增强机制。
+- 但 `walking_rpy` 的 scale 仍只有 `0.361678`，没有恢复到 `walking_xyz` 的强尺度一致性；因此不应宣称已经解决 rpy，只能说 boundary-aware admission 明显缓解残余失败。
+
+下一步：
+
+1. 把本节结果统一回传 5.5 Pro，请其判断是否应将论文方法从 D²MA-min 扩展为 “D²MA-min + boundary-risk admission guard”。
+2. 已完成小半径消融：`r=3 / r=5 / r=8`，确认 boundary radius 对 rpy 残余污染存在明确影响。
+3. 若继续实现 support-aware 完整版，优先从 hard-veto 升级为 delayed admission：边界候选需要跨关键帧静态支持或更高局部 inlier support 后才允许进入 map。
+4. 论文叙事暂定：D²MA-min 是最小核心，D²MA-boundary 是针对 foundation-mask boundary uncertainty 的增强项。
+
+半径敏感性补充：
+
+| sequence | method | radius | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | skipped new boundary candidates | skipped LM boundary pairs |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| walking_rpy | D²MA-boundary | 3 | 906 | 0.317809 | 0.130713 | 0.305339 | 0.027600 | 0.642786 | 5348 | 361 |
+| walking_rpy | D²MA-boundary | 5 | 906 | 0.269999 | 0.120722 | 0.361678 | 0.026173 | 0.606005 | 8179 | 587 |
+| walking_rpy | D²MA-boundary | 8 | 906 | 0.265845 | 0.120408 | 0.366495 | 0.033081 | 0.740172 | 10999 | 936 |
+
+半径敏感性解读：
+
+- `r=3` 已优于 D²MA-min，但明显弱于 `r=5/8`，说明较窄边界无法覆盖足够的 mask-boundary / mixed-depth 污染。
+- `r=8` 的全局 ATE 和 scale 略好于 `r=5`，但 RPEt/RPER 明显变差，说明更宽 hard-veto 可能开始牺牲局部连续性或可用支持点。
+- 当前更稳的主配置仍可先用 `r=5`：它在 rpy 上显著优于 D²MA-min，在 xyz/static 上已通过 sanity，且局部 RPE 比 r8 更温和。
+- 论文机制上更重要的不是继续扩大半径，而是把 hard boundary veto 升级为真正的 support-aware delayed admission：边界候选先进入 probation，不立即成为长期静态 MapPoint，待跨帧静态支持足够再 admission。
+
+### 10.18 same-count non-boundary veto control
+
+目标：
+
+- 回答 D²MA-B 的收益是否只是“删了更多点 / 让地图更稀疏”，而不是来自 near-mask boundary-risk targeting。
+- 构造一个同量删除对照：D²MA-min 的 direct dynamic gates 仍开启，但 boundary targeting 关闭；系统先计算若启用 D²MA-B r5 时会有多少 boundary-risk candidate 被跳过，然后改为跳过同数量的 non-boundary static candidate。
+
+实现：
+
+- 新增 control 开关：
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_SAME_COUNT_CONTROL=1`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_SAME_COUNT_CONTROL_CREATE_NEW_KEYFRAME=1`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_SAME_COUNT_CONTROL_LOCAL_MAPPING_CREATE_NEW_MAPPOINTS=1`
+- `CreateNewKeyFrame`：按当前 keyframe 的 boundary-risk new-candidate budget，跳过同数量的非 boundary 新 MapPoint 候选。
+- `LocalMapping::CreateNewMapPoints`：按匹配对中的 boundary-risk pair budget，跳过同数量的非 boundary pair。
+- 该 control 不跳过 boundary-risk candidates，因此可检验“同量删除但不按 boundary targeting”是否能复现 D²MA-B。
+
+结果文件：
+
+- `/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/d2ma_boundary_samecount_control_summary_20260513.csv`
+- 总实验表已追加：`experiments_0512_0517.csv`
+
+结果：
+
+| sequence | method | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | final KFs | final MPs |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| walking_rpy | raw RGB-D | 906 | 0.997057 | 0.157951 | 0.084939 | 0.026161 | 0.626247 | 909 | 13872 |
+| walking_rpy | D²MA-min | 906 | 0.367386 | 0.137205 | 0.260907 | 0.024261 | 0.591429 | 426 | 7331 |
+| walking_rpy | D²MA-B r5 | 906 | 0.269999 | 0.120722 | 0.361678 | 0.026173 | 0.606005 | 370 | 6006 |
+| walking_rpy | same-count non-boundary control r5 | 906 | 0.604425 | 0.156306 | 0.138884 | 0.025395 | 0.593053 | 427 | 7389 |
+
+control 计数：
+
+| metric | value |
+|---|---:|
+| boundary budget new candidates | 7990 |
+| skipped non-boundary new candidates | 7988 |
+| boundary budget LM pairs | 246 |
+| skipped non-boundary LM pairs | 209 |
+| accepted depth candidates pre-control | 276790 |
+
+解读：
+
+- same-count control 删除了几乎同等数量的新 MapPoint 候选，但 `ATE-SE3=0.604425`、scale `0.138884`，明显差于 D²MA-min，更远差于 D²MA-B r5。
+- 因此 D²MA-B 的收益不能解释为 generic sparsification，也不是单纯减少 MapPoint 数量；关键在于 targeting near-mask boundary-risk candidates。
+- control 的 final MPs `7389` 与 D²MA-min `7331` 接近，但精度更差，进一步说明“地图规模压缩”不是充分解释。
+- 该结果可作为论文中反驳 “boundary guard 只是多删点 / dilation trick” 的核心因果对照。
+
+阶段性结论：
+
+- D²MA-B r5 现在具备三类证据：机制诊断发现 boundary leakage，targeted boundary veto 改善 rpy，same-count non-boundary veto 不能复现收益。
+- 下一步若继续加强方法，不应继续做同量删点或更大 hard-veto，而应进入 D²MA-DA：boundary-risk candidate 的 probationary / delayed static-map admission。
+
+### 10.19 `walking_halfsphere` 外部动态序列验证
+
+目的：
+
+- 按照 5.5 Pro 的建议，补一条不参与前期机制定位的外部动态序列，验证 D²MA-min / D²MA-B r5 是否具备跨序列迁移性。
+- 该实验不再使用前端 filtered depth 改写深度，而是保持 raw RGB-D，仅把 YOLOE/SAM3 mask 作为 side-channel 输入后端 admission gate。
+- 对比三组：raw RGB-D baseline、D²MA-min、D²MA-B r5。
+
+数据准备：
+
+- TUM RGB-D `fr3/walking_halfsphere` 已下载并解压到 `/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_halfsphere/rgbd_dataset_freiburg3_walking_halfsphere`。
+- 前端 mask 导出目录：`/home/lj/dynamic-slam-public/runs/frontend_mask_full_whalfsphere_20260513_203759/sequence`。
+- 生成 raw RGB-D + mask side-channel 序列：`/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_halfsphere_raw_rgb_raw_depth_mask/sequence`。
+- `datasets.json` 已注册：`external_whalfsphere_rawrgb_rawdepth_mask`。
+- integrity check 文件：`/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_halfsphere_raw_rgb_raw_depth_mask/integrity.json`。
+
+前端导出统计：
+
+| item | value |
+|---|---:|
+| exported frames | 1067 |
+| export runtime sec | 611.488 |
+| mean runtime ms | 513.728 |
+| mean mask ratio | 0.129538 |
+| mean filtered detections | 1.10684 |
+| mean motion | 0.43566 |
+| mean geometry dynamic | 0.42473 |
+
+integrity note：
+
+- 文件存在性检查通过，`missing_rgb/depth/mask/meta=0`。
+- 因 TUM 原始时间戳采样差异，存在 `rgb_depth_time_diff>0.03` 的条目 26 个、`gt_time_diff>0.03` 的条目 3 个；本次结果应记录该注意事项，但三组方法使用完全相同 association，因此组间比较仍有效。
+
+结果文件：
+
+- 汇总表：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/whalfsphere_d2ma_b_validation_summary_20260513.csv`
+- run root：`/home/lj/dynamic-slam-public/runs/whalfsphere_d2ma_b_validation_20260513_205117`
+- 总实验表已追加：`experiments_0512_0517.csv`
+
+结果：
+
+| sequence | method | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | final KFs | final MPs | final path |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| walking_halfsphere | raw RGB-D | 1064 | 0.418817 | 0.278236 | 0.560136 | 0.020018 | 0.521662 | 610 | 13213 | 18.488295 |
+| walking_halfsphere | D²MA-min | 1064 | 0.178466 | 0.133784 | 0.798252 | 0.016987 | 0.498543 | 370 | 5491 | 16.107576 |
+| walking_halfsphere | D²MA-B r5 | 1064 | 0.156093 | 0.118844 | 0.823258 | 0.016220 | 0.484402 | 308 | 4804 | 15.225326 |
+
+gate 统计：
+
+| method | direct new veto | LM instance pairs skipped | boundary skipped new | boundary LM pairs skipped |
+|---|---:|---:|---:|---:|
+| D²MA-min | 131112 | 3054 | 0 | 0 |
+| D²MA-B r5 | 133793 | 3516 | 8502 | 529 |
+
+解读：
+
+- `walking_halfsphere` 上，D²MA-min 相比 raw baseline 显著改善：ATE-SE3 从 `0.418817` 降至 `0.178466`，Sim3 scale 从 `0.560136` 提升至 `0.798252`。
+- D²MA-B r5 在外部序列上继续优于 D²MA-min：ATE-SE3 进一步降至 `0.156093`，ATE-Sim3 降至 `0.118844`，scale 提升至 `0.823258`，RPEt/RPER 也同步下降。
+- 这与 `walking_rpy` 的现象一致：boundary-risk guard 不是只在单个失败序列上过拟合，而是在另一条动态人物序列上也能缓解地图准入污染。
+- 同时 D²MA-B r5 final MPs 从 D²MA-min 的 `5491` 降到 `4804`，但 RPE 没有恶化，说明这次不像 r8 那样体现出明显 over-veto / support starvation。
+
+阶段性结论：
+
+- 当前证据链已经明显强于“启发式 mask dilation”：D²MA-B r5 有机制诊断、same-count non-boundary causal control、以及外部动态序列验证三类支撑。
+- 下一步可以把 D²MA-B r5 作为论文主方法的稳定版本，同时开始做 D²MA-DA / delayed admission 原型，目标是把 hard boundary veto 升级为 support-aware admission，而不是继续扩大半径。
+- 现在值得把 same-count control + `walking_halfsphere` 外部验证结果统一回传给 5.5 Pro，请其判断论文主线是否应正式收敛到 “D²MA-min + Boundary-Risk Admission Guard + Delayed Admission 展望/原型”。
+
+### 10.20 D²MA-DA-lite 分层消融：support-aware delayed admission
+
+目标：
+
+- 在 D²MA-B r5 hard boundary veto 基础上，尝试把边界风险候选从“全部拒绝”推进到“有静态支持才准入”。
+- 重点区分两个 admission 层：
+  - `CreateNewKeyFrame`：RGB-D 单帧深度直接生成新 MapPoint。
+  - `LocalMapping::CreateNewMapPoints`：关键帧之间三角化生成新 MapPoint。
+- 这一区分很关键：单帧 RGB-D 边界深度容易受 mixed depth / 遮挡边缘污染；跨关键帧三角化候选至少经过了匹配、视差、重投影、尺度一致性检查。
+
+实现：
+
+- 新增开关：
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY=1`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY_CREATE_NEW_KEYFRAME=1/0`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY_LOCAL_MAPPING_CREATE_NEW_MAPPOINTS=1/0`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY_SUPPORT_RADIUS_PX`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY_MIN_SUPPORT`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY_MIN_OBS`
+- 支持定义：boundary-risk candidate 周围一定像素半径内，存在足够数量的“干净静态已跟踪 MapPoint”；支持点不能是 direct dynamic feature、不能在 static-near-dynamic-mask 区域，且 MapPoint observations 需达到阈值。
+- CKF+LM full DA：两个层都允许 support-confirmed boundary candidate 准入。
+- LM-only DA：`CreateNewKeyFrame` 仍 hard veto boundary-risk RGB-D 新点，只在 `LocalMapping::CreateNewMapPoints` 放行 support-confirmed boundary pair。
+
+结果文件：
+
+- 汇总表：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/d2ma_da_layered_ablation_summary_20260513.csv`
+- 总实验表已追加：`experiments_0512_0517.csv`
+
+结果：
+
+| sequence | method | matched | ATE-SE3 | ATE-Sim3 | Sim3 scale | RPEt | RPER | final KFs | final MPs |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| walking_rpy | D²MA-B r5 current ref | 906 | 0.307193 | 0.151482 | 0.275739 | 0.015342 | 0.560025 | 285 | 7393 |
+| walking_rpy | D²MA-DA full CKF+LM s18 m2 | 906 | 0.322344 | 0.155957 | 0.251413 | 0.016584 | 0.562662 | 292 | - |
+| walking_rpy | D²MA-DA full CKF+LM s18 m3 | 906 | 0.383317 | 0.149283 | 0.229141 | 0.025114 | 0.668378 | 306 | 8067 |
+| walking_rpy | D²MA-DA LM-only s18 m2 | 906 | 0.256534 | 0.143501 | 0.346450 | 0.017301 | 0.571184 | 261 | 7180 |
+| walking_halfsphere | D²MA-B r5 current ref | 1064 | 0.213132 | 0.168231 | 0.777055 | 0.012444 | 0.451372 | 227 | 5582 |
+| walking_halfsphere | D²MA-DA LM-only s18 m2 | 1064 | 0.333637 | 0.238661 | 0.644955 | 0.012844 | 0.464440 | 242 | 5788 |
+| walking_halfsphere | D²MA-DA LM-only s18 m3 | 1064 | 0.386641 | 0.263878 | 0.590959 | 0.013968 | 0.468541 | 258 | 6221 |
+
+关键计数：
+
+| sequence | method | CKF skipped new | CKF support-promoted new | LM rejected boundary pairs | LM support-promoted pairs |
+|---|---|---:|---:|---:|---:|
+| walking_rpy | D²MA-B r5 current ref | 9470 | 0 | 298 | 0 |
+| walking_rpy | D²MA-DA full CKF+LM s18 m2 | 7022 | 2067 | 223 | 39 |
+| walking_rpy | D²MA-DA full CKF+LM s18 m3 | 7856 | 1372 | 232 | 15 |
+| walking_rpy | D²MA-DA LM-only s18 m2 | 9444 | 0 | 310 | 74 |
+| walking_halfsphere | D²MA-B r5 current ref | 11183 | 0 | 397 | 0 |
+| walking_halfsphere | D²MA-DA LM-only s18 m2 | 11141 | 0 | 317 | 59 |
+| walking_halfsphere | D²MA-DA LM-only s18 m3 | 11237 | 0 | 356 | 47 |
+
+解读：
+
+- full CKF+LM DA 在 `walking_rpy` 上没有改善，原因很可能是 CKF 单帧 RGB-D 边界新点被 support 条件大量放回：`m2` 放回 `2067` 个，`m3` 仍放回 `1372` 个，导致全局尺度/SE3 退化。
+- LM-only DA 在 `walking_rpy` 上优于当前 hard D²MA-B reference：ATE-SE3 `0.307193 -> 0.256534`，ATE-Sim3 `0.151482 -> 0.143501`，scale `0.275739 -> 0.346450`。这说明跨关键帧几何支持的少量边界 pair 可能有助于恢复 rpy 残余失败。
+- 但同样的 LM-only DA 在 `walking_halfsphere` 上明显退化：ATE-SE3 `0.213132 -> 0.333637`，scale `0.777055 -> 0.644955`；提高 `min_support=3` 仍不能救回，说明 fixed-threshold DA 不是跨序列安全主方法。
+- 因此，D²MA-DA 的最小原型给出了一个重要边界：`CreateNewKeyFrame` 层必须保持 hard boundary veto；`LocalMapping` 层可以作为 probationary/delayed admission 的候选位置，但需要 sequence/failure-mode-aware guard 或 admission budget。
+
+阶段性结论：
+
+- D²MA-B r5 仍是更稳的主方法候选。
+- D²MA-DA-lite 不是当前可直接替代 D²MA-B 的主方法，但它产生了有价值的新方向：support-aware admission 应该只发生在几何更强的 LocalMapping 层，并且需要额外的触发条件。
+- 这组结果值得回传 5.5 Pro：它既给出 `walking_rpy` 的正向修复，也给出 `walking_halfsphere` 的负向边界，可请 5.5 Pro 判断是否将 D²MA-DA 定位为 “adaptive/local recovery module” 而不是默认主方法。
+
+下一步建议：
+
+1. 先把本节回传 5.5 Pro，询问 D²MA-DA 是否应改为 conditional module。
+2. 若继续本地实现，优先做 `adaptive trigger` 而不是继续扫固定阈值：例如仅当 hard D²MA-B 的局部 tracked static support / scale proxy / inlier margin 低于阈值时，才在 LocalMapping 层允许少量 support-confirmed boundary pairs。
+3. 不建议再把 `CreateNewKeyFrame` 边界新点放回主静态地图；当前证据显示单帧 RGB-D boundary admission 是主要污染风险。
+
+### 10.21 可复现性补强 repeat matrix
+
+动机：
+
+- 5.5 Pro 九次回答总体认可 D²MA-B r5 主线，但它的回答偏战略判断，未充分处理当前最危险的问题：ORB-SLAM3 全序列结果存在分支漂移，单次 ATE 不能作为论文主结论。
+- 当前二进制下，早期单次结果与重跑结果存在差异，例如 `walking_halfsphere` D²MA-B r5 早期单次 ATE-SE3 `0.156093`，当前 repeat 均值约 `0.223301`；因此必须把主表从“单次最优”切换到 repeat mean/std。
+- 本节固定当前二进制、当前数据 association、当前 D²MA-B r5 配置，仅做重复运行，不引入新机制。
+
+实验设置：
+
+- 二进制：`/home/lj/dynamic_SLAM/stslam_backend/Examples/RGB-D/rgbd_tum`
+- profile：`hybrid_sequential_semantic_only`
+- D²MA-B r5：
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_VETO=1`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_VETO=1`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_RADIUS_PX=5`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY=0`
+- same-count non-boundary control：
+  - D²MA-min direct gates on
+  - boundary hard veto off
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_SAME_COUNT_CONTROL=1`
+- 所有 run 均开启 `STSLAM_OBSERVABILITY_LOG=1`。
+
+结果文件：
+
+- run root：`/home/lj/dynamic-slam-public/runs/repro_strengthening_20260513_221100`
+- raw repeat 表：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/repro_strengthening_raw_20260513.csv`
+- summary 表：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/repro_strengthening_summary_20260513.csv`
+
+repeat summary：
+
+| case | n | matched mean±std | ATE-SE3 mean±std | ATE-Sim3 mean±std | scale mean±std | RPEt mean±std | RPER mean±std |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| wrpy_d2ma_b_r5 | 3 | 878.0±48.5 | 0.220639±0.040558 | 0.137750±0.005402 | 0.415301±0.082101 | 0.023727±0.008690 | 0.631580±0.086186 |
+| wrpy_samecount_nonboundary_r5 | 2 | 864.0±59.4 | 0.448641±0.086496 | 0.147604±0.006255 | 0.194685±0.036772 | 0.032385±0.019759 | 0.802800±0.316604 |
+| walking_halfsphere D²MA-B r5 | 3 | 1064.0±0.0 | 0.223301±0.007585 | 0.177781±0.007237 | 0.770038±0.005149 | 0.012491±0.000083 | 0.450718±0.002745 |
+| walking_static D²MA-B r5 | 3 | 740.0±0.0 | 0.065779±0.000894 | 0.021985±0.000280 | 0.172437±0.006261 | 0.006611±0.000128 | 0.218065±0.001441 |
+| walking_xyz D²MA-B r5 | 3 | 857.0±0.0 | 0.164883±0.010636 | 0.163139±0.008294 | 0.926069±0.055598 | 0.010850±0.000112 | 0.435636±0.002108 |
+
+关键观察：
+
+- D²MA-B r5 在 `walking_halfsphere / walking_static / walking_xyz` 上 repeat 稳定性较好，matched poses 固定，std 较小。
+- `walking_rpy` 是主要不稳定来源：3 次中有 1 次 matched poses 从 `906` 掉到 `822`，但 ATE-SE3 反而更低。这说明只看 ATE 会被短轨迹/丢尾轨迹误导，必须同时报告 matched poses / coverage / final KFs / final MPs。
+- same-count non-boundary control 的负对照结论仍成立：即使存在 matched 漂移，SE3 ATE 均值 `0.448641` 明显差于 D²MA-B r5 的 `0.220639`，scale 也更差。
+- `walking_halfsphere` 的 repeat 均值 `0.223301` 明显保守于早期单次 `0.156093`，因此论文主表不能使用早期单次最优，应使用当前 repeat mean/std。
+- `walking_static` 的 Sim3 scale 很低但 SE3/RPE 稳定，可能与该序列相机运动幅度/尺度可观测性有关；不应把 low-dynamic sanity 的 Sim3 scale 作为主要论据。
+
+阶段性结论：
+
+- D²MA-B r5 作为主方法的方向仍成立，但论文写法必须从“单次提升”升级为“repeat mean/std + coverage-aware evaluation”。
+- `walking_rpy` 应被明确标注为高敏感序列；任何声称 rpy 最佳的机制都必须重复运行并报告 matched coverage。
+- 后续与 5.5 Pro 沟通时，必须要求它按审稿人标准分析：不能只接受 ATE，必须同时检查 coverage、final map size、repeat variance、负对照稳定性和是否混用旧/新二进制结果。
+
+### 10.22 异常大误差原因追踪：漏设 side-channel-only 导致前端/实例路径误开
+
+问题：
+
+- 在尝试补做 canonical map-admission-only repeat 时，出现远大于普通 ORB-SLAM3 分支漂移的退化：
+  - `walking_halfsphere D²MA-B r5` 从旧结果 `ATE-SE3=0.156093 / scale=0.823258` 退化到 `0.335829 / 0.642284`。
+  - `walking_rpy D²MA-B r5` 从旧结果 `matched=906, ATE-SE3=0.269999` 变成 `matched=822, ATE-SE3=0.319702`。
+- 这类差异不应解释为随机波动，必须先作为实验口径事故排查。
+
+排查结论：
+
+- 旧强结果的 manifest 中固定存在：
+  - `STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY=1`
+  - `ORB_SLAM3_MASK_MODE=off`
+  - `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_VETO=0`
+  - 仅开启 `CREATE_NEW_KEYFRAME + LOCAL_MAPPING_CREATE_NEW_MAPPOINTS` 两个地图准入 gate。
+- 异常补跑漏掉了 `STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY=1`。
+- 代码确认该开关不是日志开关：当它为 `0/default` 时，系统会额外执行 `ExtractInstanceRegionORB`、panoptic mask refinement、instance processing、panoptic pose optimization、RGB-D dynamic split 等前端/实例路径；当它为 `1` 时，mask 才只作为 D²MA map-admission side-channel。
+- 因此异常补跑实际不是 “D²MA map-admission-only”，而是把一套 panoptic/instance 前端机制重新放进了系统。
+
+cause-probe 结果：
+
+- 汇总表：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/cause_probe_sidechannel_summary_20260513.csv`
+- run root：`/home/lj/dynamic-slam-public/runs/cause_probe_sidechannel_20260513_225300`
+
+| sequence | method | role | matched | ATE-SE3 | ATE-Sim3 | scale | trajectory hash |
+|---|---|---|---:|---:|---:|---:|---|
+| walking_rpy | D²MA-B r5 | old reference | 906 | 0.269999 | 0.120722 | 0.361678 | `d7db27b3b12f0c13` |
+| walking_rpy | D²MA-B r5 | missing side-channel-only | 822 | 0.319702 | 0.161377 | 0.208002 | `9c818f2598d111a3` |
+| walking_rpy | D²MA-B r5 | side-channel-only restored | 906 | 0.269999 | 0.120722 | 0.361678 | `d7db27b3b12f0c13` |
+| walking_halfsphere | D²MA-B r5 | old reference | 1064 | 0.156093 | 0.118844 | 0.823258 | `aef3dfbd304bed75` |
+| walking_halfsphere | D²MA-B r5 | missing side-channel-only | 1064 | 0.335829 | 0.239226 | 0.642284 | `6c2bf2781a887ed2` |
+| walking_halfsphere | D²MA-B r5 | side-channel-only restored | 1064 | 0.156093 | 0.118844 | 0.823258 | `aef3dfbd304bed75` |
+
+补充观察：
+
+- `walking_halfsphere D²MA-B r5` 在当前二进制、当前数据、当前评估脚本下，恢复 `STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY=1` 后与旧结果 bit-level 一致，说明数据集和评估脚本不是原因。
+- `walking_rpy D²MA-B r5` 同样恢复到旧结果，说明论文主方法 D²MA-B r5 的旧强结果不是偶然单次。
+- `walking_rpy D²MA-min` 在恢复 side-channel-only 后从异常 `0.643348` 改善到 `0.474824`，但未完全回到旧 `0.367386`；这说明 D²MA-min 在 `walking_rpy` 上仍存在分支/二进制演化敏感性，不能作为强主结论的唯一支撑。
+
+实验规训：
+
+- 之前 `canonical_maponly_repro_20260513_223534` 中未设置 `STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY=1` 的结果一律标记为 invalid diagnostic，不进入论文主表。
+- 后续所有 D²MA map-admission-only 实验必须显式固定：
+  - `STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY=1`
+  - `ORB_SLAM3_MASK_MODE=off`
+  - `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`
+  - `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=none`
+  - `STSLAM_DYNAMIC_DEPTH_INVALIDATION=0`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_VETO=0`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_VETO_STEREO_INITIALIZATION=0`
+  - `STSLAM_DYNAMIC_MAP_ADMISSION_VETO_NEED_NEW_KEYFRAME=0`
+  - 只通过子开关启用目标 map-admission gate。
+- 后续回传 5.5 Pro 时，必须把本节作为“实验口径事故已定位并修正”的证据，要求它不要基于 missing-side-channel-only 的异常矩阵做方法判断。
+
+### 10.23 Side-channel isolation protocol 固化与六条 canonical full-sequence
+
+本轮目标：
+
+- 不再依赖手工记忆环境变量，而是把 D²MA map-admission-only 的实验口径固化为脚本和 validator。
+- 按 5.5 Pro 建议重跑 6 条 canonical full-sequence，作为后续论文主表 / 消融表 / 负对照表的干净证据。
+- 一整轮完成后同步公开仓库，让后续 5.5 Pro 可以直接阅读整个代码与结果摘要。
+
+新增本地协议资产：
+
+- 运行脚本：`/home/lj/dynamic-slam-public/scripts/run_d2ma_sidechannel_isolated.sh`
+- 协议校验器：`/home/lj/dynamic-slam-public/tools/validate_d2ma_sidechannel_protocol.py`
+- 结果汇总器：`/home/lj/dynamic-slam-public/tools/summarize_backend_runs.py`
+- 本轮 run root：`/home/lj/dynamic-slam-public/runs/canonical_sidechannel_six_20260513_233737`
+- 本轮 summary：`/home/lj/d-drive/Obsidian Vault/小论文/小论文2 动态改进Orb SLAM3/canonical_sidechannel_six_summary_20260513.csv`
+
+协议固定项：
+
+- `ORB_SLAM3_MASK_MODE=off`
+- `STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY=1`
+- `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0`
+- `STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=none`
+- `STSLAM_DYNAMIC_DEPTH_INVALIDATION=0`
+- `STSLAM_RGBD_DYNAMIC_FRONTEND_SPLIT=0`
+- `STSLAM_DYNAMIC_MAP_ADMISSION_VETO=0`
+- `STSLAM_DYNAMIC_MAP_ADMISSION_VETO_STEREO_INITIALIZATION=0`
+- `STSLAM_DYNAMIC_MAP_ADMISSION_VETO_NEED_NEW_KEYFRAME=0`
+- 只允许通过 CKF / LocalMapping 子 gate 与 boundary / same-count 子 gate 启用目标机制。
+
+六条 canonical 结果：
+
+| case | method | matched | coverage | ATE-SE3 | ATE-Sim3 | Sim3 scale | protocol |
+|---|---|---:|---:|---:|---:|---:|---:|
+| `wxyz_d2ma_b_r5` | `d2ma_b_r5` | 857 | 0.2972 | 0.017884 | 0.016043 | 0.974357 | pass |
+| `wrpy_d2ma_b_r5` | `d2ma_b_r5` | 906 | 0.2959 | 0.269999 | 0.120722 | 0.361678 | pass |
+| `whalfsphere_d2ma_b_r5` | `d2ma_b_r5` | 1064 | 0.2970 | 0.156093 | 0.118844 | 0.823258 | pass |
+| `wrpy_d2ma_min` | `d2ma_min` | 906 | 0.2959 | 0.474824 | 0.156668 | 0.172691 | pass |
+| `wrpy_samecount_nonboundary_r5` | `samecount_nonboundary_r5` | 906 | 0.2959 | 0.604425 | 0.156306 | 0.138884 | pass |
+| `whalfsphere_raw` | `raw` | 1064 | 0.2970 | 0.506439 | 0.290979 | 0.484404 | pass |
+
+关键结论：
+
+- 六条结果全部通过 `d2ma_protocol_validation.json`，本轮不存在 missing-side-channel-only 口径事故。
+- `walking_xyz` 在严格 side-channel-only D²MA-B r5 下达到 `ATE-SE3=0.017884`，说明主方法在该序列上可以接近早期强前端结果。
+- `walking_halfsphere` 上 D²MA-B r5 明显优于 raw：`0.156093` vs `0.506439`，说明方法不是只在 xyz 上成立。
+- `walking_rpy` 仍是高难序列，但 D²MA-B r5 明显优于 D²MA-min 和 same-count non-boundary control：`0.269999` vs `0.474824` vs `0.604425`。
+- same-count non-boundary control 与 D²MA-min 均差于 D²MA-B r5，支持“收益来自 dynamic-depth boundary/support-aware admission，而不是 generic sparsification 或少建同样数量的点”。
+- 目前主方法最稳妥的论文表述应收敛为：在 side-channel isolation protocol 下，D²MA-B r5 通过 CKF 与 LocalMapping 两个 admission stage 抑制 direct dynamic-depth 与 near-boundary risk observation 固化到静态地图中。
+
+待继续确认：
+
+- 当前六条是 clean single-run canonical，还需要在论文最终主表前补 repeat mean/std，尤其是 `walking_rpy`。
+- 需要进一步统计 CKF / LocalMapping 中 boundary veto 的 frame-level 分布、KF/MP admission 改变量，以及这些量和 ATE/scale 的关系。
+- 需要请 5.5 Pro 按审稿人标准检查：当前证据是否足以支持 “targeted boundary/support-aware map admission” 的创新性叙事，以及下一步最小补强实验应优先做 repeat、frame-level causality 还是更多序列。

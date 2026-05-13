@@ -19,6 +19,46 @@
       },
       "default_frontend_config": "frontend/basic_model_based_SLAM/config/world_sam_pipeline_foundation_panoptic_person_v2_milddilate_local.json"
     },
+    "frontend_raw_wstatic": {
+      "role": "frontend_inference_source",
+      "description": "Original TUM RGB-D freiburg3_walking_static sequence for low-motion dynamic-scene sanity checks.",
+      "frame_count": 723,
+      "paths": {
+        "sequence_root": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_static/rgbd_dataset_freiburg3_walking_static",
+        "ground_truth": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_static/rgbd_dataset_freiburg3_walking_static/groundtruth.txt"
+      },
+      "default_frontend_config": "frontend/basic_model_based_SLAM/config/world_sam_pipeline_foundation_panoptic_person_v2_milddilate_local.json"
+    },
+    "frontend_raw_wrpy": {
+      "role": "frontend_inference_source",
+      "description": "Original TUM RGB-D freiburg3_walking_rpy sequence downloaded from the official TUM RGB-D dataset for external dynamic-camera validation.",
+      "frame_count": 910,
+      "paths": {
+        "sequence_root": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_rpy/rgbd_dataset_freiburg3_walking_rpy",
+        "ground_truth": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_rpy/rgbd_dataset_freiburg3_walking_rpy/groundtruth.txt"
+      },
+      "default_frontend_config": "frontend/basic_model_based_SLAM/config/world_sam_pipeline_foundation_panoptic_person_v2_milddilate_local.json"
+    },
+    "frontend_raw_sitting_xyz": {
+      "role": "frontend_inference_source",
+      "description": "Original TUM RGB-D freiburg3_sitting_xyz sequence for mild-dynamic / negative-control sanity checks.",
+      "frame_count": 1231,
+      "paths": {
+        "sequence_root": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_sitting_xyz/rgbd_dataset_freiburg3_sitting_xyz",
+        "ground_truth": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_sitting_xyz/rgbd_dataset_freiburg3_sitting_xyz/groundtruth.txt"
+      },
+      "default_frontend_config": "frontend/basic_model_based_SLAM/config/world_sam_pipeline_foundation_panoptic_person_v2_milddilate_local.json"
+    },
+    "frontend_raw_sitting_static": {
+      "role": "frontend_inference_source",
+      "description": "Original TUM RGB-D freiburg3_sitting_static sequence for low-dynamic / near-static negative-control sanity checks.",
+      "frame_count": 686,
+      "paths": {
+        "sequence_root": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_sitting_static/rgbd_dataset_freiburg3_sitting_static",
+        "ground_truth": "/home/lj/d-drive/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_sitting_static/rgbd_dataset_freiburg3_sitting_static/groundtruth.txt"
+      },
+      "default_frontend_config": "frontend/basic_model_based_SLAM/config/world_sam_pipeline_foundation_panoptic_person_v2_milddilate_local.json"
+    },
     "backend_maskonly_full_wxyz": {
       "role": "backend_inference_sequence",
       "description": "Full raw RGB-D + YOLOE/SAM3 mask side-channel sequence used by the current backend diagnosis.",
@@ -71,6 +111,242 @@
       "reference_metrics": {
         "ate_se3_rmse_m": 0.016951,
         "rpet_se3_rmse_m": 0.01167
+      }
+    },
+    "ablation_ei_A_raw_rgb_raw_depth_wxyz": {
+      "role": "early_intervention_causal_ablation",
+      "description": "A: raw RGB + raw depth; backend masks disabled for causal input ablation.",
+      "frame_count": 859,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/A_raw_rgb_raw_depth/sequence",
+        "associations": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/A_raw_rgb_raw_depth/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/A_raw_rgb_raw_depth/sequence/mask",
+        "ground_truth": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/A_raw_rgb_raw_depth/sequence/groundtruth.txt"
+      },
+      "ablation_controls": {
+        "rgb": "raw",
+        "depth": "raw",
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off"
+      }
+    },
+    "ablation_ei_B_filtered_rgb_raw_depth_wxyz": {
+      "role": "early_intervention_causal_ablation",
+      "description": "B: image-level filtered RGB + raw depth; backend masks disabled for causal input ablation.",
+      "frame_count": 859,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/B_filtered_rgb_raw_depth/sequence",
+        "associations": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/B_filtered_rgb_raw_depth/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/B_filtered_rgb_raw_depth/sequence/mask",
+        "ground_truth": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/B_filtered_rgb_raw_depth/sequence/groundtruth.txt"
+      },
+      "ablation_controls": {
+        "rgb": "filtered",
+        "depth": "raw",
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off"
+      }
+    },
+    "ablation_ei_C_raw_rgb_filtered_depth_wxyz": {
+      "role": "early_intervention_causal_ablation",
+      "description": "C: raw RGB + image-level filtered depth; backend masks disabled for causal input ablation.",
+      "frame_count": 859,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/C_raw_rgb_filtered_depth/sequence",
+        "associations": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/C_raw_rgb_filtered_depth/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/C_raw_rgb_filtered_depth/sequence/mask",
+        "ground_truth": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/C_raw_rgb_filtered_depth/sequence/groundtruth.txt"
+      },
+      "ablation_controls": {
+        "rgb": "raw",
+        "depth": "filtered",
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off"
+      }
+    },
+    "ablation_ei_D_filtered_rgb_filtered_depth_wxyz": {
+      "role": "early_intervention_causal_ablation",
+      "description": "D: image-level filtered RGB + image-level filtered depth; backend masks disabled for causal input ablation.",
+      "frame_count": 859,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/D_filtered_rgb_filtered_depth/sequence",
+        "associations": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/D_filtered_rgb_filtered_depth/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/D_filtered_rgb_filtered_depth/sequence/mask",
+        "ground_truth": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_20260512/D_filtered_rgb_filtered_depth/sequence/groundtruth.txt"
+      },
+      "ablation_controls": {
+        "rgb": "filtered",
+        "depth": "filtered",
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off"
+      }
+    },
+    "dropout_C_random_same_count_wxyz": {
+      "role": "depth_dropout_control",
+      "description": "Raw RGB + random raw-depth invalidation with per-depth-file counts matched to boxfallback filtered depth.",
+      "frame_count": 859,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic-slam-public/data/depth_dropout_controls_20260512/C_random_same_count/sequence",
+        "associations": "/home/lj/dynamic-slam-public/data/depth_dropout_controls_20260512/C_random_same_count/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic-slam-public/data/depth_dropout_controls_20260512/C_random_same_count/sequence/mask",
+        "ground_truth": "/home/lj/dynamic-slam-public/data/depth_dropout_controls_20260512/C_random_same_count/sequence/groundtruth.txt"
+      },
+      "ablation_controls": {
+        "rgb": "raw",
+        "depth": "random_same_count_dropout",
+        "seed": 20260512,
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off"
+      }
+    },
+    "dropout_C_static_same_count_wxyz": {
+      "role": "depth_dropout_control",
+      "description": "Raw RGB + static-region raw-depth invalidation with per-depth-file counts matched to boxfallback filtered depth.",
+      "frame_count": 859,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic-slam-public/data/depth_dropout_controls_20260512/C_static_same_count/sequence",
+        "associations": "/home/lj/dynamic-slam-public/data/depth_dropout_controls_20260512/C_static_same_count/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic-slam-public/data/depth_dropout_controls_20260512/C_static_same_count/sequence/mask",
+        "ground_truth": "/home/lj/dynamic-slam-public/data/depth_dropout_controls_20260512/C_static_same_count/sequence/groundtruth.txt"
+      },
+      "ablation_controls": {
+        "rgb": "raw",
+        "depth": "static_region_same_count_dropout",
+        "seed": 30260515,
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off"
+      }
+    },
+    "external_wstatic_rawrgb_rawdepth_mask": {
+      "role": "external_negative_control_sidechannel",
+      "description": "TUM fr3/walking_static raw RGB-D with YOLOE/SAM3 mask side-channel; used to sanity-check D2MA-min outside walking_xyz and monitor low-camera-motion/negative-control damage.",
+      "frame_count": 743,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_static_raw_rgb_raw_depth_mask/sequence",
+        "associations": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_static_raw_rgb_raw_depth_mask/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_static_raw_rgb_raw_depth_mask/sequence/mask",
+        "ground_truth": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_static_raw_rgb_raw_depth_mask/sequence/groundtruth.txt"
+      },
+      "ablation_controls": {
+        "rgb": "raw",
+        "depth": "raw",
+        "mask_meta": "frontend_sidechannel",
+        "profile": "hybrid_sequential_semantic_only"
+      },
+      "integrity_note": "Integrity check passes file existence; 17 RGB-depth pairs and 3 GT matches exceed the default 0.03s diagnostic threshold, inherited from frontend/TUM association timing."
+    },
+    "external_wrpy_rawrgb_rawdepth_mask": {
+      "role": "external_dynamic_sidechannel",
+      "description": "TUM fr3/walking_rpy raw RGB-D with YOLOE/SAM3 mask side-channel; primary external dynamic-camera validation sequence for D2MA-min.",
+      "frame_count": 909,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_rpy_raw_rgb_raw_depth_mask/sequence",
+        "associations": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_rpy_raw_rgb_raw_depth_mask/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_rpy_raw_rgb_raw_depth_mask/sequence/mask",
+        "ground_truth": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_rpy_raw_rgb_raw_depth_mask/sequence/groundtruth.txt"
+      },
+      "ablation_controls": {
+        "rgb": "raw",
+        "depth": "raw",
+        "mask_meta": "frontend_sidechannel",
+        "profile": "hybrid_sequential_semantic_only"
+      },
+      "integrity_note": "Integrity check passes file existence; 23 RGB-depth pairs and 3 GT matches exceed the default 0.03s diagnostic threshold, inherited from frontend/TUM association timing."
+    },
+    "external_whalfsphere_rawrgb_rawdepth_mask": {
+      "role": "external_dynamic_sidechannel",
+      "description": "TUM fr3/walking_halfsphere raw RGB-D with YOLOE/SAM3 mask side-channel; external dynamic-camera validation sequence for D2MA-B.",
+      "frame_count": 1067,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_halfsphere_raw_rgb_raw_depth_mask/sequence",
+        "associations": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_halfsphere_raw_rgb_raw_depth_mask/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_halfsphere_raw_rgb_raw_depth_mask/sequence/mask",
+        "ground_truth": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_halfsphere_raw_rgb_raw_depth_mask/sequence/groundtruth.txt"
+      },
+      "ablation_controls": {
+        "rgb": "raw",
+        "depth": "raw",
+        "mask_meta": "frontend_sidechannel",
+        "profile": "hybrid_sequential_semantic_only"
+      },
+      "integrity_note": "Integrity check passes file existence; 26 RGB-depth pairs and 3 GT matches exceed the default 0.03s diagnostic threshold, inherited from frontend/TUM association timing."
+    },
+    "ablation_ei_A_raw_rgb_raw_depth_wrpy": {
+      "role": "early_intervention_causal_ablation",
+      "description": "walking_rpy A: raw RGB + raw depth; backend masks disabled for external causal input ablation.",
+      "frame_count": 909,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/A_raw_rgb_raw_depth/sequence",
+        "associations": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/A_raw_rgb_raw_depth/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/A_raw_rgb_raw_depth/sequence/mask",
+        "ground_truth": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/A_raw_rgb_raw_depth/sequence/groundtruth.txt"
+      },
+      "ablation_controls": {
+        "rgb": "raw",
+        "depth": "raw",
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off"
+      }
+    },
+    "ablation_ei_B_filtered_rgb_raw_depth_wrpy": {
+      "role": "early_intervention_causal_ablation",
+      "description": "walking_rpy B: image-level filtered RGB + raw depth; backend masks disabled for external causal input ablation.",
+      "frame_count": 909,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/B_filtered_rgb_raw_depth/sequence",
+        "associations": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/B_filtered_rgb_raw_depth/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/B_filtered_rgb_raw_depth/sequence/mask",
+        "ground_truth": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/B_filtered_rgb_raw_depth/sequence/groundtruth.txt"
+      },
+      "ablation_controls": {
+        "rgb": "filtered",
+        "depth": "raw",
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off"
+      }
+    },
+    "ablation_ei_C_raw_rgb_filtered_depth_wrpy": {
+      "role": "early_intervention_causal_ablation",
+      "description": "walking_rpy C: raw RGB + image-level filtered depth; backend masks disabled for external causal input ablation.",
+      "frame_count": 909,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/C_raw_rgb_filtered_depth/sequence",
+        "associations": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/C_raw_rgb_filtered_depth/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/C_raw_rgb_filtered_depth/sequence/mask",
+        "ground_truth": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/C_raw_rgb_filtered_depth/sequence/groundtruth.txt"
+      },
+      "ablation_controls": {
+        "rgb": "raw",
+        "depth": "filtered",
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off"
+      }
+    },
+    "ablation_ei_D_filtered_rgb_filtered_depth_wrpy": {
+      "role": "early_intervention_causal_ablation",
+      "description": "walking_rpy D: image-level filtered RGB + image-level filtered depth; backend masks disabled for external causal input ablation.",
+      "frame_count": 909,
+      "paths": {
+        "sequence_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/D_filtered_rgb_filtered_depth/sequence",
+        "associations": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/D_filtered_rgb_filtered_depth/sequence/associations.txt",
+        "mask_root": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/D_filtered_rgb_filtered_depth/sequence/mask",
+        "ground_truth": "/home/lj/dynamic-slam-public/data/early_intervention_ablation_wrpy_20260513/D_filtered_rgb_filtered_depth/sequence/groundtruth.txt"
+      },
+      "ablation_controls": {
+        "rgb": "filtered",
+        "depth": "filtered",
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off"
       }
     }
   }

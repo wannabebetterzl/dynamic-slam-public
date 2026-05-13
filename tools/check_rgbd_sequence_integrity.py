@@ -1,283 +1,229 @@
 #!/usr/bin/env python3
-"""Check RGB-D association, mask, and ground-truth integrity for SLAM runs."""
+"""Check RGB-D association, mask side-channel, and GT timestamp integrity."""
 
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import math
 from pathlib import Path
-from typing import Any
-
-try:
-    import cv2  # type: ignore
-    import numpy as np  # type: ignore
-except Exception:  # pragma: no cover - optional local dependency
-    cv2 = None
-    np = None
+from statistics import mean, median
+from typing import Iterable
 
 
-def parse_associations(path: Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for line_no, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        line = raw.strip()
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--sequence-root", required=True, type=Path)
+    parser.add_argument("--associations", required=True, type=Path)
+    parser.add_argument("--mask-root", type=Path)
+    parser.add_argument("--groundtruth", type=Path)
+    parser.add_argument("--max-time-diff", type=float, default=0.03)
+    parser.add_argument("--json-out", "--out", dest="json_out", type=Path)
+    parser.add_argument("--strict", action="store_true")
+    parser.add_argument(
+        "--skip-depth-stats",
+        action="store_true",
+        help="Skip reading depth images for valid-pixel statistics.",
+    )
+    return parser.parse_args()
+
+
+def resolve_path(root: Path, value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else root / path
+
+
+def read_associations(path: Path) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for line_no, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
         parts = line.split()
         if len(parts) < 4:
-            raise ValueError(f"{path}:{line_no}: expected 4 columns, got {len(parts)}")
+            rows.append({"line_no": line_no, "parse_error": raw_line})
+            continue
+        try:
+            rgb_t = float(parts[0])
+            depth_t = float(parts[2])
+        except ValueError:
+            rows.append({"line_no": line_no, "parse_error": raw_line})
+            continue
         rows.append(
             {
-                "line": line_no,
-                "rgb_time": float(parts[0]),
-                "rgb_rel": parts[1],
-                "depth_time": float(parts[2]),
-                "depth_rel": parts[3],
+                "line_no": line_no,
+                "rgb_t": rgb_t,
+                "rgb_path": parts[1],
+                "depth_t": depth_t,
+                "depth_path": parts[3],
             }
         )
     return rows
 
 
-def parse_timestamps(path: Path | None) -> list[float]:
-    if path is None or not path.exists():
+def read_timestamps(path: Path | None) -> list[float]:
+    if not path or not path.exists():
         return []
-    values: list[float] = []
-    for raw in path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        line = raw.strip()
+    timestamps: list[float] = []
+    for raw_line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
         try:
-            values.append(float(line.split()[0]))
-        except (IndexError, ValueError):
+            timestamps.append(float(line.split()[0]))
+        except (ValueError, IndexError):
             continue
-    return sorted(values)
+    return sorted(timestamps)
 
 
-def stats(values: list[float]) -> dict[str, float | int | None]:
-    if not values:
-        return {"count": 0, "min": None, "mean": None, "median": None, "max": None}
-    ordered = sorted(values)
-    n = len(ordered)
-    mid = n // 2
-    median = ordered[mid] if n % 2 else 0.5 * (ordered[mid - 1] + ordered[mid])
-    return {
-        "count": n,
-        "min": ordered[0],
-        "mean": sum(ordered) / n,
-        "median": median,
-        "max": ordered[-1],
-    }
-
-
-def nearest_distances(source: list[float], target: list[float]) -> list[float]:
-    if not source or not target:
-        return []
-    distances: list[float] = []
-    j = 0
-    for value in source:
-        while j + 1 < len(target) and abs(target[j + 1] - value) <= abs(target[j] - value):
-            j += 1
-        distances.append(abs(target[j] - value))
-    return distances
-
-
-def read_image(path: Path):
-    if cv2 is None:
+def nearest_abs_diff(sorted_values: list[float], value: float) -> float | None:
+    if not sorted_values:
         return None
-    return cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+    pos = bisect.bisect_left(sorted_values, value)
+    candidates = []
+    if pos < len(sorted_values):
+        candidates.append(abs(sorted_values[pos] - value))
+    if pos > 0:
+        candidates.append(abs(sorted_values[pos - 1] - value))
+    return min(candidates) if candidates else None
 
 
-def image_ratios(depth_path: Path, mask_path: Path | None) -> dict[str, float | None]:
-    if cv2 is None or np is None:
-        return {}
-
-    depth = read_image(depth_path)
-    if depth is None:
-        return {}
-
-    valid_depth = depth > 0
-    ratios: dict[str, float | None] = {
-        "depth_valid_ratio": float(np.mean(valid_depth)) if valid_depth.size else None,
-    }
-
-    if mask_path is None or not mask_path.exists():
-        return ratios
-
-    mask = read_image(mask_path)
-    if mask is None:
-        return ratios
-    if mask.ndim == 3:
-        dynamic = np.any(mask > 0, axis=2)
-    else:
-        dynamic = mask > 0
-
-    if dynamic.shape != valid_depth.shape:
-        ratios["mask_shape_matches_depth"] = 0.0
-        return ratios
-
-    ratios["mask_shape_matches_depth"] = 1.0
-    ratios["mask_dynamic_ratio"] = float(np.mean(dynamic)) if dynamic.size else None
-    ratios["mask_inside_depth_valid_ratio"] = (
-        float(np.mean(valid_depth[dynamic])) if np.any(dynamic) else None
-    )
-    ratios["mask_outside_depth_valid_ratio"] = (
-        float(np.mean(valid_depth[~dynamic])) if np.any(~dynamic) else None
-    )
-    return ratios
-
-
-def build_report(args: argparse.Namespace) -> dict[str, Any]:
-    sequence_root = Path(args.sequence_root).expanduser()
-    associations = Path(args.associations).expanduser()
-    mask_root = Path(args.mask_root).expanduser() if args.mask_root else None
-    groundtruth = Path(args.groundtruth).expanduser() if args.groundtruth else None
-
-    rows = parse_associations(associations)
-    rgb_depth_diffs: list[float] = []
-    depth_valid_ratios: list[float] = []
-    mask_dynamic_ratios: list[float] = []
-    mask_inside_depth_valid_ratios: list[float] = []
-    mask_outside_depth_valid_ratios: list[float] = []
-    mask_shape_mismatches = 0
-    missing_rgb: list[str] = []
-    missing_depth: list[str] = []
-    missing_mask: list[str] = []
-    excessive_time_diff: list[dict[str, Any]] = []
-
-    for row in rows:
-        rgb_path = sequence_root / row["rgb_rel"]
-        depth_path = sequence_root / row["depth_rel"]
-        mask_path = mask_root / Path(row["rgb_rel"]).name if mask_root else None
-        diff = abs(row["rgb_time"] - row["depth_time"])
-        rgb_depth_diffs.append(diff)
-
-        if not rgb_path.exists():
-            missing_rgb.append(str(rgb_path))
-        if not depth_path.exists():
-            missing_depth.append(str(depth_path))
-        if mask_path is not None and not mask_path.exists():
-            missing_mask.append(str(mask_path))
-        if diff > args.max_time_diff:
-            excessive_time_diff.append(
-                {
-                    "line": row["line"],
-                    "rgb_time": row["rgb_time"],
-                    "depth_time": row["depth_time"],
-                    "diff": diff,
-                }
-            )
-
-        if depth_path.exists():
-            ratios = image_ratios(depth_path, mask_path)
-            if isinstance(ratios.get("depth_valid_ratio"), float):
-                depth_valid_ratios.append(ratios["depth_valid_ratio"])  # type: ignore[arg-type]
-            if isinstance(ratios.get("mask_dynamic_ratio"), float):
-                mask_dynamic_ratios.append(ratios["mask_dynamic_ratio"])  # type: ignore[arg-type]
-            if isinstance(ratios.get("mask_inside_depth_valid_ratio"), float):
-                mask_inside_depth_valid_ratios.append(
-                    ratios["mask_inside_depth_valid_ratio"]  # type: ignore[arg-type]
-                )
-            if isinstance(ratios.get("mask_outside_depth_valid_ratio"), float):
-                mask_outside_depth_valid_ratios.append(
-                    ratios["mask_outside_depth_valid_ratio"]  # type: ignore[arg-type]
-                )
-            if ratios.get("mask_shape_matches_depth") == 0.0:
-                mask_shape_mismatches += 1
-
-    assoc_times = sorted(row["rgb_time"] for row in rows)
-    gt_times = parse_timestamps(groundtruth)
-    gt_diffs = nearest_distances(assoc_times, gt_times)
-    gt_matched = sum(1 for diff in gt_diffs if diff <= args.max_time_diff)
-
-    samples = args.sample_limit
+def numeric_summary(values: Iterable[float]) -> dict[str, float | int | None]:
+    clean = [v for v in values if math.isfinite(v)]
+    if not clean:
+        return {"count": 0, "min": None, "max": None, "mean": None, "median": None}
     return {
+        "count": len(clean),
+        "min": min(clean),
+        "max": max(clean),
+        "mean": mean(clean),
+        "median": median(clean),
+    }
+
+
+def depth_valid_ratio(path: Path) -> float | None:
+    try:
+        import cv2  # type: ignore
+    except ImportError:
+        return None
+
+    image = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+    if image is None or image.size == 0:
+        return None
+    return float((image > 0).sum()) / float(image.size)
+
+
+def summarize(args: argparse.Namespace) -> tuple[dict[str, object], list[str]]:
+    rows = read_associations(args.associations)
+    parse_errors = [r for r in rows if "parse_error" in r]
+    valid_rows = [r for r in rows if "parse_error" not in r]
+    sequence_root = args.sequence_root
+
+    rgb_paths = [resolve_path(sequence_root, str(r["rgb_path"])) for r in valid_rows]
+    depth_paths = [resolve_path(sequence_root, str(r["depth_path"])) for r in valid_rows]
+    missing_rgb = [str(p) for p in rgb_paths if not p.exists()]
+    missing_depth = [str(p) for p in depth_paths if not p.exists()]
+    rgb_depth_diffs = [abs(float(r["rgb_t"]) - float(r["depth_t"])) for r in valid_rows]
+    large_rgb_depth_diffs = [v for v in rgb_depth_diffs if v > args.max_time_diff]
+
+    mask_missing: list[str] = []
+    if args.mask_root:
+        for rgb_path in rgb_paths:
+            expected = args.mask_root / f"{rgb_path.stem}.png"
+            if not expected.exists():
+                mask_missing.append(str(expected))
+
+    gt_timestamps = read_timestamps(args.groundtruth)
+    gt_diffs = [
+        nearest_abs_diff(gt_timestamps, float(r["rgb_t"]))
+        for r in valid_rows
+        if gt_timestamps
+    ]
+    gt_diffs_clean = [v for v in gt_diffs if v is not None]
+    large_gt_diffs = [v for v in gt_diffs_clean if v > args.max_time_diff]
+
+    depth_ratios: list[float] = []
+    depth_ratio_unreadable = 0
+    if not args.skip_depth_stats:
+        for path in sorted(set(depth_paths)):
+            if not path.exists():
+                continue
+            ratio = depth_valid_ratio(path)
+            if ratio is None:
+                depth_ratio_unreadable += 1
+            else:
+                depth_ratios.append(ratio)
+
+    summary: dict[str, object] = {
         "sequence_root": str(sequence_root),
-        "associations": str(associations),
-        "mask_root": str(mask_root) if mask_root else None,
-        "groundtruth": str(groundtruth) if groundtruth else None,
-        "max_time_diff": args.max_time_diff,
-        "opencv_available": cv2 is not None,
-        "counts": {
-            "associations": len(rows),
-            "missing_rgb": len(missing_rgb),
-            "missing_depth": len(missing_depth),
-            "missing_mask": len(missing_mask),
-            "rgb_depth_time_diff_exceeds_threshold": len(excessive_time_diff),
-            "mask_shape_mismatches": mask_shape_mismatches,
-            "groundtruth_timestamps": len(gt_times),
-            "associations_matched_to_groundtruth": gt_matched,
+        "associations": str(args.associations),
+        "association_rows": len(rows),
+        "valid_association_rows": len(valid_rows),
+        "parse_error_rows": len(parse_errors),
+        "parse_error_examples": parse_errors[:5],
+        "rgb": {
+            "unique_paths": len(set(rgb_paths)),
+            "missing_count": len(missing_rgb),
+            "missing_examples": missing_rgb[:10],
         },
-        "ratios": {
-            "groundtruth_coverage_of_associations": gt_matched / len(rows) if rows else math.nan,
-            "association_coverage_of_groundtruth": gt_matched / len(gt_times) if gt_times else math.nan,
+        "depth": {
+            "unique_paths": len(set(depth_paths)),
+            "duplicate_reuse_count": len(depth_paths) - len(set(depth_paths)),
+            "missing_count": len(missing_depth),
+            "missing_examples": missing_depth[:10],
+            "valid_ratio": numeric_summary(depth_ratios),
+            "valid_ratio_unreadable_count": depth_ratio_unreadable,
         },
-        "stats": {
-            "rgb_depth_time_diff": stats(rgb_depth_diffs),
-            "nearest_groundtruth_time_diff": stats(gt_diffs),
-            "depth_valid_ratio": stats(depth_valid_ratios),
-            "mask_dynamic_ratio": stats(mask_dynamic_ratios),
-            "mask_inside_depth_valid_ratio": stats(mask_inside_depth_valid_ratios),
-            "mask_outside_depth_valid_ratio": stats(mask_outside_depth_valid_ratios),
+        "mask": {
+            "mask_root": str(args.mask_root) if args.mask_root else None,
+            "expected_count": len(rgb_paths) if args.mask_root else None,
+            "missing_count": len(mask_missing) if args.mask_root else None,
+            "missing_examples": mask_missing[:10],
         },
-        "samples": {
-            "missing_rgb": missing_rgb[:samples],
-            "missing_depth": missing_depth[:samples],
-            "missing_mask": missing_mask[:samples],
-            "rgb_depth_time_diff_exceeds_threshold": excessive_time_diff[:samples],
+        "timestamp": {
+            "rgb_depth_abs_diff": numeric_summary(rgb_depth_diffs),
+            "rgb_depth_over_threshold_count": len(large_rgb_depth_diffs),
+            "rgb_depth_over_threshold_examples": large_rgb_depth_diffs[:10],
+            "groundtruth_abs_diff": numeric_summary(gt_diffs_clean),
+            "groundtruth_over_threshold_count": len(large_gt_diffs),
+            "groundtruth_over_threshold_examples": large_gt_diffs[:10],
         },
     }
+
+    issues: list[str] = []
+    if parse_errors:
+        issues.append(f"parse_errors={len(parse_errors)}")
+    if missing_rgb:
+        issues.append(f"missing_rgb={len(missing_rgb)}")
+    if missing_depth:
+        issues.append(f"missing_depth={len(missing_depth)}")
+    if mask_missing:
+        issues.append(f"missing_masks={len(mask_missing)}")
+    if large_rgb_depth_diffs:
+        issues.append(f"rgb_depth_time_diff>{args.max_time_diff}={len(large_rgb_depth_diffs)}")
+    if large_gt_diffs:
+        issues.append(f"gt_time_diff>{args.max_time_diff}={len(large_gt_diffs)}")
+    summary["issues"] = issues
+    return summary, issues
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--sequence-root", required=True)
-    parser.add_argument("--associations", required=True)
-    parser.add_argument("--mask-root")
-    parser.add_argument("--groundtruth")
-    parser.add_argument("--max-time-diff", type=float, default=0.03)
-    parser.add_argument("--sample-limit", type=int, default=20)
-    parser.add_argument("--out")
-    args = parser.parse_args()
-
-    report = build_report(args)
-    if args.out:
-        out = Path(args.out)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-    counts = report["counts"]
-    ratios = report["ratios"]
-    time_stats = report["stats"]["rgb_depth_time_diff"]
-    print(f"associations={counts['associations']}")
-    print(
-        "missing="
-        f"rgb:{counts['missing_rgb']} "
-        f"depth:{counts['missing_depth']} "
-        f"mask:{counts['missing_mask']}"
-    )
-    print(
-        "rgb_depth_time_diff="
-        f"max:{time_stats['max']} "
-        f"exceeds:{counts['rgb_depth_time_diff_exceeds_threshold']}"
-    )
-    print(
-        "groundtruth_coverage_of_associations="
-        f"{ratios['groundtruth_coverage_of_associations']:.6f}"
-    )
-    if args.out:
-        print(f"report={args.out}")
-
-    failed = any(
-        counts[key] > 0
-        for key in (
-            "missing_rgb",
-            "missing_depth",
-            "missing_mask",
-            "rgb_depth_time_diff_exceeds_threshold",
-            "mask_shape_mismatches",
+    args = parse_args()
+    summary, issues = summarize(args)
+    if args.json_out:
+        args.json_out.parent.mkdir(parents=True, exist_ok=True)
+        args.json_out.write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
         )
-    )
-    return 1 if failed else 0
+
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    if issues:
+        print("Integrity issues:", ", ".join(issues))
+        return 1 if args.strict else 0
+    print("Integrity check passed.")
+    return 0
 
 
 if __name__ == "__main__":

@@ -1,0 +1,27 @@
+{
+  "description": "TUM fr3/walking_static raw RGB-D with YOLOE/SAM3 mask side-channel for D2MA external/negative-control sanity check",
+  "raw_sequence": "/mnt/d/CODEX/basic_model_based_SLAM/datasets/tum_rgbd/freiburg3_walking_static/rgbd_dataset_freiburg3_walking_static",
+  "mask_donor_sequence": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wstatic_20260513_160712/sequence",
+  "output_sequence": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_static_raw_rgb_raw_depth_mask/sequence",
+  "policy": {
+    "rgb": "raw",
+    "depth": "raw",
+    "mask_meta": "frontend side-channel only"
+  },
+  "counts": {
+    "association_rows": 743,
+    "unique_rgb_paths": 743,
+    "unique_depth_paths": 717,
+    "missing_rgb_count": 0,
+    "missing_depth_count": 0,
+    "missing_mask_count": 0,
+    "missing_meta_count": 0,
+    "missing_examples": {
+      "rgb": [],
+      "depth": [],
+      "mask": [],
+      "meta": []
+    },
+    "donor_sequence": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wstatic_20260513_160712/sequence"
+  }
+}

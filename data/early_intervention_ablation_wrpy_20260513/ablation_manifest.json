@@ -1,0 +1,90 @@
+{
+  "raw_sequence": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_rpy_raw_rgb_raw_depth_mask/sequence",
+  "filtered_sequence": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence",
+  "variants": {
+    "A_raw_rgb_raw_depth": {
+      "variant": "A_raw_rgb_raw_depth",
+      "description": "A: raw RGB + raw depth",
+      "rgb_source": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_rpy_raw_rgb_raw_depth_mask/sequence",
+      "depth_source": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_rpy_raw_rgb_raw_depth_mask/sequence",
+      "associations_source": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence/associations.txt",
+      "groundtruth_source": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence/groundtruth.txt",
+      "counts": {
+        "association_rows": 909,
+        "unique_rgb": 909,
+        "unique_depth": 866,
+        "missing_rgb": 0,
+        "missing_depth": 0
+      },
+      "backend_policy": {
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off",
+        "force_filter_detected_dynamic_features": 0
+      }
+    },
+    "B_filtered_rgb_raw_depth": {
+      "variant": "B_filtered_rgb_raw_depth",
+      "description": "B: image-level filtered RGB + raw depth",
+      "rgb_source": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence",
+      "depth_source": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_rpy_raw_rgb_raw_depth_mask/sequence",
+      "associations_source": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence/associations.txt",
+      "groundtruth_source": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence/groundtruth.txt",
+      "counts": {
+        "association_rows": 909,
+        "unique_rgb": 909,
+        "unique_depth": 866,
+        "missing_rgb": 0,
+        "missing_depth": 0
+      },
+      "backend_policy": {
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off",
+        "force_filter_detected_dynamic_features": 0
+      }
+    },
+    "C_raw_rgb_filtered_depth": {
+      "variant": "C_raw_rgb_filtered_depth",
+      "description": "C: raw RGB + image-level filtered depth",
+      "rgb_source": "/home/lj/dynamic-slam-public/data/external_validation_20260513/walking_rpy_raw_rgb_raw_depth_mask/sequence",
+      "depth_source": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence",
+      "associations_source": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence/associations.txt",
+      "groundtruth_source": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence/groundtruth.txt",
+      "counts": {
+        "association_rows": 909,
+        "unique_rgb": 909,
+        "unique_depth": 866,
+        "missing_rgb": 0,
+        "missing_depth": 0
+      },
+      "backend_policy": {
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off",
+        "force_filter_detected_dynamic_features": 0
+      }
+    },
+    "D_filtered_rgb_filtered_depth": {
+      "variant": "D_filtered_rgb_filtered_depth",
+      "description": "D: image-level filtered RGB + image-level filtered depth",
+      "rgb_source": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence",
+      "depth_source": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence",
+      "associations_source": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence/associations.txt",
+      "groundtruth_source": "/home/lj/dynamic-slam-public/runs/frontend_mask_full_wrpy_20260513_164700/sequence/groundtruth.txt",
+      "counts": {
+        "association_rows": 909,
+        "unique_rgb": 909,
+        "unique_depth": 866,
+        "missing_rgb": 0,
+        "missing_depth": 0
+      },
+      "backend_policy": {
+        "profile": "hybrid_sequential_semantic_only",
+        "pass_mask_arg": 0,
+        "mask_mode": "off",
+        "force_filter_detected_dynamic_features": 0
+      }
+    }
+  }
+}

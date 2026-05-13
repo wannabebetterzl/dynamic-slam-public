@@ -23,8 +23,11 @@ https://github.com/wannabebetterzl/dynamic-slam-public
 - `frontend/basic_model_based_SLAM/scripts/rflysim_slam_nav/world_sam_pipeline.py`
 - `frontend/basic_model_based_SLAM/scripts/run_rgbd_slam_benchmark.py`
 - `scripts/run_backend_rgbd.sh`
+- `scripts/run_d2ma_sidechannel_isolated.sh`
 - `scripts/run_frontend_inference.sh`
 - `tools/evaluate_trajectory_ate.py`
+- `tools/validate_d2ma_sidechannel_protocol.py`
+- `tools/summarize_backend_runs.py`
 - `results_summaries/`
 
 ## Background
@@ -38,6 +41,35 @@ The important route correction is:
 - The current backend is `backend/orb_slam3_dynamic/`, originally from `/home/lj/dynamic_SLAM/stslam_backend`.
 - The current frontend is `frontend/basic_model_based_SLAM/`, originally from `/home/lj/d-drive/CODEX/basic_model_based_SLAM`.
 - The current local data entry point is `data/datasets.json`.
+
+## Latest Protocol Update
+
+The current paper-facing method is no longer generic backend mask-only filtering. It is:
+
+```text
+D²MA-B r5: side-channel-isolated dynamic-depth / boundary-risk map admission.
+```
+
+The key experimental correction is that `STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY=1` must be set. Without it, extra panoptic frontend, instance processing, and dynamic split paths are enabled; those runs are invalid for D²MA map-admission-only claims.
+
+The six latest canonical full-sequence runs are summarized in:
+
+```text
+results_summaries/canonical_sidechannel_six_20260513/canonical_sidechannel_six_summary.csv
+```
+
+All six have `protocol_valid=1`. The headline results are:
+
+| Case | Method | Matched | ATE-SE3 | ATE-Sim3 | Scale |
+|---|---|---:|---:|---:|---:|
+| `wxyz_d2ma_b_r5` | `d2ma_b_r5` | 857 | 0.017884 | 0.016043 | 0.974357 |
+| `wrpy_d2ma_b_r5` | `d2ma_b_r5` | 906 | 0.269999 | 0.120722 | 0.361678 |
+| `whalfsphere_d2ma_b_r5` | `d2ma_b_r5` | 1064 | 0.156093 | 0.118844 | 0.823258 |
+| `wrpy_d2ma_min` | `d2ma_min` | 906 | 0.474824 | 0.156668 | 0.172691 |
+| `wrpy_samecount_nonboundary_r5` | `samecount_nonboundary_r5` | 906 | 0.604425 | 0.156306 | 0.138884 |
+| `whalfsphere_raw` | `raw` | 1064 | 0.506439 | 0.290979 | 0.484404 |
+
+Please treat older missing-side-channel-only runs as invalid diagnostics rather than paper evidence.
 
 ## Current Metrics
 

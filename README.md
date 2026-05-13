@@ -46,7 +46,8 @@ tools/
 docs/
   Experiment records, route decisions, code map, and deep-thinking prompt.
   The current 5.5 Pro follow-up plan is in
-  docs/SLAM_5_5_PRO_FEEDBACK_ACTION_PLAN.md.
+  docs/SLAM_5_5_PRO_FEEDBACK_ACTION_PLAN.md, and the full current feedback
+  thread is mirrored in docs/5.5_PRO_回馈.md.
 
 results_summaries/
   Small markdown/json/txt summaries only. Full datasets and frame dumps are
@@ -79,13 +80,64 @@ Local execution helpers:
 - `scripts/dslam_data.py`
 - `scripts/link_local_datasets.sh`
 - `scripts/run_backend_rgbd.sh`
+- `scripts/run_d2ma_sidechannel_isolated.sh`
 - `scripts/run_frontend_inference.sh`
 - `tools/evaluate_trajectory_ate.py`
 - `tools/check_rgbd_sequence_integrity.py`
+- `tools/validate_d2ma_sidechannel_protocol.py`
+- `tools/summarize_backend_runs.py`
 
 ## Current Metrics To Explain
 
 Use `ATE-SE3` as the main RGB-D metric. `ATE-Sim3` and `ATE-origin` are diagnostic only.
+
+### Canonical Side-Channel Isolation Results
+
+The current paper-facing D²MA protocol is now fixed by
+`scripts/run_d2ma_sidechannel_isolated.sh` and audited by
+`tools/validate_d2ma_sidechannel_protocol.py`.
+
+All D²MA map-admission-only runs must explicitly isolate the mask as a
+side-channel provenance signal:
+
+```text
+ORB_SLAM3_MASK_MODE=off
+STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY=1
+STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURES=0
+STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=none
+STSLAM_DYNAMIC_DEPTH_INVALIDATION=0
+STSLAM_RGBD_DYNAMIC_FRONTEND_SPLIT=0
+STSLAM_DYNAMIC_MAP_ADMISSION_VETO=0
+```
+
+If `STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY=1` is missing, the run enables extra
+panoptic frontend / instance processing / dynamic split paths and is not
+considered a D²MA map-admission-only experiment.
+
+Latest six-run canonical full-sequence summary:
+
+| Case | Method | Matched | Coverage | ATE-SE3 RMSE | ATE-Sim3 RMSE | Sim3 scale | Protocol |
+|---|---|---:|---:|---:|---:|---:|---|
+| `wxyz_d2ma_b_r5` | `d2ma_b_r5` | 857 | 0.2972 | 0.017884 m | 0.016043 m | 0.974357 | pass |
+| `wrpy_d2ma_b_r5` | `d2ma_b_r5` | 906 | 0.2959 | 0.269999 m | 0.120722 m | 0.361678 | pass |
+| `whalfsphere_d2ma_b_r5` | `d2ma_b_r5` | 1064 | 0.2970 | 0.156093 m | 0.118844 m | 0.823258 | pass |
+| `wrpy_d2ma_min` | `d2ma_min` | 906 | 0.2959 | 0.474824 m | 0.156668 m | 0.172691 | pass |
+| `wrpy_samecount_nonboundary_r5` | `samecount_nonboundary_r5` | 906 | 0.2959 | 0.604425 m | 0.156306 m | 0.138884 | pass |
+| `whalfsphere_raw` | `raw` | 1064 | 0.2970 | 0.506439 m | 0.290979 m | 0.484404 | pass |
+
+Detailed CSV and protocol validation artifacts are in:
+
+```text
+results_summaries/canonical_sidechannel_six_20260513/
+results_summaries/experiments_0512_0517.csv
+```
+
+Interpretation:
+
+- The missing-side-channel-only anomaly has been localized and invalidated.
+- `D²MA-B r5` is the current main method.
+- `samecount_nonboundary_r5` is a negative control showing the gain is not just generic sparsification.
+- `walking_rpy` remains the hardest sequence and should be reported with coverage and repeat variance.
 
 ### Strong Image-Level Frontend Baseline
 
@@ -197,6 +249,23 @@ Run the first stage-gated hard-delete ablation:
 ```bash
 STSLAM_FORCE_FILTER_DETECTED_DYNAMIC_FEATURE_STAGES=before_create_keyframe \
   bash scripts/run_backend_rgbd.sh backend_maskonly_full_wxyz semantic_only
+```
+
+Run a protocol-audited D²MA side-channel-only experiment:
+
+```bash
+bash scripts/run_d2ma_sidechannel_isolated.sh \
+  external_whalfsphere_rawrgb_rawdepth_mask \
+  d2ma_b_r5 \
+  runs/example_whalfsphere_d2ma_b_r5
+```
+
+Validate an existing D²MA run:
+
+```bash
+python tools/validate_d2ma_sidechannel_protocol.py \
+  --run-dir runs/example_whalfsphere_d2ma_b_r5 \
+  --method d2ma_b_r5
 ```
 
 Run frontend YOLOE/SAM3 export smoke from raw TUM input:
