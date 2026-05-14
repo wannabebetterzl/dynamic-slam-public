@@ -10,19 +10,21 @@ All runs keep the D2MA side-channel isolation protocol: masks are used only as m
 
 ## Results
 
-| dataset | method | ATE SE3 | ATE Sim3 | scale | matched | final KFs | final MPs | V7 candidates/allowed | probation residual/survived/matured | pose-use edges/inliers/chi2 |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| walking_rpy | V4 same-build | 0.285427 | 0.126155 | 0.339917 | 906 | 366 | 6056 | 0/0 | 0/0/0 | 0/0/0 |
-| walking_rpy | V7 coverage-aware | 0.305616 | 0.131352 | 0.314618 | 906 | 387 | 6506 | 46/46 | 7/40/12 | 185/172/4.14 |
-| walking_xyz | V4 same-build | 0.018035 | 0.016368 | 0.975397 | 857 | 174 | 2904 | 0/0 | 0/0/0 | 0/0/0 |
-| walking_xyz | V7 coverage-aware | 0.017738 | 0.015810 | 0.973916 | 857 | 178 | 2971 | 33/32 | 4/20/147 | 94335/91076/3.88 |
+| dataset | method | ATE SE3 | ATE Sim3 | scale | seq/traj frames | GT matches | final KFs | final MPs | V7 candidates/allowed | probation event residual/survived/matured | pose-use event edges/inliers/chi2 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| walking_rpy | V4 same-build | 0.285427 | 0.126155 | 0.339917 | 909/909 | 906 | 366 | 6056 | 0/0 | 0/0/0 | 0/0/0 |
+| walking_rpy | V7 coverage-aware | 0.305616 | 0.131352 | 0.314618 | 909/909 | 906 | 387 | 6506 | 46/46 | 7/40/12 | 185/172/4.14 |
+| walking_xyz | V4 same-build | 0.018035 | 0.016368 | 0.975397 | 859/859 | 857 | 174 | 2904 | 0/0 | 0/0/0 | 0/0/0 |
+| walking_xyz | V7 coverage-aware | 0.017738 | 0.015810 | 0.973916 | 859/859 | 857 | 178 | 2971 | 33/32 | 4/20/147 | 94335/91076/3.88 |
 
 ## Interpretation
 
 - V7 is functional and its coverage/probation loop is observable in logs.
-- On walking_rpy, V7 changes map structure but does not extend matched coverage or fix scale; SE3 and scale regress.
+- On walking_rpy, V7 changes map structure but does not fix trajectory geometry or scale; SE3 and scale regress.
 - On walking_xyz, V7 gives a small SE3/Sim3 improvement, suggesting the mechanism can act as a local refinement but is not yet a universal robust dynamic-SLAM improvement.
 - walking_rpy's failure is now better characterized as a constraint-graph/scale-coverage issue rather than simply low posterior quality of admitted near-boundary points.
+- `GT matches` and evaluator `trajectory_coverage` are computed against high-rate ground truth, not the RGB-D association count. The emitted trajectory covers all associated RGB-D frames in these runs.
+- The probation columns are event aggregates across map-point-culling passes, not unique MapPoint counts. They are valid for protocol comparison but should not be overread as unique admitted-point survival statistics.
 
 ## Files
 

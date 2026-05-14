@@ -42,6 +42,45 @@ def read_eval(run_dir: Path) -> Dict[str, object]:
     }
 
 
+def read_manifest(run_dir: Path) -> Dict[str, str]:
+    path = run_dir / "run_manifest.txt"
+    if not path.exists():
+        return {}
+    values: Dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key] = value
+    return values
+
+
+def count_data_lines(path: Path) -> int:
+    if not path.exists():
+        return 0
+    return sum(
+        1
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    )
+
+
+def read_frame_counts(run_dir: Path, manifest: Dict[str, str]) -> Dict[str, object]:
+    trajectory_frames = count_data_lines(run_dir / "CameraTrajectory.txt")
+    associations_path = manifest.get("associations", "")
+    sequence_frames = count_data_lines(Path(associations_path)) if associations_path else 0
+    sequence_frame_coverage = (
+        float(trajectory_frames) / float(sequence_frames)
+        if sequence_frames > 0
+        else ""
+    )
+    return {
+        "sequence_frames": sequence_frames if sequence_frames > 0 else "",
+        "trajectory_frames": trajectory_frames if trajectory_frames > 0 else "",
+        "sequence_frame_coverage": sequence_frame_coverage,
+    }
+
+
 def read_observability(run_dir: Path) -> Tuple[List[Dict[str, str]], Dict[int, Dict[str, str]]]:
     path = run_dir / "observability_frame_stats.csv"
     if not path.exists():
@@ -312,6 +351,8 @@ def collect_case(name: str, run_dir: Path) -> Tuple[Dict[str, object], List[Dict
     totals, per_frame_events = parse_stdout_events(run_dir)
     obs_rows, obs_by_frame = read_observability(run_dir)
     eval_metrics = read_eval(run_dir)
+    manifest = read_manifest(run_dir)
+    frame_counts = read_frame_counts(run_dir, manifest)
     last_obs = obs_rows[-1] if obs_rows else {}
     keyframe_count = sum(1 for row in obs_rows if row.get("is_keyframe_created") == "1")
 
@@ -319,6 +360,9 @@ def collect_case(name: str, run_dir: Path) -> Tuple[Dict[str, object], List[Dict
         "case": name,
         "matched": eval_metrics.get("matched", ""),
         "coverage": eval_metrics.get("coverage", ""),
+        "sequence_frames": frame_counts.get("sequence_frames", ""),
+        "trajectory_frames": frame_counts.get("trajectory_frames", ""),
+        "sequence_frame_coverage": frame_counts.get("sequence_frame_coverage", ""),
         "ate_se3": eval_metrics.get("ate_se3", ""),
         "ate_sim3": eval_metrics.get("ate_sim3", ""),
         "scale": eval_metrics.get("scale", ""),
@@ -476,7 +520,7 @@ def collect_case(name: str, run_dir: Path) -> Tuple[Dict[str, object], List[Dict
 def write_csv(path: Path, rows: List[Dict[str, object]], fieldnames: Iterable[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(fieldnames))
+        writer = csv.DictWriter(handle, fieldnames=list(fieldnames), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
