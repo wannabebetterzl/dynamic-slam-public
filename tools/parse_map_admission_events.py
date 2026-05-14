@@ -257,6 +257,15 @@ def parse_stdout_events(run_dir: Path) -> Tuple[Dict[str, float], Dict[int, Dict
             add_event(totals, per_frame, values, "lm_v7_probation_matured", "score_matured")
             add_event(totals, per_frame, values, "lm_v7_probation_pose_use_edges", "score_pose_use_edges")
             add_event(totals, per_frame, values, "lm_v7_probation_pose_use_inliers", "score_pose_use_inliers")
+            add_event(totals, per_frame, values, "lm_v7_probation_lba_window_points", "score_lba_window_points")
+            add_event(totals, per_frame, values, "lm_v7_probation_lba_edge_points", "score_lba_edge_points")
+            add_event(totals, per_frame, values, "lm_v7_probation_lba_edges", "score_lba_edges")
+            add_event(totals, per_frame, values, "lm_v7_probation_lba_inliers", "score_lba_inliers")
+            add_event(totals, per_frame, values, "lm_v7_probation_lba_fixed_edges", "score_lba_fixed_edges")
+            add_event(totals, per_frame, values, "lm_v7_probation_lba_local_edges", "score_lba_local_edges")
+            add_event(totals, per_frame, values, "lm_v7_probation_obs_ge2", "score_obs_ge2")
+            add_event(totals, per_frame, values, "lm_v7_probation_obs_ge3", "score_obs_ge3")
+            add_event(totals, per_frame, values, "lm_v7_probation_obs_sum", "score_obs_sum")
             if "score_pose_use_chi2_mean" in values:
                 try:
                     chi2_mean = float(values["score_pose_use_chi2_mean"])
@@ -272,6 +281,76 @@ def parse_stdout_events(run_dir: Path) -> Tuple[Dict[str, float], Dict[int, Dict
                     if frame is not None:
                         per_frame[int(float(frame))]["lm_v7_probation_pose_use_chi2_weighted_sum"] += weighted_sum
                         per_frame[int(float(frame))]["lm_v7_probation_pose_use_chi2_weight"] += edge_weight
+            if "score_lba_chi2_mean" in values:
+                try:
+                    chi2_mean = float(values["score_lba_chi2_mean"])
+                    edge_weight = float(values.get("score_lba_edges", "0"))
+                except ValueError:
+                    chi2_mean = 0.0
+                    edge_weight = 0.0
+                if edge_weight > 0.0:
+                    weighted_sum = chi2_mean * edge_weight
+                    totals["lm_v7_probation_lba_chi2_weighted_sum"] += weighted_sum
+                    totals["lm_v7_probation_lba_chi2_weight"] += edge_weight
+                    frame = values.get("frame")
+                    if frame is not None:
+                        per_frame[int(float(frame))]["lm_v7_probation_lba_chi2_weighted_sum"] += weighted_sum
+                        per_frame[int(float(frame))]["lm_v7_probation_lba_chi2_weight"] += edge_weight
+            if "score_ref_distance_mean" in values:
+                try:
+                    distance_mean = float(values["score_ref_distance_mean"])
+                    point_weight = float(values.get("score_recent", "0"))
+                except ValueError:
+                    distance_mean = 0.0
+                    point_weight = 0.0
+                if point_weight > 0.0:
+                    weighted_sum = distance_mean * point_weight
+                    totals["lm_v7_probation_ref_distance_weighted_sum"] += weighted_sum
+                    totals["lm_v7_probation_ref_distance_weight"] += point_weight
+                    frame = values.get("frame")
+                    if frame is not None:
+                        per_frame[int(float(frame))]["lm_v7_probation_ref_distance_weighted_sum"] += weighted_sum
+                        per_frame[int(float(frame))]["lm_v7_probation_ref_distance_weight"] += point_weight
+        elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_CONSTRAINT_ROLE" and stage == "local_bundle_adjustment":
+            add_event(totals, per_frame, values, "lm_constraint_role_score_window_points", "score_window_points")
+            add_event(totals, per_frame, values, "lm_constraint_role_score_window_obs_ge2", "score_window_obs_ge2")
+            add_event(totals, per_frame, values, "lm_constraint_role_score_window_obs_ge3", "score_window_obs_ge3")
+            add_event(totals, per_frame, values, "lm_constraint_role_score_window_obs_sum", "score_window_obs_sum")
+            add_event(totals, per_frame, values, "lm_constraint_role_score_lba_edges", "score_lba_edges")
+            add_event(totals, per_frame, values, "lm_constraint_role_score_lba_inliers", "score_lba_inliers")
+            add_event(totals, per_frame, values, "lm_constraint_role_score_lba_outliers", "score_lba_outliers")
+            add_event(totals, per_frame, values, "lm_constraint_role_score_lba_local_edges", "score_lba_local_edges")
+            add_event(totals, per_frame, values, "lm_constraint_role_score_lba_fixed_edges", "score_lba_fixed_edges")
+            if "score_lba_chi2_mean" in values:
+                try:
+                    chi2_mean = float(values["score_lba_chi2_mean"])
+                    edge_weight = float(values.get("score_lba_edges", "0"))
+                except ValueError:
+                    chi2_mean = 0.0
+                    edge_weight = 0.0
+                if edge_weight > 0.0:
+                    weighted_sum = chi2_mean * edge_weight
+                    totals["lm_constraint_role_score_lba_chi2_weighted_sum"] += weighted_sum
+                    totals["lm_constraint_role_score_lba_chi2_weight"] += edge_weight
+                    frame = values.get("frame")
+                    if frame is not None:
+                        per_frame[int(float(frame))]["lm_constraint_role_score_lba_chi2_weighted_sum"] += weighted_sum
+                        per_frame[int(float(frame))]["lm_constraint_role_score_lba_chi2_weight"] += edge_weight
+            if "score_ref_distance_mean" in values:
+                try:
+                    distance_mean = float(values["score_ref_distance_mean"])
+                    point_weight = float(values.get("score_window_points", "0"))
+                except ValueError:
+                    distance_mean = 0.0
+                    point_weight = 0.0
+                if point_weight > 0.0:
+                    weighted_sum = distance_mean * point_weight
+                    totals["lm_constraint_role_score_ref_distance_weighted_sum"] += weighted_sum
+                    totals["lm_constraint_role_score_ref_distance_weight"] += point_weight
+                    frame = values.get("frame")
+                    if frame is not None:
+                        per_frame[int(float(frame))]["lm_constraint_role_score_ref_distance_weighted_sum"] += weighted_sum
+                        per_frame[int(float(frame))]["lm_constraint_role_score_ref_distance_weight"] += point_weight
         elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_V5_CANDIDATE":
             add_event(totals, per_frame, values, "lm_v5_support_candidates", "support_candidate")
             add_event(totals, per_frame, values, "lm_v5_support_accepted", "support_accepted")
@@ -458,6 +537,32 @@ def collect_case(name: str, run_dir: Path) -> Tuple[Dict[str, object], List[Dict
         "lm_v7_probation_pose_use_inliers",
         "lm_v7_probation_pose_use_chi2_weighted_sum",
         "lm_v7_probation_pose_use_chi2_weight",
+        "lm_v7_probation_lba_window_points",
+        "lm_v7_probation_lba_edge_points",
+        "lm_v7_probation_lba_edges",
+        "lm_v7_probation_lba_inliers",
+        "lm_v7_probation_lba_fixed_edges",
+        "lm_v7_probation_lba_local_edges",
+        "lm_v7_probation_lba_chi2_weighted_sum",
+        "lm_v7_probation_lba_chi2_weight",
+        "lm_v7_probation_obs_ge2",
+        "lm_v7_probation_obs_ge3",
+        "lm_v7_probation_obs_sum",
+        "lm_v7_probation_ref_distance_weighted_sum",
+        "lm_v7_probation_ref_distance_weight",
+        "lm_constraint_role_score_window_points",
+        "lm_constraint_role_score_window_obs_ge2",
+        "lm_constraint_role_score_window_obs_ge3",
+        "lm_constraint_role_score_window_obs_sum",
+        "lm_constraint_role_score_lba_edges",
+        "lm_constraint_role_score_lba_inliers",
+        "lm_constraint_role_score_lba_outliers",
+        "lm_constraint_role_score_lba_local_edges",
+        "lm_constraint_role_score_lba_fixed_edges",
+        "lm_constraint_role_score_lba_chi2_weighted_sum",
+        "lm_constraint_role_score_lba_chi2_weight",
+        "lm_constraint_role_score_ref_distance_weighted_sum",
+        "lm_constraint_role_score_ref_distance_weight",
         "lm_v5_support_candidates",
         "lm_v5_support_accepted",
         "lm_v5_reject_support",
@@ -494,6 +599,36 @@ def collect_case(name: str, run_dir: Path) -> Tuple[Dict[str, object], List[Dict
         )
     else:
         summary["lm_v7_probation_pose_use_chi2_mean"] = 0.0
+    lba_chi2_weight = float(summary.get("lm_v7_probation_lba_chi2_weight") or 0.0)
+    if lba_chi2_weight > 0.0:
+        summary["lm_v7_probation_lba_chi2_mean"] = (
+            float(summary["lm_v7_probation_lba_chi2_weighted_sum"]) / lba_chi2_weight
+        )
+    else:
+        summary["lm_v7_probation_lba_chi2_mean"] = 0.0
+    ref_distance_weight = float(summary.get("lm_v7_probation_ref_distance_weight") or 0.0)
+    if ref_distance_weight > 0.0:
+        summary["lm_v7_probation_ref_distance_mean"] = (
+            float(summary["lm_v7_probation_ref_distance_weighted_sum"]) / ref_distance_weight
+        )
+    else:
+        summary["lm_v7_probation_ref_distance_mean"] = 0.0
+    constraint_lba_chi2_weight = float(summary.get("lm_constraint_role_score_lba_chi2_weight") or 0.0)
+    if constraint_lba_chi2_weight > 0.0:
+        summary["lm_constraint_role_score_lba_chi2_mean"] = (
+            float(summary["lm_constraint_role_score_lba_chi2_weighted_sum"]) /
+            constraint_lba_chi2_weight
+        )
+    else:
+        summary["lm_constraint_role_score_lba_chi2_mean"] = 0.0
+    constraint_ref_distance_weight = float(summary.get("lm_constraint_role_score_ref_distance_weight") or 0.0)
+    if constraint_ref_distance_weight > 0.0:
+        summary["lm_constraint_role_score_ref_distance_mean"] = (
+            float(summary["lm_constraint_role_score_ref_distance_weighted_sum"]) /
+            constraint_ref_distance_weight
+        )
+    else:
+        summary["lm_constraint_role_score_ref_distance_mean"] = 0.0
 
     frame_rows: List[Dict[str, object]] = []
     for frame_id, values in sorted(per_frame_events.items()):

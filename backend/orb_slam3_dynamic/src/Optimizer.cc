@@ -2357,6 +2357,11 @@ bool EnableDynamicMapAdmissionSupportQuality()
     return GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY", false);
 }
 
+bool EnableDynamicMapAdmissionConstraintRoleLog()
+{
+    return GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_CONSTRAINT_ROLE_LOG", false);
+}
+
 int GetNearBoundaryDiagnosticRadiusPx()
 {
     return GetEnvIntOrDefault("STSLAM_NEAR_BOUNDARY_DIAGNOSTIC_RADIUS_PX", 5, 0);
@@ -4533,6 +4538,40 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
 
     // Set MapPoint vertices
     const int nExpectedSize = (lLocalKeyFrames.size()+lFixedCameras.size())*lLocalMapPoints.size();
+    const bool constraintRoleLog = EnableDynamicMapAdmissionConstraintRoleLog();
+    int scoreAdmissionWindowPoints = 0;
+    int scoreAdmissionWindowObsGe2 = 0;
+    int scoreAdmissionWindowObsGe3 = 0;
+    int scoreAdmissionWindowObsSum = 0;
+    double scoreAdmissionRefDistanceSum = 0.0;
+    int scoreAdmissionRefDistanceCount = 0;
+    if(constraintRoleLog)
+    {
+        for(list<MapPoint*>::iterator lit = lLocalMapPoints.begin(), lend = lLocalMapPoints.end(); lit != lend; ++lit)
+        {
+            MapPoint* pMP = *lit;
+            if(!pMP || !pMP->WasCreatedFromScoreAdmission())
+                continue;
+
+            pMP->MarkScoreAdmissionLocalBAWindow();
+            ++scoreAdmissionWindowPoints;
+            const int observations = pMP->Observations();
+            scoreAdmissionWindowObsSum += observations;
+            if(observations >= 2)
+                ++scoreAdmissionWindowObsGe2;
+            if(observations >= 3)
+                ++scoreAdmissionWindowObsGe3;
+
+            KeyFrame* pRefKF = pMP->GetReferenceKeyFrame();
+            if(pRefKF && !pRefKF->isBad())
+            {
+                scoreAdmissionRefDistanceSum +=
+                    static_cast<double>((pMP->GetWorldPos() -
+                                         pRefKF->GetCameraCenter()).norm());
+                ++scoreAdmissionRefDistanceCount;
+            }
+        }
+    }
 
     vector<ORB_SLAM3::EdgeSE3ProjectXYZ*> vpEdgesMono;
     vpEdgesMono.reserve(nExpectedSize);
@@ -4701,6 +4740,38 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
 
     vector<pair<KeyFrame*,MapPoint*> > vToErase;
     vToErase.reserve(vpEdgesMono.size()+vpEdgesBody.size()+vpEdgesStereo.size());
+    int scoreAdmissionLBAEdges = 0;
+    int scoreAdmissionLBAInliers = 0;
+    int scoreAdmissionLBAOutliers = 0;
+    int scoreAdmissionLBALocalEdges = 0;
+    int scoreAdmissionLBAFixedEdges = 0;
+    double scoreAdmissionLBAChi2Sum = 0.0;
+    auto updateScoreAdmissionLBAEdge =
+        [&](MapPoint* pMP,
+            KeyFrame* pKFi,
+            const double chi2,
+            const double chi2Threshold,
+            const bool depthPositive)
+    {
+        if(!constraintRoleLog || !pMP || !pMP->WasCreatedFromScoreAdmission())
+            return;
+
+        const bool inlier = chi2 <= chi2Threshold && depthPositive;
+        const bool fixedCamera =
+            pKFi && (pKFi->mnBAFixedForKF == pKF->mnId ||
+                     pKFi->mnId == pMap->GetInitKFid());
+        pMP->UpdateScoreAdmissionLocalBAUse(chi2, inlier, fixedCamera);
+        ++scoreAdmissionLBAEdges;
+        if(inlier)
+            ++scoreAdmissionLBAInliers;
+        else
+            ++scoreAdmissionLBAOutliers;
+        if(fixedCamera)
+            ++scoreAdmissionLBAFixedEdges;
+        else
+            ++scoreAdmissionLBALocalEdges;
+        scoreAdmissionLBAChi2Sum += chi2;
+    };
 
     // Check inlier observations       
     for(size_t i=0, iend=vpEdgesMono.size(); i<iend;i++)
@@ -4711,9 +4782,12 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
         if(pMP->isBad())
             continue;
 
-        if(e->chi2()>5.991 || !e->isDepthPositive())
+        const double chi2 = e->chi2();
+        const bool depthPositive = e->isDepthPositive();
+        KeyFrame* pKFi = vpEdgeKFMono[i];
+        updateScoreAdmissionLBAEdge(pMP, pKFi, chi2, 5.991, depthPositive);
+        if(chi2>5.991 || !depthPositive)
         {
-            KeyFrame* pKFi = vpEdgeKFMono[i];
             vToErase.push_back(make_pair(pKFi,pMP));
         }
     }
@@ -4726,9 +4800,12 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
         if(pMP->isBad())
             continue;
 
-        if(e->chi2()>5.991 || !e->isDepthPositive())
+        const double chi2 = e->chi2();
+        const bool depthPositive = e->isDepthPositive();
+        KeyFrame* pKFi = vpEdgeKFBody[i];
+        updateScoreAdmissionLBAEdge(pMP, pKFi, chi2, 5.991, depthPositive);
+        if(chi2>5.991 || !depthPositive)
         {
-            KeyFrame* pKFi = vpEdgeKFBody[i];
             vToErase.push_back(make_pair(pKFi,pMP));
         }
     }
@@ -4741,11 +4818,47 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
         if(pMP->isBad())
             continue;
 
-        if(e->chi2()>7.815 || !e->isDepthPositive())
+        const double chi2 = e->chi2();
+        const bool depthPositive = e->isDepthPositive();
+        KeyFrame* pKFi = vpEdgeKFStereo[i];
+        updateScoreAdmissionLBAEdge(pMP, pKFi, chi2, 7.815, depthPositive);
+        if(chi2>7.815 || !depthPositive)
         {
-            KeyFrame* pKFi = vpEdgeKFStereo[i];
             vToErase.push_back(make_pair(pKFi,pMP));
         }
+    }
+
+    if(constraintRoleLog && scoreAdmissionWindowPoints > 0)
+    {
+        std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_CONSTRAINT_ROLE]"
+                  << " frame=" << pKF->mnFrameId
+                  << " stage=local_bundle_adjustment"
+                  << " path=vanilla"
+                  << " current_kf=" << pKF->mnId
+                  << " local_kf=" << lLocalKeyFrames.size()
+                  << " fixed_kf=" << lFixedCameras.size()
+                  << " local_mp=" << lLocalMapPoints.size()
+                  << " all_edges=" << nEdges
+                  << " score_window_points=" << scoreAdmissionWindowPoints
+                  << " score_window_obs_ge2=" << scoreAdmissionWindowObsGe2
+                  << " score_window_obs_ge3=" << scoreAdmissionWindowObsGe3
+                  << " score_window_obs_sum=" << scoreAdmissionWindowObsSum
+                  << " score_ref_distance_mean="
+                  << (scoreAdmissionRefDistanceCount > 0 ?
+                      scoreAdmissionRefDistanceSum /
+                          static_cast<double>(scoreAdmissionRefDistanceCount) :
+                      0.0)
+                  << " score_lba_edges=" << scoreAdmissionLBAEdges
+                  << " score_lba_inliers=" << scoreAdmissionLBAInliers
+                  << " score_lba_outliers=" << scoreAdmissionLBAOutliers
+                  << " score_lba_local_edges=" << scoreAdmissionLBALocalEdges
+                  << " score_lba_fixed_edges=" << scoreAdmissionLBAFixedEdges
+                  << " score_lba_chi2_mean="
+                  << (scoreAdmissionLBAEdges > 0 ?
+                      scoreAdmissionLBAChi2Sum /
+                          static_cast<double>(scoreAdmissionLBAEdges) :
+                      0.0)
+                  << std::endl;
     }
 
 

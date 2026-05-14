@@ -55,11 +55,24 @@ struct SupportQualityPoseUseRecord
     double chi2Sum = 0.0;
 };
 
+struct ScoreAdmissionConstraintRoleRecord
+{
+    int localBAWindows = 0;
+    int localBAEdges = 0;
+    int localBAInliers = 0;
+    int localBAFixedEdges = 0;
+    int localBALocalEdges = 0;
+    double localBAChi2Sum = 0.0;
+};
+
 std::mutex gAdmissionDiagnosticsMutex;
 std::map<const MapPoint*, AdmissionDiagnosticsRecord> gAdmissionDiagnostics;
 
 std::mutex gSupportQualityPoseUseMutex;
 std::map<const MapPoint*, SupportQualityPoseUseRecord> gSupportQualityPoseUse;
+
+std::mutex gScoreAdmissionConstraintRoleMutex;
+std::map<const MapPoint*, ScoreAdmissionConstraintRoleRecord> gScoreAdmissionConstraintRole;
 
 void CleanupInstanceMembership(Map* pMap,
                                const int instanceId,
@@ -440,6 +453,80 @@ double MapPoint::GetSupportQualityPoseUseMeanChi2()
     if(it == gSupportQualityPoseUse.end() || it->second.observations <= 0)
         return 0.0;
     return it->second.chi2Sum / static_cast<double>(it->second.observations);
+}
+
+void MapPoint::MarkScoreAdmissionLocalBAWindow()
+{
+    unique_lock<mutex> lock(gScoreAdmissionConstraintRoleMutex);
+    ++gScoreAdmissionConstraintRole[this].localBAWindows;
+}
+
+void MapPoint::UpdateScoreAdmissionLocalBAUse(double chi2, bool inlier, bool fixedCamera)
+{
+    if(!std::isfinite(chi2))
+        return;
+
+    unique_lock<mutex> lock(gScoreAdmissionConstraintRoleMutex);
+    ScoreAdmissionConstraintRoleRecord& record = gScoreAdmissionConstraintRole[this];
+    ++record.localBAEdges;
+    if(inlier)
+        ++record.localBAInliers;
+    if(fixedCamera)
+        ++record.localBAFixedEdges;
+    else
+        ++record.localBALocalEdges;
+    record.localBAChi2Sum += chi2;
+}
+
+int MapPoint::GetScoreAdmissionLocalBAWindowCount()
+{
+    unique_lock<mutex> lock(gScoreAdmissionConstraintRoleMutex);
+    std::map<const MapPoint*, ScoreAdmissionConstraintRoleRecord>::const_iterator it =
+        gScoreAdmissionConstraintRole.find(this);
+    return it != gScoreAdmissionConstraintRole.end() ? it->second.localBAWindows : 0;
+}
+
+int MapPoint::GetScoreAdmissionLocalBAEdgeCount()
+{
+    unique_lock<mutex> lock(gScoreAdmissionConstraintRoleMutex);
+    std::map<const MapPoint*, ScoreAdmissionConstraintRoleRecord>::const_iterator it =
+        gScoreAdmissionConstraintRole.find(this);
+    return it != gScoreAdmissionConstraintRole.end() ? it->second.localBAEdges : 0;
+}
+
+int MapPoint::GetScoreAdmissionLocalBAInliers()
+{
+    unique_lock<mutex> lock(gScoreAdmissionConstraintRoleMutex);
+    std::map<const MapPoint*, ScoreAdmissionConstraintRoleRecord>::const_iterator it =
+        gScoreAdmissionConstraintRole.find(this);
+    return it != gScoreAdmissionConstraintRole.end() ? it->second.localBAInliers : 0;
+}
+
+int MapPoint::GetScoreAdmissionLocalBAFixedEdges()
+{
+    unique_lock<mutex> lock(gScoreAdmissionConstraintRoleMutex);
+    std::map<const MapPoint*, ScoreAdmissionConstraintRoleRecord>::const_iterator it =
+        gScoreAdmissionConstraintRole.find(this);
+    return it != gScoreAdmissionConstraintRole.end() ? it->second.localBAFixedEdges : 0;
+}
+
+int MapPoint::GetScoreAdmissionLocalBALocalEdges()
+{
+    unique_lock<mutex> lock(gScoreAdmissionConstraintRoleMutex);
+    std::map<const MapPoint*, ScoreAdmissionConstraintRoleRecord>::const_iterator it =
+        gScoreAdmissionConstraintRole.find(this);
+    return it != gScoreAdmissionConstraintRole.end() ? it->second.localBALocalEdges : 0;
+}
+
+double MapPoint::GetScoreAdmissionLocalBAMeanChi2()
+{
+    unique_lock<mutex> lock(gScoreAdmissionConstraintRoleMutex);
+    std::map<const MapPoint*, ScoreAdmissionConstraintRoleRecord>::const_iterator it =
+        gScoreAdmissionConstraintRole.find(this);
+    if(it == gScoreAdmissionConstraintRole.end() || it->second.localBAEdges <= 0)
+        return 0.0;
+    return it->second.localBAChi2Sum /
+           static_cast<double>(it->second.localBAEdges);
 }
 
 

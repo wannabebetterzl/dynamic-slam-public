@@ -206,6 +206,14 @@ public:
     int GetSupportQualityPoseUseInliers();
     double GetSupportQualityPoseUseInlierRate();
     double GetSupportQualityPoseUseMeanChi2();
+    void MarkScoreAdmissionLocalBAWindow();
+    void UpdateScoreAdmissionLocalBAUse(double chi2, bool inlier, bool fixedCamera);
+    int GetScoreAdmissionLocalBAWindowCount();
+    int GetScoreAdmissionLocalBAEdgeCount();
+    int GetScoreAdmissionLocalBAInliers();
+    int GetScoreAdmissionLocalBAFixedEdges();
+    int GetScoreAdmissionLocalBALocalEdges();
+    double GetScoreAdmissionLocalBAMeanChi2();
 
     void PreSave(set<KeyFrame*>& spKF,set<MapPoint*>& spMP);
     void PostLoad(map<long unsigned int, KeyFrame*>& mpKFid, map<long unsigned int, MapPoint*>& mpMPid);

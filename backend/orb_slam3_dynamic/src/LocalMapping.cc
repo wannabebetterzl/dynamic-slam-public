@@ -699,6 +699,14 @@ int DynamicMapAdmissionV7ProbationLowUseAgeKFs()
     return value;
 }
 
+bool DynamicMapAdmissionConstraintRoleLog()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_CONSTRAINT_ROLE_LOG",
+                            false);
+    return value;
+}
+
 struct AdmissionStateAwarenessContext
 {
     bool enabled = false;
@@ -2252,6 +2260,7 @@ void LocalMapping::MapPointCulling()
     const bool nearBoundaryDiagnostics = EnableNearBoundaryDiagnostics();
     const bool v5UsefulnessLog = DynamicMapAdmissionV5UsefulnessLog();
     const bool v7Probation = DynamicMapAdmissionV7Probation();
+    const bool constraintRoleLog = DynamicMapAdmissionConstraintRoleLog();
     int recentNearBoundaryPoints = 0;
     int recentCleanStaticPoints = 0;
     int recentDirectDynamicPoints = 0;
@@ -2275,6 +2284,18 @@ void LocalMapping::MapPointCulling()
     int scoreAdmissionPoseUseEdges = 0;
     int scoreAdmissionPoseUseInliers = 0;
     double scoreAdmissionPoseUseChi2Sum = 0.0;
+    int scoreAdmissionLocalBAWindowPoints = 0;
+    int scoreAdmissionLocalBAEdgePoints = 0;
+    int scoreAdmissionLocalBAEdges = 0;
+    int scoreAdmissionLocalBAInliers = 0;
+    int scoreAdmissionLocalBAFixedEdges = 0;
+    int scoreAdmissionLocalBALocalEdges = 0;
+    double scoreAdmissionLocalBAChi2Sum = 0.0;
+    int scoreAdmissionObsGe2 = 0;
+    int scoreAdmissionObsGe3 = 0;
+    int scoreAdmissionObsSum = 0;
+    double scoreAdmissionRefDistanceSum = 0.0;
+    int scoreAdmissionRefDistanceCount = 0;
 
     while(lit!=mlpRecentAddedMapPoints.end())
     {
@@ -2306,6 +2327,41 @@ void LocalMapping::MapPointCulling()
             scoreAdmissionPoseUseChi2Sum +=
                 pMP->GetSupportQualityPoseUseMeanChi2() *
                 static_cast<double>(poseUseCount);
+            if(constraintRoleLog)
+            {
+                const int lbaWindows = pMP->GetScoreAdmissionLocalBAWindowCount();
+                const int lbaEdges = pMP->GetScoreAdmissionLocalBAEdgeCount();
+                if(lbaWindows > 0)
+                    ++scoreAdmissionLocalBAWindowPoints;
+                if(lbaEdges > 0)
+                    ++scoreAdmissionLocalBAEdgePoints;
+                scoreAdmissionLocalBAEdges += lbaEdges;
+                scoreAdmissionLocalBAInliers +=
+                    pMP->GetScoreAdmissionLocalBAInliers();
+                scoreAdmissionLocalBAFixedEdges +=
+                    pMP->GetScoreAdmissionLocalBAFixedEdges();
+                scoreAdmissionLocalBALocalEdges +=
+                    pMP->GetScoreAdmissionLocalBALocalEdges();
+                scoreAdmissionLocalBAChi2Sum +=
+                    pMP->GetScoreAdmissionLocalBAMeanChi2() *
+                    static_cast<double>(lbaEdges);
+
+                const int observations = pMP->Observations();
+                scoreAdmissionObsSum += observations;
+                if(observations >= 2)
+                    ++scoreAdmissionObsGe2;
+                if(observations >= 3)
+                    ++scoreAdmissionObsGe3;
+
+                KeyFrame* pRefKF = pMP->GetReferenceKeyFrame();
+                if(pRefKF && !pRefKF->isBad())
+                {
+                    scoreAdmissionRefDistanceSum +=
+                        static_cast<double>((pMP->GetWorldPos() -
+                                             pRefKF->GetCameraCenter()).norm());
+                    ++scoreAdmissionRefDistanceCount;
+                }
+            }
         }
 
         bool v7ResidualReject = false;
@@ -2469,6 +2525,31 @@ void LocalMapping::MapPointCulling()
                   << (scoreAdmissionPoseUseEdges > 0 ?
                       scoreAdmissionPoseUseChi2Sum /
                           static_cast<double>(scoreAdmissionPoseUseEdges) :
+                      0.0)
+                  << " score_lba_window_points="
+                  << scoreAdmissionLocalBAWindowPoints
+                  << " score_lba_edge_points="
+                  << scoreAdmissionLocalBAEdgePoints
+                  << " score_lba_edges="
+                  << scoreAdmissionLocalBAEdges
+                  << " score_lba_inliers="
+                  << scoreAdmissionLocalBAInliers
+                  << " score_lba_fixed_edges="
+                  << scoreAdmissionLocalBAFixedEdges
+                  << " score_lba_local_edges="
+                  << scoreAdmissionLocalBALocalEdges
+                  << " score_lba_chi2_mean="
+                  << (scoreAdmissionLocalBAEdges > 0 ?
+                      scoreAdmissionLocalBAChi2Sum /
+                          static_cast<double>(scoreAdmissionLocalBAEdges) :
+                      0.0)
+                  << " score_obs_ge2=" << scoreAdmissionObsGe2
+                  << " score_obs_ge3=" << scoreAdmissionObsGe3
+                  << " score_obs_sum=" << scoreAdmissionObsSum
+                  << " score_ref_distance_mean="
+                  << (scoreAdmissionRefDistanceCount > 0 ?
+                      scoreAdmissionRefDistanceSum /
+                          static_cast<double>(scoreAdmissionRefDistanceCount) :
                       0.0)
                   << " probation_min_age_kfs="
                   << DynamicMapAdmissionV7ProbationMinAgeKFs()
