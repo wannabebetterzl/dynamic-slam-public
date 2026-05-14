@@ -76,9 +76,9 @@ def add_event(
         per_frame[int(float(frame))][key] += amount
 
 
-def parse_stdout_events(run_dir: Path) -> Tuple[Dict[str, int], Dict[int, Dict[str, int]]]:
-    totals: Dict[str, int] = defaultdict(int)
-    per_frame: Dict[int, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+def parse_stdout_events(run_dir: Path) -> Tuple[Dict[str, float], Dict[int, Dict[str, float]]]:
+    totals: Dict[str, float] = defaultdict(float)
+    per_frame: Dict[int, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
     path = run_dir / "stdout.log"
     if not path.exists():
         return totals, per_frame
@@ -192,6 +192,47 @@ def parse_stdout_events(run_dir: Path) -> Tuple[Dict[str, int], Dict[int, Dict[s
             add_event(totals, per_frame, values, "lm_state_keyframe_pressure", "keyframe_pressure")
             add_event(totals, per_frame, values, "lm_state_scale_pressure", "scale_pressure")
             add_event(totals, per_frame, values, "lm_state_lba_pressure", "lba_pressure")
+        elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_V7_COVERAGE" and stage == "create_new_map_points":
+            add_event(totals, per_frame, values, "lm_v7_candidates", "v7_candidates")
+            add_event(totals, per_frame, values, "lm_v7_allowed", "v7_allowed")
+            add_event(totals, per_frame, values, "lm_v7_rejected", "v7_rejected")
+            add_event(totals, per_frame, values, "lm_v7_state_allowed", "v7_state_allowed")
+            add_event(totals, per_frame, values, "lm_v7_coverage_allowed", "v7_coverage_allowed")
+            add_event(totals, per_frame, values, "lm_v7_quota_rejected", "v7_quota_rejected")
+            add_event(totals, per_frame, values, "lm_v7_unmatched_boundary_features", "unmatched_boundary_features")
+            add_event(totals, per_frame, values, "lm_v7_unmatched_boundary_cells", "unmatched_boundary_cells")
+            add_event(totals, per_frame, values, "lm_v7_total_boundary_features", "total_boundary_features")
+            add_event(totals, per_frame, values, "lm_v7_coverage_pressure", "coverage_pressure")
+            add_event(totals, per_frame, values, "lm_v7_tracking_pressure", "tracking_pressure")
+            add_event(totals, per_frame, values, "lm_v7_keyframe_pressure", "keyframe_pressure")
+            add_event(totals, per_frame, values, "lm_v7_scale_pressure", "scale_pressure")
+            add_event(totals, per_frame, values, "lm_v7_lba_pressure", "lba_pressure")
+        elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_V7_PROBATION" and stage == "map_point_culling":
+            add_event(totals, per_frame, values, "lm_v7_probation_score_recent", "score_recent")
+            add_event(totals, per_frame, values, "lm_v7_probation_prebad", "score_prebad")
+            add_event(totals, per_frame, values, "lm_v7_probation_culled_found_ratio", "score_culled_found_ratio")
+            add_event(totals, per_frame, values, "lm_v7_probation_culled_low_obs", "score_culled_low_obs")
+            add_event(totals, per_frame, values, "lm_v7_probation_residual_rejected", "v7_residual_rejected")
+            add_event(totals, per_frame, values, "lm_v7_probation_low_use_rejected", "v7_low_use_rejected")
+            add_event(totals, per_frame, values, "lm_v7_probation_survived", "score_survived")
+            add_event(totals, per_frame, values, "lm_v7_probation_matured", "score_matured")
+            add_event(totals, per_frame, values, "lm_v7_probation_pose_use_edges", "score_pose_use_edges")
+            add_event(totals, per_frame, values, "lm_v7_probation_pose_use_inliers", "score_pose_use_inliers")
+            if "score_pose_use_chi2_mean" in values:
+                try:
+                    chi2_mean = float(values["score_pose_use_chi2_mean"])
+                    edge_weight = float(values.get("score_pose_use_edges", "0"))
+                except ValueError:
+                    chi2_mean = 0.0
+                    edge_weight = 0.0
+                if edge_weight > 0.0:
+                    weighted_sum = chi2_mean * edge_weight
+                    totals["lm_v7_probation_pose_use_chi2_weighted_sum"] += weighted_sum
+                    totals["lm_v7_probation_pose_use_chi2_weight"] += edge_weight
+                    frame = values.get("frame")
+                    if frame is not None:
+                        per_frame[int(float(frame))]["lm_v7_probation_pose_use_chi2_weighted_sum"] += weighted_sum
+                        per_frame[int(float(frame))]["lm_v7_probation_pose_use_chi2_weight"] += edge_weight
         elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_V5_CANDIDATE":
             add_event(totals, per_frame, values, "lm_v5_support_candidates", "support_candidate")
             add_event(totals, per_frame, values, "lm_v5_support_accepted", "support_accepted")
@@ -347,6 +388,32 @@ def collect_case(name: str, run_dir: Path) -> Tuple[Dict[str, object], List[Dict
         "lm_state_keyframe_pressure",
         "lm_state_scale_pressure",
         "lm_state_lba_pressure",
+        "lm_v7_candidates",
+        "lm_v7_allowed",
+        "lm_v7_rejected",
+        "lm_v7_state_allowed",
+        "lm_v7_coverage_allowed",
+        "lm_v7_quota_rejected",
+        "lm_v7_unmatched_boundary_features",
+        "lm_v7_unmatched_boundary_cells",
+        "lm_v7_total_boundary_features",
+        "lm_v7_coverage_pressure",
+        "lm_v7_tracking_pressure",
+        "lm_v7_keyframe_pressure",
+        "lm_v7_scale_pressure",
+        "lm_v7_lba_pressure",
+        "lm_v7_probation_score_recent",
+        "lm_v7_probation_prebad",
+        "lm_v7_probation_culled_found_ratio",
+        "lm_v7_probation_culled_low_obs",
+        "lm_v7_probation_residual_rejected",
+        "lm_v7_probation_low_use_rejected",
+        "lm_v7_probation_survived",
+        "lm_v7_probation_matured",
+        "lm_v7_probation_pose_use_edges",
+        "lm_v7_probation_pose_use_inliers",
+        "lm_v7_probation_pose_use_chi2_weighted_sum",
+        "lm_v7_probation_pose_use_chi2_weight",
         "lm_v5_support_candidates",
         "lm_v5_support_accepted",
         "lm_v5_reject_support",
@@ -376,6 +443,13 @@ def collect_case(name: str, run_dir: Path) -> Tuple[Dict[str, object], List[Dict
     ]
     for key in event_keys:
         summary[key] = totals.get(key, 0)
+    chi2_weight = float(summary.get("lm_v7_probation_pose_use_chi2_weight") or 0.0)
+    if chi2_weight > 0.0:
+        summary["lm_v7_probation_pose_use_chi2_mean"] = (
+            float(summary["lm_v7_probation_pose_use_chi2_weighted_sum"]) / chi2_weight
+        )
+    else:
+        summary["lm_v7_probation_pose_use_chi2_mean"] = 0.0
 
     frame_rows: List[Dict[str, object]] = []
     for frame_id, values in sorted(per_frame_events.items()):
