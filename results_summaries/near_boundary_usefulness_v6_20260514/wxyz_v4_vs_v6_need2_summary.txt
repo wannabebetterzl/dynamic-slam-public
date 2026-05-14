@@ -1,0 +1,35 @@
+State-aware admission divergence audit
+baseline=wxyz_score_v4_samebuild run=/home/lj/dynamic-slam-public/runs/state_aware_v6_20260514_001/wxyz_score_v4_samebuild_r1
+probe=wxyz_state_v6_need2 run=/home/lj/dynamic-slam-public/runs/state_aware_v6_20260514_001/wxyz_state_v6_need2_r1
+
+Global metrics:
+baseline ATE_SE3=0.018034781301649223 ATE_Sim3=0.016367612552295935 scale=0.9753974712353429 RPEt=0.012172416292987882 RPER=0.369057203105894
+probe    ATE_SE3=0.01781604927460669 ATE_Sim3=0.01663654415919348 scale=0.9792091742444857 RPEt=0.012204485659430137 RPER=0.37311902311945694
+
+State event totals:
+candidates=72 allowed=4 rejected=68
+tracking/keyframe/scale/lba pressures=4/50/3/0
+
+Worst bins by probe-baseline SE3 RMSE delta:
+frames=600-649 se3_delta=0.004781 cum_ratio_delta=0.018497 seg_ratio_delta=0.097046 state_rejected=0 probe_created=0 baseline_created=1
+frames=500-549 se3_delta=0.002668 cum_ratio_delta=0.018046 seg_ratio_delta=0.143074 state_rejected=0 probe_created=0 baseline_created=0
+frames=200-249 se3_delta=0.002160 cum_ratio_delta=0.022800 seg_ratio_delta=-0.052972 state_rejected=4 probe_created=0 baseline_created=2
+frames=850-858 se3_delta=0.001636 cum_ratio_delta=0.016180 seg_ratio_delta=0.362331 state_rejected=0 probe_created=0 baseline_created=0
+frames=550-599 se3_delta=0.001514 cum_ratio_delta=0.011635 seg_ratio_delta=-0.062321 state_rejected=0 probe_created=0 baseline_created=0
+
+Bins with strongest path-ratio shrinkage in probe:
+frames=50-99 seg_ratio_delta=-0.168971 baseline_ratio=2.205210 probe_ratio=2.036239 state_rejected=0 state_allowed=0
+frames=400-449 seg_ratio_delta=-0.111115 baseline_ratio=1.438421 probe_ratio=1.327306 state_rejected=1 state_allowed=0
+frames=550-599 seg_ratio_delta=-0.062321 baseline_ratio=1.647857 probe_ratio=1.585536 state_rejected=0 state_allowed=0
+frames=200-249 seg_ratio_delta=-0.052972 baseline_ratio=2.033909 probe_ratio=1.980937 state_rejected=4 state_allowed=0
+frames=350-399 seg_ratio_delta=-0.039726 baseline_ratio=1.517080 probe_ratio=1.477354 state_rejected=0 state_allowed=0
+
+State-event frames with largest next-window ratio loss:
+frame=209 rejected=4/4 pressures=t0,k4,s0,ba0 next50_ratio_delta_probe_minus_baseline=-0.150969 cum_delta=0.075995 probe_inliers=194 baseline_inliers=216
+frame=27 rejected=0/2 pressures=t1,k1,s0,ba0 next50_ratio_delta_probe_minus_baseline=-0.095522 cum_delta=-0.008842 probe_inliers=157 baseline_inliers=165
+frame=184 rejected=1/1 pressures=t0,k1,s0,ba0 next50_ratio_delta_probe_minus_baseline=-0.061970 cum_delta=0.061155 probe_inliers=254 baseline_inliers=293
+frame=24 rejected=6/6 pressures=t0,k0,s0,ba0 next50_ratio_delta_probe_minus_baseline=-0.047684 cum_delta=-0.049820 probe_inliers=183 baseline_inliers=180
+frame=744 rejected=2/2 pressures=t0,k0,s2,ba0 next50_ratio_delta_probe_minus_baseline=-0.032039 cum_delta=0.016924 probe_inliers=278 baseline_inliers=299
+frame=42 rejected=1/1 pressures=t1,k0,s0,ba0 next50_ratio_delta_probe_minus_baseline=-0.029130 cum_delta=-0.107389 probe_inliers=160 baseline_inliers=162
+frame=111 rejected=7/7 pressures=t0,k4,s0,ba0 next50_ratio_delta_probe_minus_baseline=-0.022708 cum_delta=0.028938 probe_inliers=201 baseline_inliers=229
+frame=761 rejected=3/3 pressures=t0,k2,s0,ba0 next50_ratio_delta_probe_minus_baseline=-0.021281 cum_delta=0.016949 probe_inliers=304 baseline_inliers=320
