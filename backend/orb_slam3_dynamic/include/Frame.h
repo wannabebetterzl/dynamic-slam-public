@@ -161,6 +161,14 @@ public:
     }
 
     std::vector<int> GetFeatureIndicesForInstance(const int instanceId) const;
+    int InvalidateDepthInPanopticMask();
+
+    enum DepthProvenance : unsigned char {
+        DEPTH_PROVENANCE_UNKNOWN = 0,
+        DEPTH_PROVENANCE_VALID_STATIC_OR_UNKNOWN = 1,
+        DEPTH_PROVENANCE_DYNAMIC_MASK_INVALIDATED = 2,
+        DEPTH_PROVENANCE_DYNAMIC_MASK_NO_DEPTH = 3
+    };
 
     // Search a match for each keypoint in the left image to a keypoint in the right image.
     // If there is a match, depth is computed and the right coordinate associated to the left keypoint is stored.
@@ -284,6 +292,7 @@ public:
     // "Monocular" keypoints have a negative value.
     std::vector<float> mvuRight;
     std::vector<float> mvDepth;
+    std::vector<unsigned char> mvDepthProvenance;
 
     // Bag of Words Vector structures.
     DBoW2::BowVector mBowVec;
@@ -365,6 +374,9 @@ public:
     bool mbHasPanopticMask = false;
     int mnPanopticThingFeatures = 0;
     int mnPanopticStuffFeatures = 0;
+    int mnDynamicDepthMaskedFeatures = 0;
+    int mnDynamicDepthInvalidatedFeatures = 0;
+    int mnDynamicDepthNoDepthFeatures = 0;
 
 #ifdef REGISTER_TIMES
     double mTimeORB_Ext;
@@ -496,6 +508,14 @@ struct WindowFrameSnapshot
     std::map<int, Sophus::SE3f> mmPredictedInstanceMotions;
     std::vector<DynamicInstancePointObservation> mvDynamicInstancePointObservations;
 };
+
+void ClearFrameDynamicReprojectionWeights(unsigned long frameId);
+void SetFrameDynamicReprojectionWeight(unsigned long frameId,
+                                       int featureIdx,
+                                       int featureCount,
+                                       float weight);
+double GetFrameDynamicReprojectionWeight(unsigned long frameId,
+                                         int featureIdx);
 
 }// namespace ORB_SLAM
 

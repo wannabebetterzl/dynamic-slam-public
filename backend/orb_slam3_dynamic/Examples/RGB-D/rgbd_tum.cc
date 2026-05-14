@@ -22,6 +22,7 @@
 #include<chrono>
 #include<cstdlib>
 #include<sstream>
+#include<iomanip>
 
 #include<opencv2/core/core.hpp>
 
@@ -34,6 +35,14 @@ void LoadImages(const string &strAssociationFilename, vector<string> &vstrImageF
 bool LoadPanopticMask(const string& panopticRoot, const string& imageRelativePath, cv::Mat& panopticMask);
 bool DisableFrameSleep();
 bool UseViewer();
+bool SyncLocalMapping();
+bool SyncLocalMappingVerbose();
+int SyncLocalMappingMaxWaitMs();
+int SequentialLocalMappingMaxSteps();
+int SequentialLocalMappingDrainPeriodFrames();
+int SequentialLocalMappingMaxQueueBeforeDrain();
+void ProcessSequentialLocalMappingIfRequested(ORB_SLAM3::System& slam, int frameIdx, double timestamp);
+void WaitForLocalMappingIfRequested(ORB_SLAM3::System& slam, int frameIdx, double timestamp);
 
 int main(int argc, char **argv)
 {
@@ -80,6 +89,8 @@ int main(int argc, char **argv)
     cout << "Start processing sequence ..." << endl;
     cout << "Images in the sequence: " << nImages << endl << endl;
     cout << "Viewer enabled: " << (bUseViewer ? "true" : "false") << endl;
+    cout << "Sync local mapping: " << (SyncLocalMapping() ? "true" : "false") << endl;
+    cout << "Sequential local mapping: " << (SLAM.SequentialLocalMappingEnabled() ? "true" : "false") << endl;
 
     // Main loop
     cv::Mat imRGB, imD, imDynamicD;
@@ -145,6 +156,9 @@ int main(int argc, char **argv)
 
         vTimesTrack[ni]=ttrack;
 
+        ProcessSequentialLocalMappingIfRequested(SLAM, ni, tframe);
+        WaitForLocalMappingIfRequested(SLAM, ni, tframe);
+
         // Wait to load the next frame
         double T=0;
         if(ni<nImages-1)
@@ -177,23 +191,158 @@ int main(int argc, char **argv)
     // Save camera trajectory
     SLAM.SaveTrajectoryTUM("CameraTrajectory.txt");
     SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");   
+    SLAM.SaveKeyFrameTimeline("KeyFrameTimeline.csv");
 
     return 0;
 }
 
+bool EnvFlagOrDefault(const char* name, const bool defaultValue)
+{
+    const char* envValue = getenv(name);
+    if(!envValue)
+        return defaultValue;
+
+    const string value(envValue);
+    return value != "0" && value != "false" && value != "FALSE" &&
+           value != "off" && value != "OFF" && value != "no" &&
+           value != "NO";
+}
+
+int EnvIntOrDefault(const char* name, const int defaultValue, const int minValue)
+{
+    const char* envValue = getenv(name);
+    if(!envValue)
+        return defaultValue;
+
+    char* endPtr = NULL;
+    const long value = strtol(envValue, &endPtr, 10);
+    if(endPtr == envValue)
+        return defaultValue;
+    return static_cast<int>(std::max<long>(minValue, value));
+}
+
 bool DisableFrameSleep()
 {
-    const char* envValue = getenv("STSLAM_DISABLE_FRAME_SLEEP");
-    return envValue && string(envValue) != "0";
+    return EnvFlagOrDefault("STSLAM_DISABLE_FRAME_SLEEP", false);
 }
 
 bool UseViewer()
 {
-    const char* envValue = getenv("STSLAM_USE_VIEWER");
-    if(!envValue)
-        return false;
+    return EnvFlagOrDefault("STSLAM_USE_VIEWER", false);
+}
 
-    return string(envValue) != "0";
+bool SyncLocalMapping()
+{
+    return EnvFlagOrDefault("STSLAM_SYNC_LOCAL_MAPPING", false);
+}
+
+bool SyncLocalMappingVerbose()
+{
+    return EnvFlagOrDefault("STSLAM_SYNC_LOCAL_MAPPING_VERBOSE", false);
+}
+
+int SyncLocalMappingMaxWaitMs()
+{
+    return EnvIntOrDefault("STSLAM_SYNC_LOCAL_MAPPING_MAX_WAIT_MS", 5000, 0);
+}
+
+int SequentialLocalMappingMaxSteps()
+{
+    return EnvIntOrDefault("STSLAM_SEQUENTIAL_LOCAL_MAPPING_MAX_STEPS", 1000, 1);
+}
+
+int SequentialLocalMappingDrainPeriodFrames()
+{
+    return EnvIntOrDefault("STSLAM_SEQUENTIAL_LOCAL_MAPPING_DRAIN_PERIOD_FRAMES", 1, 0);
+}
+
+int SequentialLocalMappingMaxQueueBeforeDrain()
+{
+    return EnvIntOrDefault("STSLAM_SEQUENTIAL_LOCAL_MAPPING_MAX_QUEUE_BEFORE_DRAIN", 3, 1);
+}
+
+void ProcessSequentialLocalMappingIfRequested(ORB_SLAM3::System& slam, const int frameIdx, const double timestamp)
+{
+    if(!slam.SequentialLocalMappingEnabled())
+        return;
+
+    const int queueBefore = slam.LocalMappingKeyframesInQueue();
+    if(queueBefore == 0)
+        return;
+
+    const int drainPeriod = SequentialLocalMappingDrainPeriodFrames();
+    const int maxQueue = SequentialLocalMappingMaxQueueBeforeDrain();
+    const bool drainByPeriod = drainPeriod > 0 && (frameIdx % drainPeriod) == 0;
+    const bool drainByQueue = queueBefore >= maxQueue;
+    if(!drainByPeriod && !drainByQueue)
+    {
+        if(SyncLocalMappingVerbose())
+        {
+            cout << "[STSLAM_SEQUENTIAL_LOCAL_MAPPING]"
+                 << " frame_index=" << frameIdx
+                 << " timestamp=" << fixed << setprecision(6) << timestamp
+                 << " processed_keyframes=0"
+                 << " queue=" << queueBefore
+                 << " drain_reason=deferred"
+                 << endl;
+        }
+        return;
+    }
+
+    const int processed = slam.ProcessSequentialLocalMappingQueue(SequentialLocalMappingMaxSteps());
+    if(SyncLocalMappingVerbose() || processed > 0)
+    {
+        cout << "[STSLAM_SEQUENTIAL_LOCAL_MAPPING]"
+             << " frame_index=" << frameIdx
+             << " timestamp=" << fixed << setprecision(6) << timestamp
+             << " processed_keyframes=" << processed
+             << " queue=" << slam.LocalMappingKeyframesInQueue()
+             << " drain_reason=" << (drainByQueue ? "queue" : "period")
+             << endl;
+    }
+}
+
+void WaitForLocalMappingIfRequested(ORB_SLAM3::System& slam, const int frameIdx, const double timestamp)
+{
+    if(!SyncLocalMapping())
+        return;
+    if(slam.SequentialLocalMappingEnabled())
+        return;
+
+    const int maxWaitMs = SyncLocalMappingMaxWaitMs();
+    const int pollUs = 1000;
+    int waitedUs = 0;
+    bool timedOut = false;
+
+    while(true)
+    {
+        const int queueSize = slam.LocalMappingKeyframesInQueue();
+        const bool acceptsKeyframes = slam.LocalMappingAcceptKeyFrames();
+        if(queueSize == 0 && acceptsKeyframes)
+            break;
+
+        if(maxWaitMs > 0 && waitedUs >= maxWaitMs * 1000)
+        {
+            timedOut = true;
+            break;
+        }
+
+        usleep(pollUs);
+        waitedUs += pollUs;
+    }
+
+    if(SyncLocalMappingVerbose() || timedOut)
+    {
+        cout << "[STSLAM_SYNC_LOCAL_MAPPING]"
+             << " frame_index=" << frameIdx
+             << " timestamp=" << fixed << setprecision(6) << timestamp
+             << " waited_ms=" << setprecision(3)
+             << static_cast<double>(waitedUs) / 1000.0
+             << " queue=" << slam.LocalMappingKeyframesInQueue()
+             << " accept_keyframes=" << (slam.LocalMappingAcceptKeyFrames() ? 1 : 0)
+             << " timed_out=" << (timedOut ? 1 : 0)
+             << endl;
+    }
 }
 
 namespace

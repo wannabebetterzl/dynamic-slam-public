@@ -269,6 +269,10 @@ public:
         return (idx < mvSemanticLabels.size()) ? mvSemanticLabels[idx] : 0;
     }
 
+    bool IsFeatureStaticNearDynamicMask(size_t idx) const {
+        return (idx < mvStaticNearDynamicMask.size()) ? mvStaticNearDynamicMask[idx] != 0 : false;
+    }
+
     bool GetPredictedInstanceMotion(int instanceId, Sophus::SE3f& motion) const {
         const std::map<int, Sophus::SE3f>::const_iterator it =
             mmPredictedInstanceMotions.find(instanceId);
@@ -474,6 +478,7 @@ protected:
     std::vector<MapPoint*> mvpMapPoints;
     std::vector<int> mvInstanceIds;
     std::vector<int> mvSemanticLabels;
+    std::vector<unsigned char> mvStaticNearDynamicMask;
     std::map<int, Sophus::SE3f> mmPredictedInstanceMotions;
     std::vector<DynamicInstancePointObservation> mvDynamicInstancePointObservations;
     std::set<int> mspInstanceIds;

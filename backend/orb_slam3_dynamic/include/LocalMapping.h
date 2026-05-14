@@ -50,6 +50,8 @@ public:
 
     // Main function
     void Run();
+    bool RunOneStep();
+    bool RunMaintenanceStep(bool force);
 
     void InsertKeyFrame(KeyFrame* pKF);
     void EmptyQueue();
@@ -57,7 +59,10 @@ public:
     // Thread Synch
     void RequestStop();
     void RequestReset();
+    void QueueReset();
     void RequestResetActiveMap(Map* pMap);
+    void QueueResetActiveMap(Map* pMap);
+    void ServicePendingResetRequests();
     bool Stop();
     void Release();
     bool isStopped();
@@ -184,6 +189,14 @@ protected:
     void ScaleRefinement();
 
     bool bInitializing;
+    bool mbSequentialMaintenancePending;
+    int mnSequentialKeyFramesSinceMaintenance;
+    int mnAdmissionLastLBAEdges;
+    int mnAdmissionLastLBAMapPoints;
+    int mnAdmissionLastLBAOptKeyFrames;
+    int mnAdmissionLastLBAFixedKeyFrames;
+    bool mbAdmissionStateHasKfStepEwma;
+    double mdAdmissionStateKfStepEwma;
 
     Eigen::MatrixXd infoInertial;
     int mNumLM;

@@ -64,7 +64,10 @@ public:
     void InsertKeyFrame(KeyFrame *pKF);
 
     void RequestReset();
+    void QueueReset();
     void RequestResetActiveMap(Map* pMap);
+    void QueueResetActiveMap(Map* pMap);
+    void ServicePendingResetRequests();
 
     // This function will run in a separate thread
     void RunGlobalBundleAdjustment(Map* pActiveMap, unsigned long nLoopKF);

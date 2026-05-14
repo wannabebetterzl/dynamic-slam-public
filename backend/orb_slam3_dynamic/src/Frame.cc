@@ -27,11 +27,111 @@
 #include "GeometricCamera.h"
 
 #include <thread>
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+#include <mutex>
 #include <include/CameraModels/Pinhole.h>
 #include <include/CameraModels/KannalaBrandt8.h>
 
 namespace ORB_SLAM3
 {
+namespace
+{
+
+std::mutex gFrameDynamicReprojectionWeightsMutex;
+std::map<unsigned long, std::vector<float> > gFrameDynamicReprojectionWeights;
+
+float ClampDynamicReprojectionWeight(const float weight)
+{
+    if(!std::isfinite(weight))
+        return 1.0f;
+    return std::min(1.0f, std::max(0.01f, weight));
+}
+
+int GetDynamicDepthInvalidationDilationRadiusPx()
+{
+    const char* rawValue = std::getenv("STSLAM_DYNAMIC_DEPTH_INVALIDATION_DILATION_RADIUS_PX");
+    if(!rawValue || rawValue[0] == '\0')
+        return 0;
+
+    return std::max(0, std::atoi(rawValue));
+}
+
+int ReadFramePanopticIdAt(const cv::Mat& panopticMask, const int x, const int y)
+{
+    if(panopticMask.type() == CV_16UC1)
+        return static_cast<int>(panopticMask.at<unsigned short>(y, x));
+    return panopticMask.at<int>(y, x);
+}
+
+bool HasPanopticSupportNearKeypoint(const cv::Mat& panopticMask,
+                                    const cv::KeyPoint& keypoint,
+                                    const int radiusPx)
+{
+    if(panopticMask.empty() ||
+       (panopticMask.type() != CV_16UC1 && panopticMask.type() != CV_32SC1))
+        return false;
+
+    const int x0 = static_cast<int>(keypoint.pt.x);
+    const int y0 = static_cast<int>(keypoint.pt.y);
+    if(x0 < 0 || x0 >= panopticMask.cols || y0 < 0 || y0 >= panopticMask.rows)
+        return false;
+
+    const int radius = std::max(0, radiusPx);
+    const int minX = std::max(0, x0 - radius);
+    const int maxX = std::min(panopticMask.cols - 1, x0 + radius);
+    const int minY = std::max(0, y0 - radius);
+    const int maxY = std::min(panopticMask.rows - 1, y0 + radius);
+
+    for(int y = minY; y <= maxY; ++y)
+    {
+        for(int x = minX; x <= maxX; ++x)
+        {
+            if(ReadFramePanopticIdAt(panopticMask, x, y) > 0)
+                return true;
+        }
+    }
+    return false;
+}
+
+}
+
+void ClearFrameDynamicReprojectionWeights(const unsigned long frameId)
+{
+    std::lock_guard<std::mutex> lock(gFrameDynamicReprojectionWeightsMutex);
+    gFrameDynamicReprojectionWeights.erase(frameId);
+}
+
+void SetFrameDynamicReprojectionWeight(const unsigned long frameId,
+                                       const int featureIdx,
+                                       const int featureCount,
+                                       const float weight)
+{
+    if(featureIdx < 0 || featureCount <= 0 || featureIdx >= featureCount)
+        return;
+
+    std::lock_guard<std::mutex> lock(gFrameDynamicReprojectionWeightsMutex);
+    std::vector<float>& weights = gFrameDynamicReprojectionWeights[frameId];
+    if(weights.size() != static_cast<size_t>(featureCount))
+        weights.assign(featureCount, 1.0f);
+
+    weights[featureIdx] =
+        std::min(weights[featureIdx], ClampDynamicReprojectionWeight(weight));
+}
+
+double GetFrameDynamicReprojectionWeight(const unsigned long frameId,
+                                         const int featureIdx)
+{
+    std::lock_guard<std::mutex> lock(gFrameDynamicReprojectionWeightsMutex);
+    const std::map<unsigned long, std::vector<float> >::const_iterator it =
+        gFrameDynamicReprojectionWeights.find(frameId);
+    if(it == gFrameDynamicReprojectionWeights.end() || featureIdx < 0 ||
+       featureIdx >= static_cast<int>(it->second.size()))
+        return 1.0;
+
+    return static_cast<double>(ClampDynamicReprojectionWeight(it->second[featureIdx]));
+}
 
 WindowFrameSnapshot::WindowFrameSnapshot()
     : mnFrameId(0),
@@ -115,13 +215,18 @@ Frame::Frame(const Frame &frame)
      mvInstanceIds(frame.mvInstanceIds), mmInstanceObservations(frame.mmInstanceObservations),
      mmPredictedInstanceMotions(frame.mmPredictedInstanceMotions),
      mvDynamicInstancePointObservations(frame.mvDynamicInstancePointObservations),
-     mvpMapPoints(frame.mvpMapPoints), mvbOutlier(frame.mvbOutlier), mImuCalib(frame.mImuCalib), mnCloseMPs(frame.mnCloseMPs),
+     mvDepthProvenance(frame.mvDepthProvenance),
+     mvpMapPoints(frame.mvpMapPoints), mvbOutlier(frame.mvbOutlier),
+     mImuCalib(frame.mImuCalib), mnCloseMPs(frame.mnCloseMPs),
      mpImuPreintegrated(frame.mpImuPreintegrated), mpImuPreintegratedFrame(frame.mpImuPreintegratedFrame), mImuBias(frame.mImuBias),
      mnId(frame.mnId), mpReferenceKF(frame.mpReferenceKF), mnScaleLevels(frame.mnScaleLevels),
      mfScaleFactor(frame.mfScaleFactor), mfLogScaleFactor(frame.mfLogScaleFactor),
      mvScaleFactors(frame.mvScaleFactors), mvInvScaleFactors(frame.mvInvScaleFactors), mNameFile(frame.mNameFile), mnDataset(frame.mnDataset),
      mbHasPanopticMask(frame.mbHasPanopticMask), mnPanopticThingFeatures(frame.mnPanopticThingFeatures),
      mnPanopticStuffFeatures(frame.mnPanopticStuffFeatures),
+     mnDynamicDepthMaskedFeatures(frame.mnDynamicDepthMaskedFeatures),
+     mnDynamicDepthInvalidatedFeatures(frame.mnDynamicDepthInvalidatedFeatures),
+     mnDynamicDepthNoDepthFeatures(frame.mnDynamicDepthNoDepthFeatures),
      mvLevelSigma2(frame.mvLevelSigma2), mvInvLevelSigma2(frame.mvInvLevelSigma2), mpPrevFrame(frame.mpPrevFrame), mpLastKeyFrame(frame.mpLastKeyFrame),
      mbIsSet(frame.mbIsSet), mbImuPreintegrated(frame.mbImuPreintegrated), mpMutexImu(frame.mpMutexImu),
      mpCamera(frame.mpCamera), mpCamera2(frame.mpCamera2), Nleft(frame.Nleft), Nright(frame.Nright),
@@ -225,6 +330,60 @@ void Frame::AssignPanopticObservation(const PanopticFrameObservation& panopticOb
         else
             ++mnPanopticStuffFeatures;
     }
+}
+
+int Frame::InvalidateDepthInPanopticMask()
+{
+    mnDynamicDepthMaskedFeatures = 0;
+    mnDynamicDepthInvalidatedFeatures = 0;
+    mnDynamicDepthNoDepthFeatures = 0;
+
+    if(N <= 0 || !HasPanopticObservation())
+        return 0;
+
+    if(mvDepthProvenance.size() != static_cast<size_t>(N))
+    {
+        mvDepthProvenance.assign(N, DEPTH_PROVENANCE_UNKNOWN);
+        for(int i = 0; i < N && i < static_cast<int>(mvDepth.size()); ++i)
+        {
+            if(mvDepth[i] > 0.0f)
+                mvDepthProvenance[i] = DEPTH_PROVENANCE_VALID_STATIC_OR_UNKNOWN;
+        }
+    }
+
+    const int dilationRadiusPx = GetDynamicDepthInvalidationDilationRadiusPx();
+    const cv::Mat& panopticMask = mPanopticObservation.rawPanopticMask;
+
+    const int nFeatures =
+        std::min(N,
+                 std::min(static_cast<int>(mvPanopticIds.size()),
+                          static_cast<int>(mvDepth.size())));
+    for(int i = 0; i < nFeatures; ++i)
+    {
+        const bool inDynamicMask =
+            (dilationRadiusPx <= 0)
+                ? (mvPanopticIds[i] > 0)
+                : HasPanopticSupportNearKeypoint(panopticMask, mvKeys[i], dilationRadiusPx);
+        if(!inDynamicMask)
+            continue;
+
+        ++mnDynamicDepthMaskedFeatures;
+        if(mvDepth[i] > 0.0f)
+        {
+            mvDepth[i] = -1.0f;
+            if(i < static_cast<int>(mvuRight.size()))
+                mvuRight[i] = -1.0f;
+            mvDepthProvenance[i] = DEPTH_PROVENANCE_DYNAMIC_MASK_INVALIDATED;
+            ++mnDynamicDepthInvalidatedFeatures;
+        }
+        else
+        {
+            mvDepthProvenance[i] = DEPTH_PROVENANCE_DYNAMIC_MASK_NO_DEPTH;
+            ++mnDynamicDepthNoDepthFeatures;
+        }
+    }
+
+    return mnDynamicDepthInvalidatedFeatures;
 }
 
 std::vector<int> Frame::GetFeatureIndicesForInstance(const int instanceId) const
@@ -1130,6 +1289,7 @@ void Frame::ComputeStereoFromRGBD(const cv::Mat &imDepth)
 {
     mvuRight = vector<float>(N,-1);
     mvDepth = vector<float>(N,-1);
+    mvDepthProvenance = vector<unsigned char>(N, DEPTH_PROVENANCE_UNKNOWN);
 
     for(int i=0; i<N; i++)
     {
@@ -1145,6 +1305,7 @@ void Frame::ComputeStereoFromRGBD(const cv::Mat &imDepth)
         {
             mvDepth[i] = d;
             mvuRight[i] = kpU.pt.x-mbf/d;
+            mvDepthProvenance[i] = DEPTH_PROVENANCE_VALID_STATIC_OR_UNKNOWN;
         }
     }
 }

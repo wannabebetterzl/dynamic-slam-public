@@ -1,0 +1,31 @@
+WR-PY support-quality LM-only admission effect audit
+support_sim3_scale=0.347392521
+hard_sim3_scale=0.361678485
+promoted_event_frames=38,60,74,110,112,117,241,584,586
+promoted_pairs_total=11
+
+Promoted frame context:
+frame=38 promoted=1 support_se3=0.120026 hard_se3=0.130886 support_cum_ratio=1.740629 hard_cum_ratio=1.676068 support_next30_ratio=2.344395 hard_next30_ratio=2.286469 support_inliers=193 hard_inliers=192
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=60 promoted=1 support_se3=0.154022 hard_se3=0.151711 support_cum_ratio=2.035613 hard_cum_ratio=1.956335 support_next30_ratio=1.896402 hard_next30_ratio=1.843712 support_inliers=180 hard_inliers=190
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=74 promoted=2 support_se3=0.149865 hard_se3=0.157422 support_cum_ratio=2.005471 hard_cum_ratio=1.940390 support_next30_ratio=1.422261 hard_next30_ratio=1.356365 support_inliers=202 hard_inliers=238
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=2/2/2/2/0/0/0/0
+frame=110 promoted=1 support_se3=0.060036 hard_se3=0.062996 support_cum_ratio=1.709805 hard_cum_ratio=1.649711 support_next30_ratio=2.390083 hard_next30_ratio=2.466826 support_inliers=267 hard_inliers=285
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=112 promoted=1 support_se3=0.037355 hard_se3=0.039962 support_cum_ratio=1.697811 hard_cum_ratio=1.643519 support_next30_ratio=2.527570 hard_next30_ratio=2.529500 support_inliers=267 hard_inliers=266
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=117 promoted=1 support_se3=0.044328 hard_se3=0.040088 support_cum_ratio=1.712812 hard_cum_ratio=1.662729 support_next30_ratio=2.743981 hard_next30_ratio=3.018779 support_inliers=234 hard_inliers=230
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/0/0/0/0
+frame=241 promoted=2 support_se3=0.040221 hard_se3=0.040036 support_cum_ratio=2.927995 hard_cum_ratio=2.979023 support_next30_ratio=8.834500 hard_next30_ratio=10.171040 support_inliers=136 hard_inliers=149
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=2/2/2/2/2/2/2/2
+frame=584 promoted=1 support_se3=0.152453 hard_se3=0.146575 support_cum_ratio=5.381789 hard_cum_ratio=5.285356 support_next30_ratio=8.447111 hard_next30_ratio=8.257929 support_inliers=170 hard_inliers=156
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/0/0/0
+frame=586 promoted=1 support_se3=0.245879 hard_se3=0.248511 support_cum_ratio=5.404650 hard_cum_ratio=5.326687 support_next30_ratio=8.597422 hard_next30_ratio=7.997686 support_inliers=125 hard_inliers=114
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/0/0/0/0
+
+Temporal bins with promoted events:
+frames=0-99 promoted=4 support_rmse=0.133075 hard_rmse=0.135846 support_ratio=1.846514 hard_ratio=1.773825
+frames=100-199 promoted=3 support_rmse=0.455497 hard_rmse=0.442764 support_ratio=2.896008 hard_ratio=2.945331
+frames=200-299 promoted=2 support_rmse=0.250496 hard_rmse=0.260596 support_ratio=6.719652 hard_ratio=7.682031
+frames=500-599 promoted=2 support_rmse=0.093013 hard_rmse=0.094154 support_ratio=9.940095 hard_ratio=8.475187

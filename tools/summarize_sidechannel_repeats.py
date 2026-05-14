@@ -110,9 +110,19 @@ def collect_run(run_root: Path, run_dir: Path) -> Dict[str, object]:
         "ckf_direct_vetoed_candidates",
         "ckf_accepted_depth_candidates",
         "ckf_boundary_skipped_new_candidates",
+        "ckf_delayed_rejected_new_candidates",
+        "ckf_support_promoted_new_candidates",
+        "ckf_matched_skipped_nonboundary_new_candidates",
+        "ckf_matched_exact_skipped_new_candidates",
+        "ckf_matched_fallback_skipped_new_candidates",
         "ckf_boundary_existing_supported_candidates",
         "lm_skipped_instance_pairs",
         "lm_skipped_boundary_pairs",
+        "lm_delayed_rejected_boundary_pairs",
+        "lm_support_promoted_boundary_pairs",
+        "lm_matched_skipped_nonboundary_pairs",
+        "lm_matched_exact_skipped_pairs",
+        "lm_matched_fallback_skipped_pairs",
     ]:
         row[key] = events.get(key, 0)
     return row
@@ -141,9 +151,20 @@ def summarize(rows: List[Dict[str, object]]) -> List[Dict[str, object]]:
         "final_mappoints",
         "estimated_accum_path_m",
         "ckf_direct_vetoed_candidates",
+        "ckf_accepted_depth_candidates",
         "ckf_boundary_skipped_new_candidates",
+        "ckf_delayed_rejected_new_candidates",
+        "ckf_support_promoted_new_candidates",
+        "ckf_matched_skipped_nonboundary_new_candidates",
+        "ckf_matched_exact_skipped_new_candidates",
+        "ckf_matched_fallback_skipped_new_candidates",
         "lm_skipped_instance_pairs",
         "lm_skipped_boundary_pairs",
+        "lm_delayed_rejected_boundary_pairs",
+        "lm_support_promoted_boundary_pairs",
+        "lm_matched_skipped_nonboundary_pairs",
+        "lm_matched_exact_skipped_pairs",
+        "lm_matched_fallback_skipped_pairs",
     ]
     cases = sorted({str(row["case"]) for row in rows})
     summary_rows: List[Dict[str, object]] = []

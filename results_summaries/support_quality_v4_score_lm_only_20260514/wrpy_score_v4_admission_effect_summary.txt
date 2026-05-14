@@ -1,0 +1,97 @@
+WR-PY support-quality LM-only admission effect audit
+support_sim3_scale=0.339917213
+hard_sim3_scale=0.361678485
+promoted_event_frames=38,39,40,48,49,56,57,59,60,62,68,69,70,71,77,78,80,83,87,93,96,104,117,129,139,140,141,159,160,162,187,192,227,229,239,240,676,693,696,713,871
+promoted_pairs_total=57
+
+Promoted frame context:
+frame=38 promoted=1 support_se3=0.138435 hard_se3=0.130886 support_cum_ratio=1.768577 hard_cum_ratio=1.676068 support_next30_ratio=2.215162 hard_next30_ratio=2.286469 support_inliers=193 hard_inliers=192
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=39 promoted=2 support_se3=0.154100 hard_se3=0.147593 support_cum_ratio=1.807162 hard_cum_ratio=1.705692 support_next30_ratio=2.153650 hard_next30_ratio=2.225258 support_inliers=185 hard_inliers=192
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=2/2/2/2/2/2/2/2
+frame=40 promoted=2 support_se3=0.150192 hard_se3=0.142145 support_cum_ratio=1.797218 hard_cum_ratio=1.692312 support_next30_ratio=2.105421 hard_next30_ratio=2.213036 support_inliers=186 hard_inliers=188
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=2/2/2/2/2/1/1/1
+frame=48 promoted=2 support_se3=0.140627 hard_se3=0.132098 support_cum_ratio=1.931645 hard_cum_ratio=1.817088 support_next30_ratio=2.150135 hard_next30_ratio=2.104241 support_inliers=152 hard_inliers=173
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=2/2/2/2/2/2/2/2
+frame=49 promoted=1 support_se3=0.166744 hard_se3=0.158604 support_cum_ratio=1.976656 hard_cum_ratio=1.858817 support_next30_ratio=2.180941 hard_next30_ratio=2.121261 support_inliers=187 hard_inliers=199
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=56 promoted=1 support_se3=0.148047 hard_se3=0.131915 support_cum_ratio=2.003872 hard_cum_ratio=1.881100 support_next30_ratio=2.125505 hard_next30_ratio=2.181435 support_inliers=199 hard_inliers=205
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=57 promoted=1 support_se3=0.152014 hard_se3=0.139948 support_cum_ratio=2.008716 hard_cum_ratio=1.946362 support_next30_ratio=2.029603 hard_next30_ratio=2.002594 support_inliers=198 hard_inliers=164
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/0/0/0/0
+frame=59 promoted=1 support_se3=0.159478 hard_se3=0.135937 support_cum_ratio=2.010850 hard_cum_ratio=1.937122 support_next30_ratio=1.925716 hard_next30_ratio=1.922871 support_inliers=223 hard_inliers=226
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=60 promoted=1 support_se3=0.175469 hard_se3=0.151711 support_cum_ratio=2.030904 hard_cum_ratio=1.956335 support_next30_ratio=1.827522 hard_next30_ratio=1.843712 support_inliers=172 hard_inliers=190
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=62 promoted=2 support_se3=0.178006 hard_se3=0.152958 support_cum_ratio=2.036807 hard_cum_ratio=2.038685 support_next30_ratio=1.721757 hard_next30_ratio=1.635308 support_inliers=270 hard_inliers=209
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=2/2/2/2/2/2/2/2
+frame=68 promoted=4 support_se3=0.165300 hard_se3=0.154665 support_cum_ratio=2.011950 hard_cum_ratio=2.008715 support_next30_ratio=1.510943 hard_next30_ratio=1.449466 support_inliers=189 hard_inliers=245
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=4/4/4/4/3/3/3/3
+frame=69 promoted=1 support_se3=0.165353 hard_se3=0.158862 support_cum_ratio=1.993975 hard_cum_ratio=1.985822 support_next30_ratio=1.530946 hard_next30_ratio=1.473527 support_inliers=264 hard_inliers=238
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=70 promoted=1 support_se3=0.166689 hard_se3=0.151484 support_cum_ratio=1.961264 hard_cum_ratio=1.969476 support_next30_ratio=1.543897 hard_next30_ratio=1.453758 support_inliers=266 hard_inliers=208
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=71 promoted=2 support_se3=0.166641 hard_se3=0.155385 support_cum_ratio=1.957078 hard_cum_ratio=1.954685 support_next30_ratio=1.505712 hard_next30_ratio=1.428701 support_inliers=268 hard_inliers=235
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=2/2/2/2/2/2/2/2
+frame=77 promoted=2 support_se3=0.180747 hard_se3=0.169730 support_cum_ratio=2.011395 hard_cum_ratio=1.935824 support_next30_ratio=1.266600 hard_next30_ratio=1.297953 support_inliers=230 hard_inliers=245
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=2/2/2/2/2/2/2/2
+frame=78 promoted=1 support_se3=0.171755 hard_se3=0.163612 support_cum_ratio=2.035147 hard_cum_ratio=1.953118 support_next30_ratio=1.236470 hard_next30_ratio=1.281240 support_inliers=211 hard_inliers=185
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/0/0/0/0
+frame=80 promoted=1 support_se3=0.192864 hard_se3=0.178098 support_cum_ratio=2.078645 hard_cum_ratio=1.987453 support_next30_ratio=1.161124 hard_next30_ratio=1.225711 support_inliers=265 hard_inliers=244
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=83 promoted=1 support_se3=0.179038 hard_se3=0.175293 support_cum_ratio=2.110154 hard_cum_ratio=2.045045 support_next30_ratio=1.129128 hard_next30_ratio=1.156029 support_inliers=253 hard_inliers=232
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/0/0/0/0
+frame=87 promoted=1 support_se3=0.175407 hard_se3=0.157373 support_cum_ratio=2.017537 hard_cum_ratio=1.970110 support_next30_ratio=1.250594 hard_next30_ratio=1.267347 support_inliers=375 hard_inliers=335
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/0/0/0/0
+frame=93 promoted=1 support_se3=0.165037 hard_se3=0.150361 support_cum_ratio=1.888977 hard_cum_ratio=1.854967 support_next30_ratio=1.473732 hard_next30_ratio=1.472691 support_inliers=347 hard_inliers=330
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=96 promoted=2 support_se3=0.163701 hard_se3=0.150682 support_cum_ratio=1.832804 hard_cum_ratio=1.801471 support_next30_ratio=1.674538 hard_next30_ratio=1.689205 support_inliers=338 hard_inliers=271
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=2/2/2/2/1/1/1/1
+frame=104 promoted=1 support_se3=0.144049 hard_se3=0.136347 support_cum_ratio=1.729918 hard_cum_ratio=1.700617 support_next30_ratio=2.216375 hard_next30_ratio=2.169788 support_inliers=398 hard_inliers=384
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/0/0/0/0
+frame=117 promoted=1 support_se3=0.063821 hard_se3=0.040088 support_cum_ratio=1.682085 hard_cum_ratio=1.662729 support_next30_ratio=2.681645 hard_next30_ratio=3.018779 support_inliers=217 hard_inliers=230
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=129 promoted=1 support_se3=0.349115 hard_se3=0.320333 support_cum_ratio=1.830946 hard_cum_ratio=1.811172 support_next30_ratio=3.316920 hard_next30_ratio=4.349645 support_inliers=151 hard_inliers=149
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=139 promoted=1 support_se3=0.492023 hard_se3=0.398784 support_cum_ratio=1.895883 hard_cum_ratio=1.913395 support_next30_ratio=5.174034 hard_next30_ratio=6.157283 support_inliers=129 hard_inliers=251
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/0/0/0
+frame=140 promoted=1 support_se3=0.482723 hard_se3=0.402714 support_cum_ratio=1.883707 hard_cum_ratio=1.910827 support_next30_ratio=5.783098 hard_next30_ratio=6.835189 support_inliers=199 hard_inliers=246
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=141 promoted=1 support_se3=0.479723 hard_se3=0.398472 support_cum_ratio=1.890322 hard_cum_ratio=1.920180 support_next30_ratio=5.929795 hard_next30_ratio=7.080107 support_inliers=182 hard_inliers=184
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/0/0/0
+frame=159 promoted=1 support_se3=0.514209 hard_se3=0.497778 support_cum_ratio=2.096085 hard_cum_ratio=2.264106 support_next30_ratio=5.608863 hard_next30_ratio=4.719059 support_inliers=125 hard_inliers=142
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=160 promoted=1 support_se3=0.542847 hard_se3=0.518988 support_cum_ratio=2.116236 hard_cum_ratio=2.283808 support_next30_ratio=5.473247 hard_next30_ratio=4.313660 support_inliers=148 hard_inliers=153
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/0/0/0/0/0/0/0
+frame=162 promoted=1 support_se3=0.547046 hard_se3=0.549558 support_cum_ratio=2.139588 hard_cum_ratio=2.304404 support_next30_ratio=4.982436 hard_next30_ratio=3.651166 support_inliers=146 hard_inliers=142
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=187 promoted=5 support_se3=0.612181 hard_se3=0.596817 support_cum_ratio=2.281488 hard_cum_ratio=2.411322 support_next30_ratio=4.248377 hard_next30_ratio=3.191837 support_inliers=106 hard_inliers=101
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=5/2/2/2/2/2/2/2
+frame=192 promoted=1 support_se3=0.638724 hard_se3=0.616831 support_cum_ratio=2.311703 hard_cum_ratio=2.385941 support_next30_ratio=5.832496 hard_next30_ratio=4.454700 support_inliers=168 hard_inliers=166
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=227 promoted=1 support_se3=0.186088 hard_se3=0.113055 support_cum_ratio=2.896947 hard_cum_ratio=2.785633 support_next30_ratio=7.283559 hard_next30_ratio=8.315542 support_inliers=172 hard_inliers=189
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=229 promoted=2 support_se3=0.118423 hard_se3=0.042376 support_cum_ratio=2.946201 hard_cum_ratio=2.822555 support_next30_ratio=7.033057 hard_next30_ratio=8.543691 support_inliers=203 hard_inliers=228
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=2/2/2/2/1/1/1/1
+frame=239 promoted=2 support_se3=0.058133 hard_se3=0.092534 support_cum_ratio=3.028346 hard_cum_ratio=2.901787 support_next30_ratio=7.902393 hard_next30_ratio=10.958236 support_inliers=175 hard_inliers=151
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=2/2/2/2/2/2/2/2
+frame=240 promoted=1 support_se3=0.101400 hard_se3=0.050215 support_cum_ratio=3.046136 hard_cum_ratio=2.963978 support_next30_ratio=7.894231 hard_next30_ratio=10.135256 support_inliers=117 hard_inliers=128
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=676 promoted=1 support_se3=0.129585 hard_se3=0.128081 support_cum_ratio=5.574295 hard_cum_ratio=5.727779 support_next30_ratio=7.658253 hard_next30_ratio=6.647125 support_inliers=160 hard_inliers=153
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/0/0/0
+frame=693 promoted=1 support_se3=0.072751 hard_se3=0.078300 support_cum_ratio=5.556912 hard_cum_ratio=5.682381 support_next30_ratio=10.566716 hard_next30_ratio=9.976152 support_inliers=64 hard_inliers=49
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=696 promoted=1 support_se3=0.074528 hard_se3=0.079149 support_cum_ratio=5.559380 hard_cum_ratio=5.700095 support_next30_ratio=11.870028 hard_next30_ratio=10.381681 support_inliers=77 hard_inliers=101
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+frame=713 promoted=1 support_se3=0.053127 hard_se3=0.030523 support_cum_ratio=5.664527 hard_cum_ratio=5.776258 support_next30_ratio=7.867138 hard_next30_ratio=6.932758 support_inliers=122 hard_inliers=160
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/0
+frame=871 promoted=1 support_se3=0.745983 hard_se3=0.680008 support_cum_ratio=5.526369 hard_cum_ratio=5.572209 support_next30_ratio=4.371671 hard_next30_ratio=4.306529 support_inliers=227 hard_inliers=259
+  geom funnel enter/parallax/triangulated/depth/reproj1/reproj2/scale/created=1/1/1/1/1/1/1/1
+
+Temporal bins with promoted events:
+frames=0-99 promoted=31 support_rmse=0.148577 hard_rmse=0.135846 support_ratio=1.802365 hard_ratio=1.773825
+frames=100-199 promoted=15 support_rmse=0.468237 hard_rmse=0.442764 support_ratio=3.070044 hard_ratio=2.945331
+frames=200-299 promoted=6 support_rmse=0.243507 hard_rmse=0.260596 support_ratio=6.621361 hard_ratio=7.682031
+frames=600-699 promoted=3 support_rmse=0.090268 hard_rmse=0.105146 support_ratio=9.062797 hard_ratio=9.743047
+frames=700-799 promoted=1 support_rmse=0.068345 hard_rmse=0.053801 support_ratio=8.207420 hard_ratio=7.009970
+frames=800-899 promoted=1 support_rmse=0.601051 hard_rmse=0.551808 support_ratio=4.113812 hard_ratio=3.934469

@@ -31,6 +31,8 @@
 #include<mutex>
 #include<chrono>
 #include<sstream>
+#include<map>
+#include<set>
 
 namespace ORB_SLAM3
 {
@@ -73,10 +75,1207 @@ bool SplitDetectedDynamicFeaturesFromStaticMapping()
     return value;
 }
 
+bool DynamicMapAdmissionVeto()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_VETO", false);
+    return value;
+}
+
+bool DynamicMapAdmissionVetoCreateNewMapPoints()
+{
+    static const bool value =
+        GetEnvFlagOrDefault(
+            "STSLAM_DYNAMIC_MAP_ADMISSION_VETO_LOCAL_MAPPING_CREATE_NEW_MAPPOINTS",
+            DynamicMapAdmissionVeto());
+    return value;
+}
+
+bool DynamicMapAdmissionBoundaryVeto()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_VETO", false);
+    return value;
+}
+
+bool DynamicMapAdmissionBoundaryVetoCreateNewMapPoints()
+{
+    static const bool value =
+        GetEnvFlagOrDefault(
+            "STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_VETO_LOCAL_MAPPING_CREATE_NEW_MAPPOINTS",
+            DynamicMapAdmissionBoundaryVeto());
+    return value;
+}
+
+bool DynamicMapAdmissionBoundarySameCountControl()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_SAME_COUNT_CONTROL", false);
+    return value;
+}
+
+bool DynamicMapAdmissionBoundarySameCountControlCreateNewMapPoints()
+{
+    static const bool value =
+        GetEnvFlagOrDefault(
+            "STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_SAME_COUNT_CONTROL_LOCAL_MAPPING_CREATE_NEW_MAPPOINTS",
+            DynamicMapAdmissionBoundarySameCountControl());
+    return value;
+}
+
+bool DynamicMapAdmissionBoundaryMatchedControl()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_MATCHED_CONTROL", false);
+    return value;
+}
+
+bool DynamicMapAdmissionBoundaryMatchedControlCreateNewMapPoints()
+{
+    static const bool value =
+        GetEnvFlagOrDefault(
+            "STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_MATCHED_CONTROL_LOCAL_MAPPING_CREATE_NEW_MAPPOINTS",
+            DynamicMapAdmissionBoundaryMatchedControl());
+    return value;
+}
+
+bool EnableNearBoundaryDiagnostics()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_NEAR_BOUNDARY_DIAGNOSTICS", false);
+    return value;
+}
+
+bool DynamicMapAdmissionDelayedBoundary()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY", false);
+    return value;
+}
+
+bool DynamicMapAdmissionDelayedBoundaryCreateNewMapPoints()
+{
+    static const bool value =
+        GetEnvFlagOrDefault(
+            "STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY_LOCAL_MAPPING_CREATE_NEW_MAPPOINTS",
+            DynamicMapAdmissionDelayedBoundary());
+    return value;
+}
+
+int GetEnvIntOrDefault(const char* name, const int defaultValue, const int minValue);
+
+int DynamicMapAdmissionBoundaryRadiusPx()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_RADIUS_PX", 5, 0);
+    return value;
+}
+
+int DynamicMapAdmissionMatchedControlGridCols()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_MATCHED_CONTROL_GRID_COLS", 4, 1);
+    return value;
+}
+
+int DynamicMapAdmissionMatchedControlGridRows()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_MATCHED_CONTROL_GRID_ROWS", 3, 1);
+    return value;
+}
+
+struct AdmissionMatchedControlBin
+{
+    int gridX;
+    int gridY;
+    int depthBin;
+    int octave;
+
+    bool operator<(const AdmissionMatchedControlBin& other) const
+    {
+        if(gridX != other.gridX)
+            return gridX < other.gridX;
+        if(gridY != other.gridY)
+            return gridY < other.gridY;
+        if(depthBin != other.depthBin)
+            return depthBin < other.depthBin;
+        return octave < other.octave;
+    }
+};
+
+int QuantizeAdmissionMatchedControlDepth(const float depth)
+{
+    if(depth <= 0.0f || !std::isfinite(depth))
+        return -1;
+    if(depth < 1.0f)
+        return 0;
+    if(depth < 2.0f)
+        return 1;
+    if(depth < 3.0f)
+        return 2;
+    if(depth < 4.0f)
+        return 3;
+    if(depth < 6.0f)
+        return 4;
+    return 5;
+}
+
+AdmissionMatchedControlBin MakeAdmissionMatchedControlBin(const KeyFrame* pKF,
+                                                          const int idx,
+                                                          const float depth,
+                                                          const bool includeGrid)
+{
+    AdmissionMatchedControlBin bin;
+    bin.gridX = includeGrid ? 0 : -1;
+    bin.gridY = includeGrid ? 0 : -1;
+    bin.depthBin = QuantizeAdmissionMatchedControlDepth(depth);
+    bin.octave = 0;
+
+    if(!pKF || idx < 0 || idx >= static_cast<int>(pKF->mvKeysUn.size()))
+        return bin;
+
+    const cv::KeyPoint& kp = pKF->mvKeysUn[idx];
+    bin.octave = kp.octave;
+    if(includeGrid)
+    {
+        const int gridCols = DynamicMapAdmissionMatchedControlGridCols();
+        const int gridRows = DynamicMapAdmissionMatchedControlGridRows();
+        const float width = std::max(1, pKF->mnMaxX - pKF->mnMinX);
+        const float height = std::max(1, pKF->mnMaxY - pKF->mnMinY);
+        const float normX = (kp.pt.x - pKF->mnMinX) / width;
+        const float normY = (kp.pt.y - pKF->mnMinY) / height;
+        bin.gridX =
+            std::min(gridCols - 1, std::max(0, static_cast<int>(std::floor(normX * gridCols))));
+        bin.gridY =
+            std::min(gridRows - 1, std::max(0, static_cast<int>(std::floor(normY * gridRows))));
+    }
+
+    return bin;
+}
+
+float PairMatchedControlDepth(const KeyFrame* pKF1,
+                              const int idx1,
+                              const KeyFrame* pKF2,
+                              const int idx2)
+{
+    float sum = 0.0f;
+    int count = 0;
+    if(pKF1 && idx1 >= 0 && idx1 < static_cast<int>(pKF1->mvDepth.size()) &&
+       pKF1->mvDepth[idx1] > 0.0f)
+    {
+        sum += pKF1->mvDepth[idx1];
+        ++count;
+    }
+    if(pKF2 && idx2 >= 0 && idx2 < static_cast<int>(pKF2->mvDepth.size()) &&
+       pKF2->mvDepth[idx2] > 0.0f)
+    {
+        sum += pKF2->mvDepth[idx2];
+        ++count;
+    }
+    return count > 0 ? sum / static_cast<float>(count) : -1.0f;
+}
+
+void AddAdmissionMatchedControlBudget(
+    std::map<AdmissionMatchedControlBin, int>& exactBudget,
+    std::map<AdmissionMatchedControlBin, int>& fallbackBudget,
+    const AdmissionMatchedControlBin& exactBin,
+    const AdmissionMatchedControlBin& fallbackBin)
+{
+    ++exactBudget[exactBin];
+    ++fallbackBudget[fallbackBin];
+}
+
+bool ConsumeAdmissionMatchedControlBudget(
+    std::map<AdmissionMatchedControlBin, int>& exactBudget,
+    std::map<AdmissionMatchedControlBin, int>& fallbackBudget,
+    const AdmissionMatchedControlBin& exactBin,
+    const AdmissionMatchedControlBin& fallbackBin,
+    bool& usedExact)
+{
+    usedExact = false;
+    std::map<AdmissionMatchedControlBin, int>::iterator exactIt = exactBudget.find(exactBin);
+    if(exactIt != exactBudget.end() && exactIt->second > 0)
+    {
+        --exactIt->second;
+        std::map<AdmissionMatchedControlBin, int>::iterator fallbackIt =
+            fallbackBudget.find(fallbackBin);
+        if(fallbackIt != fallbackBudget.end() && fallbackIt->second > 0)
+            --fallbackIt->second;
+        usedExact = true;
+        return true;
+    }
+
+    std::map<AdmissionMatchedControlBin, int>::iterator fallbackIt =
+        fallbackBudget.find(fallbackBin);
+    if(fallbackIt != fallbackBudget.end() && fallbackIt->second > 0)
+    {
+        --fallbackIt->second;
+        return true;
+    }
+
+    return false;
+}
+
+int DynamicMapAdmissionDelayedBoundarySupportRadiusPx()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY_SUPPORT_RADIUS_PX",
+                           18,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionDelayedBoundaryMinSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY_MIN_SUPPORT",
+                           2,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionDelayedBoundaryMinObservations()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY_MIN_OBS",
+                           2,
+                           0);
+    return value;
+}
+
+bool DynamicMapAdmissionSupportQuality()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY", false);
+    return value;
+}
+
+int DynamicMapAdmissionSupportQualityMinReliableSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MIN_RELIABLE_SUPPORT",
+                           2,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionSupportQualityMinDepthSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MIN_DEPTH_SUPPORT",
+                           2,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionSupportQualityMinResidualObs()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MIN_RESIDUAL_OBS",
+                           1,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionSupportQualityMinFrameSpan()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MIN_FRAME_SPAN",
+                           2,
+                           0);
+    return value;
+}
+
+double DynamicMapAdmissionSupportQualityMinInlierRate()
+{
+    static const double value =
+        std::min(1.0,
+                 GetEnvDoubleOrDefault(
+                     "STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MIN_INLIER_RATE",
+                     0.70,
+                     0.0));
+    return value;
+}
+
+double DynamicMapAdmissionSupportQualityMaxMeanChi2()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MAX_MEAN_CHI2",
+                              3.0,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionSupportQualityMinFoundRatio()
+{
+    static const double value =
+        std::min(1.0,
+                 GetEnvDoubleOrDefault(
+                     "STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MIN_FOUND_RATIO",
+                     0.35,
+                     0.0));
+    return value;
+}
+
+double DynamicMapAdmissionSupportQualityMaxDepthRelDiff()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MAX_DEPTH_REL_DIFF",
+                              0.25,
+                              0.0);
+    return value;
+}
+
+bool DynamicMapAdmissionScoreBased()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SCORE_BASED", false);
+    return value;
+}
+
+int DynamicMapAdmissionScoreMinRawSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SCORE_MIN_RAW_SUPPORT",
+                           1,
+                           0);
+    return value;
+}
+
+double DynamicMapAdmissionScoreMinSupportScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SCORE_MIN_SUPPORT_SCORE",
+                              0.35,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionScoreMinCandidateScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SCORE_MIN_CANDIDATE_SCORE",
+                              0.45,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionScoreMinTotalScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SCORE_MIN_TOTAL_SCORE",
+                              0.95,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionScoreSupportWeight()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SCORE_SUPPORT_WEIGHT",
+                              1.0,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionScoreCandidateWeight()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SCORE_CANDIDATE_WEIGHT",
+                              1.0,
+                              0.0);
+    return value;
+}
+
+bool DynamicMapAdmissionV5UsefulnessLog()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_V5_USEFULNESS_LOG",
+                            false);
+    return value;
+}
+
+bool DynamicMapAdmissionV5TraceLog()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_V5_TRACE_LOG",
+                            false);
+    return value;
+}
+
+bool DynamicMapAdmissionStateAware()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_STATE_AWARE",
+                            false);
+    return value;
+}
+
+int DynamicMapAdmissionStateMinTrackingInliers()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_STATE_MIN_TRACKING_INLIERS",
+                           160,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionStateMaxKeyFrameGap()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_STATE_MAX_KEYFRAME_GAP",
+                           2,
+                           0);
+    return value;
+}
+
+double DynamicMapAdmissionStateStepRatio()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_STATE_STEP_RATIO",
+                              1.60,
+                              1.0);
+    return value;
+}
+
+double DynamicMapAdmissionStateMinKeyFrameStep()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_STATE_MIN_KEYFRAME_STEP",
+                              0.030,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionStateMinLBAEdgesPerMP()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_STATE_MIN_LBA_EDGES_PER_MP",
+                              1.60,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionStateMinNeedScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_STATE_MIN_NEED_SCORE",
+                              1.0,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionStateKfStepEwmaAlpha()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_STATE_KF_STEP_EWMA_ALPHA",
+                              0.20,
+                              0.0);
+    return std::min(1.0, value);
+}
+
+struct AdmissionStateAwarenessContext
+{
+    bool enabled = false;
+    bool allowAdmission = true;
+    bool trackingPressure = false;
+    bool keyframePressure = false;
+    bool scalePressure = false;
+    bool localBAPressure = false;
+    double needScore = 0.0;
+    int trackingInliers = -1;
+    int keyframeFrameGap = -1;
+    double keyframeStep = -1.0;
+    double keyframeStepEwma = -1.0;
+    double keyframeStepRatio = 0.0;
+    int lastLBAEdges = 0;
+    int lastLBAMapPoints = 0;
+    double lastLBAEdgesPerMP = 0.0;
+};
+
+AdmissionStateAwarenessContext MakeAdmissionStateAwarenessContext(
+    Tracking* pTracker,
+    KeyFrame* pCurrentKF,
+    const bool hasKfStepEwma,
+    const double kfStepEwma,
+    const int lastLBAEdges,
+    const int lastLBAMapPoints)
+{
+    AdmissionStateAwarenessContext context;
+    context.enabled = DynamicMapAdmissionStateAware();
+    if(!context.enabled)
+        return context;
+
+    context.trackingInliers =
+        pTracker ? pTracker->GetMatchesInliers() : -1;
+    context.trackingPressure =
+        context.trackingInliers >= 0 &&
+        context.trackingInliers <= DynamicMapAdmissionStateMinTrackingInliers();
+
+    if(pCurrentKF && pCurrentKF->mPrevKF)
+    {
+        context.keyframeFrameGap =
+            static_cast<int>(pCurrentKF->mnFrameId) -
+            static_cast<int>(pCurrentKF->mPrevKF->mnFrameId);
+        context.keyframePressure =
+            context.keyframeFrameGap >= 0 &&
+            context.keyframeFrameGap <= DynamicMapAdmissionStateMaxKeyFrameGap();
+        context.keyframeStep =
+            static_cast<double>(
+                (pCurrentKF->GetCameraCenter() -
+                 pCurrentKF->mPrevKF->GetCameraCenter()).norm());
+    }
+
+    context.keyframeStepEwma = hasKfStepEwma ? kfStepEwma : -1.0;
+    if(hasKfStepEwma && kfStepEwma > 1e-9 && context.keyframeStep >= 0.0)
+    {
+        context.keyframeStepRatio = context.keyframeStep / kfStepEwma;
+        context.scalePressure =
+            context.keyframeStep >= DynamicMapAdmissionStateMinKeyFrameStep() &&
+            context.keyframeStepRatio >= DynamicMapAdmissionStateStepRatio();
+    }
+
+    context.lastLBAEdges = lastLBAEdges;
+    context.lastLBAMapPoints = lastLBAMapPoints;
+    if(lastLBAEdges > 0 && lastLBAMapPoints > 0)
+    {
+        context.lastLBAEdgesPerMP =
+            static_cast<double>(lastLBAEdges) /
+            static_cast<double>(lastLBAMapPoints);
+        context.localBAPressure =
+            context.lastLBAEdgesPerMP <
+            DynamicMapAdmissionStateMinLBAEdgesPerMP();
+    }
+
+    context.needScore =
+        (context.trackingPressure ? 1.0 : 0.0) +
+        (context.keyframePressure ? 1.0 : 0.0) +
+        (context.scalePressure ? 1.0 : 0.0) +
+        (context.localBAPressure ? 1.0 : 0.0);
+    context.allowAdmission =
+        context.needScore >= DynamicMapAdmissionStateMinNeedScore();
+    return context;
+}
+
+struct AdmissionV5AggregateStats
+{
+    long long candidateEvents = 0;
+    long long supportCandidates = 0;
+    long long supportAccepted = 0;
+    long long rejectSupport = 0;
+    long long geomEvents = 0;
+    long long rejectParallax = 0;
+    long long rejectTriangulate = 0;
+    long long rejectDepth = 0;
+    long long rejectReproj1 = 0;
+    long long rejectReproj2 = 0;
+    long long rejectScale = 0;
+    long long rejectScore = 0;
+    long long created = 0;
+    double supportScoreSum = 0.0;
+    double rawSupportSum = 0.0;
+    double reliableSupportSum = 0.0;
+    double residualSupportSum = 0.0;
+    double depthSupportSum = 0.0;
+    double createdSupportScoreSum = 0.0;
+    double createdCandidateScoreSum = 0.0;
+    double createdTotalScoreSum = 0.0;
+    double createdReprojRatio1Sum = 0.0;
+    double createdReprojRatio2Sum = 0.0;
+    double createdParallaxScoreSum = 0.0;
+    double createdScaleScoreSum = 0.0;
+    long long lifecycleRows = 0;
+    long long lifecycleScoreRecent = 0;
+    long long lifecycleScorePreBad = 0;
+    long long lifecycleScoreCulledFoundRatio = 0;
+    long long lifecycleScoreCulledLowObs = 0;
+    long long lifecycleScoreSurvived = 0;
+    long long lifecycleScoreMatured = 0;
+    long long lifecyclePoseUseEdges = 0;
+    long long lifecyclePoseUseInliers = 0;
+    double lifecyclePoseUseChi2WeightedSum = 0.0;
+};
+
+AdmissionV5AggregateStats& MutableAdmissionV5AggregateStats()
+{
+    static AdmissionV5AggregateStats stats;
+    return stats;
+}
+
+double SafeMean(const double sum, const long long count)
+{
+    return count > 0 ? sum / static_cast<double>(count) : 0.0;
+}
+
+void PrintAdmissionV5AggregateSummary()
+{
+    if(!DynamicMapAdmissionV5UsefulnessLog())
+        return;
+
+    static bool printed = false;
+    if(printed)
+        return;
+    printed = true;
+
+    const AdmissionV5AggregateStats& stats = MutableAdmissionV5AggregateStats();
+    std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_V5_SUMMARY]"
+              << " candidate_events=" << stats.candidateEvents
+              << " support_candidates=" << stats.supportCandidates
+              << " support_accepted=" << stats.supportAccepted
+              << " reject_support=" << stats.rejectSupport
+              << " geom_events=" << stats.geomEvents
+              << " reject_parallax=" << stats.rejectParallax
+              << " reject_triangulate=" << stats.rejectTriangulate
+              << " reject_depth=" << stats.rejectDepth
+              << " reject_reproj1=" << stats.rejectReproj1
+              << " reject_reproj2=" << stats.rejectReproj2
+              << " reject_scale=" << stats.rejectScale
+              << " reject_score=" << stats.rejectScore
+              << " created=" << stats.created
+              << " support_score_mean="
+              << SafeMean(stats.supportScoreSum, stats.supportCandidates)
+              << " raw_support_mean="
+              << SafeMean(stats.rawSupportSum, stats.supportCandidates)
+              << " reliable_support_mean="
+              << SafeMean(stats.reliableSupportSum, stats.supportCandidates)
+              << " residual_support_mean="
+              << SafeMean(stats.residualSupportSum, stats.supportCandidates)
+              << " depth_support_mean="
+              << SafeMean(stats.depthSupportSum, stats.supportCandidates)
+              << " created_support_score_mean="
+              << SafeMean(stats.createdSupportScoreSum, stats.created)
+              << " created_candidate_score_mean="
+              << SafeMean(stats.createdCandidateScoreSum, stats.created)
+              << " created_total_score_mean="
+              << SafeMean(stats.createdTotalScoreSum, stats.created)
+              << " created_reproj_ratio1_mean="
+              << SafeMean(stats.createdReprojRatio1Sum, stats.created)
+              << " created_reproj_ratio2_mean="
+              << SafeMean(stats.createdReprojRatio2Sum, stats.created)
+              << " created_parallax_score_mean="
+              << SafeMean(stats.createdParallaxScoreSum, stats.created)
+              << " created_scale_score_mean="
+              << SafeMean(stats.createdScaleScoreSum, stats.created)
+              << " lifecycle_rows=" << stats.lifecycleRows
+              << " lifecycle_score_recent_sum=" << stats.lifecycleScoreRecent
+              << " lifecycle_score_prebad_sum=" << stats.lifecycleScorePreBad
+              << " lifecycle_score_culled_found_ratio_sum="
+              << stats.lifecycleScoreCulledFoundRatio
+              << " lifecycle_score_culled_low_obs_sum="
+              << stats.lifecycleScoreCulledLowObs
+              << " lifecycle_score_survived_sum="
+              << stats.lifecycleScoreSurvived
+              << " lifecycle_score_matured_sum=" << stats.lifecycleScoreMatured
+              << " lifecycle_pose_use_edges_sum="
+              << stats.lifecyclePoseUseEdges
+              << " lifecycle_pose_use_inliers_sum="
+              << stats.lifecyclePoseUseInliers
+              << " lifecycle_pose_use_inlier_rate="
+              << (stats.lifecyclePoseUseEdges > 0 ?
+                  static_cast<double>(stats.lifecyclePoseUseInliers) /
+                      static_cast<double>(stats.lifecyclePoseUseEdges) :
+                  0.0)
+              << " lifecycle_pose_use_chi2_mean="
+              << SafeMean(stats.lifecyclePoseUseChi2WeightedSum,
+                          stats.lifecyclePoseUseEdges)
+              << std::endl;
+}
+
+double Clamp01(const double value)
+{
+    return std::max(0.0, std::min(1.0, value));
+}
+
+double SaturatingCountScore(const int value, const int target)
+{
+    if(target <= 0)
+        return 1.0;
+    return Clamp01(static_cast<double>(value) / static_cast<double>(target));
+}
+
+int CountCleanStaticMapSupportNearFeature(KeyFrame* pKF,
+                                          const int idx,
+                                          const int radiusPx,
+                                          const int minObservations)
+{
+    if(!pKF || idx < 0 || idx >= static_cast<int>(pKF->mvKeysUn.size()))
+        return 0;
+
+    const cv::Point2f center = pKF->mvKeysUn[idx].pt;
+    const std::vector<size_t> vNeighborIndices =
+        pKF->GetFeaturesInArea(center.x,
+                               center.y,
+                               static_cast<float>(std::max(0, radiusPx)));
+    int support = 0;
+    for(size_t neighbor = 0; neighbor < vNeighborIndices.size(); ++neighbor)
+    {
+        const size_t candidateIdx = vNeighborIndices[neighbor];
+        if(static_cast<int>(candidateIdx) == idx)
+            continue;
+
+        MapPoint* pMP = pKF->GetMapPoint(candidateIdx);
+        if(!pMP || pMP->isBad() || pMP->IsDynamicInstanceObservationPoint() ||
+           pMP->IsInstanceStructurePoint())
+            continue;
+        if(pMP->Observations() < minObservations)
+            continue;
+        if(pKF->GetFeatureInstanceId(candidateIdx) > 0 ||
+           pKF->IsFeatureStaticNearDynamicMask(candidateIdx))
+            continue;
+
+        ++support;
+    }
+
+    return support;
+}
+
+struct AdmissionSupportQualityResult
+{
+    int rawSupport = 0;
+    int foundStableSupport = 0;
+    int frameStableSupport = 0;
+    int rawDepthConsistentSupport = 0;
+    int reliableSupport = 0;
+    int residualReliableSupport = 0;
+    int depthConsistentSupport = 0;
+    bool pass = false;
+};
+
+struct AdmissionScoreCandidateInfo
+{
+    int riskSides = 0;
+    int rawSupport = 0;
+    int foundStableSupport = 0;
+    int frameStableSupport = 0;
+    int rawDepthConsistentSupport = 0;
+    int reliableSupport = 0;
+    int residualReliableSupport = 0;
+    int depthConsistentSupport = 0;
+    bool binarySupportPass = false;
+    double supportScore = 0.0;
+};
+
+void AccumulateAdmissionScoreSupport(AdmissionScoreCandidateInfo& info,
+                                     const AdmissionSupportQualityResult& quality)
+{
+    const bool firstRiskSide = info.riskSides == 0;
+    ++info.riskSides;
+    info.rawSupport += quality.rawSupport;
+    info.foundStableSupport += quality.foundStableSupport;
+    info.frameStableSupport += quality.frameStableSupport;
+    info.rawDepthConsistentSupport += quality.rawDepthConsistentSupport;
+    info.reliableSupport += quality.reliableSupport;
+    info.residualReliableSupport += quality.residualReliableSupport;
+    info.depthConsistentSupport += quality.depthConsistentSupport;
+    info.binarySupportPass =
+        firstRiskSide ? quality.pass : (info.binarySupportPass && quality.pass);
+}
+
+double ComputeAdmissionSupportScore(const AdmissionScoreCandidateInfo& info)
+{
+    const double reliableScore =
+        SaturatingCountScore(info.reliableSupport,
+                             std::max(1, DynamicMapAdmissionSupportQualityMinReliableSupport()));
+    const double depthScore =
+        SaturatingCountScore(info.depthConsistentSupport,
+                             std::max(1, DynamicMapAdmissionSupportQualityMinDepthSupport()));
+    const double residualScore =
+        SaturatingCountScore(info.residualReliableSupport,
+                             std::max(1, DynamicMapAdmissionSupportQualityMinReliableSupport()));
+    const double foundScore =
+        SaturatingCountScore(info.foundStableSupport,
+                             std::max(1, info.rawSupport));
+    const double frameScore =
+        SaturatingCountScore(info.frameStableSupport,
+                             std::max(1, info.rawSupport));
+
+    return Clamp01(0.35 * reliableScore +
+                   0.30 * depthScore +
+                   0.15 * residualScore +
+                   0.10 * foundScore +
+                   0.10 * frameScore);
+}
+
+bool AdmissionScoreSupportAllowsGeometry(const AdmissionScoreCandidateInfo& info)
+{
+    if(info.rawSupport < DynamicMapAdmissionScoreMinRawSupport())
+        return false;
+    if(info.depthConsistentSupport <= 0 && info.reliableSupport <= 0)
+        return false;
+    return info.supportScore >= DynamicMapAdmissionScoreMinSupportScore();
+}
+
+double ComputeAdmissionCandidateScore(const double parallaxScore,
+                                      const double reprojRatio1,
+                                      const double reprojRatio2,
+                                      const double scaleScore)
+{
+    const double reprojScore = Clamp01(1.0 - std::max(reprojRatio1, reprojRatio2));
+    return Clamp01(0.15 * Clamp01(parallaxScore) +
+                   0.60 * reprojScore +
+                   0.25 * Clamp01(scaleScore));
+}
+
+void PrintAdmissionV5CandidateSupportEvent(KeyFrame* pCurrentKF,
+                                           KeyFrame* pNeighborKF,
+                                           const int idx1,
+                                           const int idx2,
+                                           const bool isBoundaryRiskCurrent,
+                                           const bool isBoundaryRiskNeighbor,
+                                           const bool supportOk,
+                                           const AdmissionScoreCandidateInfo& info)
+{
+    if(!pCurrentKF || !pNeighborKF)
+        return;
+
+    AdmissionV5AggregateStats& stats = MutableAdmissionV5AggregateStats();
+    ++stats.candidateEvents;
+    ++stats.supportCandidates;
+    stats.supportScoreSum += info.supportScore;
+    stats.rawSupportSum += info.rawSupport;
+    stats.reliableSupportSum += info.reliableSupport;
+    stats.residualSupportSum += info.residualReliableSupport;
+    stats.depthSupportSum += info.depthConsistentSupport;
+    if(supportOk)
+        ++stats.supportAccepted;
+    else
+        ++stats.rejectSupport;
+
+    if(!DynamicMapAdmissionV5TraceLog())
+        return;
+
+    std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_V5_CANDIDATE]"
+              << " frame=" << pCurrentKF->mnFrameId
+              << " stage=support"
+              << " decision=" << (supportOk ? "support_accepted" : "reject_support")
+              << " current_kf=" << pCurrentKF->mnId
+              << " neighbor_kf=" << pNeighborKF->mnId
+              << " idx1=" << idx1
+              << " idx2=" << idx2
+              << " risk_current=" << (isBoundaryRiskCurrent ? 1 : 0)
+              << " risk_neighbor=" << (isBoundaryRiskNeighbor ? 1 : 0)
+              << " support_candidate=1"
+              << " support_accepted=" << (supportOk ? 1 : 0)
+              << " reject_support=" << (supportOk ? 0 : 1)
+              << " geom_candidate=0"
+              << " reject_parallax=0"
+              << " reject_triangulate=0"
+              << " reject_depth=0"
+              << " reject_reproj1=0"
+              << " reject_reproj2=0"
+              << " reject_scale=0"
+              << " reject_score=0"
+              << " created=0"
+              << " raw_support=" << info.rawSupport
+              << " found_support=" << info.foundStableSupport
+              << " frame_support=" << info.frameStableSupport
+              << " raw_depth_support=" << info.rawDepthConsistentSupport
+              << " reliable_support=" << info.reliableSupport
+              << " residual_support=" << info.residualReliableSupport
+              << " depth_support=" << info.depthConsistentSupport
+              << " support_score=" << info.supportScore
+              << " binary_support_pass=" << (info.binarySupportPass ? 1 : 0)
+              << " parallax_score=0"
+              << " reproj_ratio1=1"
+              << " reproj_ratio2=1"
+              << " scale_score=0"
+              << " candidate_score=0"
+              << " total_score=0"
+              << std::endl;
+}
+
+void PrintAdmissionV5CandidateGeometryEvent(KeyFrame* pCurrentKF,
+                                            KeyFrame* pNeighborKF,
+                                            const int idx1,
+                                            const int idx2,
+                                            const char* decision,
+                                            const AdmissionScoreCandidateInfo& info,
+                                            const double parallaxScore,
+                                            const double reprojRatio1,
+                                            const double reprojRatio2,
+                                            const double scaleScore,
+                                            const double candidateScore,
+                                            const double totalScore)
+{
+    if(!pCurrentKF || !pNeighborKF)
+        return;
+
+    const std::string reason = decision ? decision : "unknown";
+    AdmissionV5AggregateStats& stats = MutableAdmissionV5AggregateStats();
+    ++stats.candidateEvents;
+    ++stats.geomEvents;
+    if(reason == "reject_parallax")
+        ++stats.rejectParallax;
+    else if(reason == "reject_triangulate")
+        ++stats.rejectTriangulate;
+    else if(reason == "reject_depth")
+        ++stats.rejectDepth;
+    else if(reason == "reject_reproj1")
+        ++stats.rejectReproj1;
+    else if(reason == "reject_reproj2")
+        ++stats.rejectReproj2;
+    else if(reason == "reject_scale")
+        ++stats.rejectScale;
+    else if(reason == "reject_score")
+        ++stats.rejectScore;
+    else if(reason == "created")
+    {
+        ++stats.created;
+        stats.createdSupportScoreSum += info.supportScore;
+        stats.createdCandidateScoreSum += candidateScore;
+        stats.createdTotalScoreSum += totalScore;
+        stats.createdReprojRatio1Sum += reprojRatio1;
+        stats.createdReprojRatio2Sum += reprojRatio2;
+        stats.createdParallaxScoreSum += parallaxScore;
+        stats.createdScaleScoreSum += scaleScore;
+    }
+
+    if(!DynamicMapAdmissionV5TraceLog())
+        return;
+
+    std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_V5_CANDIDATE]"
+              << " frame=" << pCurrentKF->mnFrameId
+              << " stage=geometry"
+              << " decision=" << reason
+              << " current_kf=" << pCurrentKF->mnId
+              << " neighbor_kf=" << pNeighborKF->mnId
+              << " idx1=" << idx1
+              << " idx2=" << idx2
+              << " risk_current=" << (pCurrentKF->IsFeatureStaticNearDynamicMask(idx1) ? 1 : 0)
+              << " risk_neighbor=" << (pNeighborKF->IsFeatureStaticNearDynamicMask(idx2) ? 1 : 0)
+              << " support_candidate=0"
+              << " support_accepted=0"
+              << " reject_support=0"
+              << " geom_candidate=1"
+              << " reject_parallax=" << (reason == "reject_parallax" ? 1 : 0)
+              << " reject_triangulate=" << (reason == "reject_triangulate" ? 1 : 0)
+              << " reject_depth=" << (reason == "reject_depth" ? 1 : 0)
+              << " reject_reproj1=" << (reason == "reject_reproj1" ? 1 : 0)
+              << " reject_reproj2=" << (reason == "reject_reproj2" ? 1 : 0)
+              << " reject_scale=" << (reason == "reject_scale" ? 1 : 0)
+              << " reject_score=" << (reason == "reject_score" ? 1 : 0)
+              << " created=" << (reason == "created" ? 1 : 0)
+              << " raw_support=" << info.rawSupport
+              << " found_support=" << info.foundStableSupport
+              << " frame_support=" << info.frameStableSupport
+              << " raw_depth_support=" << info.rawDepthConsistentSupport
+              << " reliable_support=" << info.reliableSupport
+              << " residual_support=" << info.residualReliableSupport
+              << " depth_support=" << info.depthConsistentSupport
+              << " support_score=" << info.supportScore
+              << " binary_support_pass=" << (info.binarySupportPass ? 1 : 0)
+              << " parallax_score=" << parallaxScore
+              << " reproj_ratio1=" << reprojRatio1
+              << " reproj_ratio2=" << reprojRatio2
+              << " scale_score=" << scaleScore
+              << " candidate_score=" << candidateScore
+              << " total_score=" << totalScore
+              << std::endl;
+}
+
+void RecordAdmissionV5LifecycleEvent(KeyFrame* pCurrentKF,
+                                     const int recentPointsAtEntry,
+                                     const int remainingRecentPoints,
+                                     const int scoreRecent,
+                                     const int scorePreBad,
+                                     const int scoreCulledFoundRatio,
+                                     const int scoreCulledLowObs,
+                                     const int scoreSurvived,
+                                     const int scoreMatured,
+                                     const int scorePoseUseEdges,
+                                     const int scorePoseUseInliers,
+                                     const double scorePoseUseChi2Mean)
+{
+    AdmissionV5AggregateStats& stats = MutableAdmissionV5AggregateStats();
+    ++stats.lifecycleRows;
+    stats.lifecycleScoreRecent += scoreRecent;
+    stats.lifecycleScorePreBad += scorePreBad;
+    stats.lifecycleScoreCulledFoundRatio += scoreCulledFoundRatio;
+    stats.lifecycleScoreCulledLowObs += scoreCulledLowObs;
+    stats.lifecycleScoreSurvived += scoreSurvived;
+    stats.lifecycleScoreMatured += scoreMatured;
+    stats.lifecyclePoseUseEdges += scorePoseUseEdges;
+    stats.lifecyclePoseUseInliers += scorePoseUseInliers;
+    stats.lifecyclePoseUseChi2WeightedSum +=
+        scorePoseUseChi2Mean * static_cast<double>(scorePoseUseEdges);
+
+    if(!DynamicMapAdmissionV5TraceLog() || !pCurrentKF)
+        return;
+
+    std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_V5_LIFECYCLE]"
+              << " frame=" << pCurrentKF->mnFrameId
+              << " current_kf=" << pCurrentKF->mnId
+              << " recent_points=" << recentPointsAtEntry
+              << " remaining_recent_points=" << remainingRecentPoints
+              << " score_recent=" << scoreRecent
+              << " score_prebad=" << scorePreBad
+              << " score_culled_found_ratio=" << scoreCulledFoundRatio
+              << " score_culled_low_obs=" << scoreCulledLowObs
+              << " score_survived=" << scoreSurvived
+              << " score_matured=" << scoreMatured
+              << " score_pose_use_edges=" << scorePoseUseEdges
+              << " score_pose_use_inliers=" << scorePoseUseInliers
+              << " score_pose_use_chi2_mean=" << scorePoseUseChi2Mean
+              << std::endl;
+}
+
+bool IsDepthConsistentForSupportQuality(const float candidateDepth,
+                                        const float supportDepth)
+{
+    if(candidateDepth <= 0.0f || supportDepth <= 0.0f ||
+       !std::isfinite(candidateDepth) || !std::isfinite(supportDepth))
+        return false;
+
+    const double denom = std::max(static_cast<double>(candidateDepth),
+                                  static_cast<double>(supportDepth));
+    if(denom <= 0.0)
+        return false;
+
+    const double relDiff =
+        std::fabs(static_cast<double>(candidateDepth) -
+                  static_cast<double>(supportDepth)) /
+        denom;
+    return relDiff <= DynamicMapAdmissionSupportQualityMaxDepthRelDiff();
+}
+
+bool IsSupportQualityStableAcrossFrames(MapPoint* pMP)
+{
+    if(!pMP)
+        return false;
+
+    const int minFrameSpan = DynamicMapAdmissionSupportQualityMinFrameSpan();
+    if(minFrameSpan <= 0)
+        return true;
+
+    const long firstFrame = pMP->mnFirstObservationFrame;
+    const long lastFrame = pMP->mnLastObservationFrame;
+    const long frameSpan =
+        (firstFrame >= 0 && lastFrame >= firstFrame) ?
+        (lastFrame - firstFrame) :
+        0;
+    return frameSpan >= minFrameSpan ||
+           pMP->mnObservationCount >= minFrameSpan + 1 ||
+           pMP->Observations() >= minFrameSpan + 1;
+}
+
+bool IsSupportQualityResidualStable(MapPoint* pMP)
+{
+    if(!pMP)
+        return false;
+
+    const int minResidualObs = DynamicMapAdmissionSupportQualityMinResidualObs();
+    if(minResidualObs <= 0)
+        return true;
+
+    const int poseUseCount = pMP->GetSupportQualityPoseUseCount();
+    if(poseUseCount < minResidualObs)
+        return false;
+
+    return pMP->GetSupportQualityPoseUseInlierRate() >=
+               DynamicMapAdmissionSupportQualityMinInlierRate() &&
+           pMP->GetSupportQualityPoseUseMeanChi2() <=
+               DynamicMapAdmissionSupportQualityMaxMeanChi2();
+}
+
+AdmissionSupportQualityResult EvaluateCleanStaticMapSupportQualityNearFeature(
+    KeyFrame* pKF,
+    const int idx,
+    const int radiusPx,
+    const int minObservations,
+    const float candidateDepth)
+{
+    AdmissionSupportQualityResult result;
+    if(!pKF || idx < 0 || idx >= static_cast<int>(pKF->mvKeysUn.size()))
+        return result;
+
+    const cv::Point2f center = pKF->mvKeysUn[idx].pt;
+    const std::vector<size_t> vNeighborIndices =
+        pKF->GetFeaturesInArea(center.x,
+                               center.y,
+                               static_cast<float>(std::max(0, radiusPx)));
+    for(size_t neighbor = 0; neighbor < vNeighborIndices.size(); ++neighbor)
+    {
+        const size_t candidateIdx = vNeighborIndices[neighbor];
+        if(static_cast<int>(candidateIdx) == idx)
+            continue;
+
+        MapPoint* pMP = pKF->GetMapPoint(candidateIdx);
+        if(!pMP || pMP->isBad() || pMP->IsDynamicInstanceObservationPoint() ||
+           pMP->IsInstanceStructurePoint())
+            continue;
+        if(pMP->Observations() < minObservations)
+            continue;
+        if(pKF->GetFeatureInstanceId(candidateIdx) > 0 ||
+           pKF->IsFeatureStaticNearDynamicMask(candidateIdx))
+            continue;
+
+        ++result.rawSupport;
+
+        const bool foundStable =
+            pMP->GetFoundRatio() >=
+            DynamicMapAdmissionSupportQualityMinFoundRatio();
+        const bool frameStable = IsSupportQualityStableAcrossFrames(pMP);
+        const bool residualStable = IsSupportQualityResidualStable(pMP);
+        const float supportDepth =
+            candidateIdx < pKF->mvDepth.size() ?
+            pKF->mvDepth[candidateIdx] :
+            -1.0f;
+        const bool depthStable =
+            IsDepthConsistentForSupportQuality(candidateDepth, supportDepth);
+        if(foundStable)
+            ++result.foundStableSupport;
+        if(frameStable)
+            ++result.frameStableSupport;
+        if(residualStable)
+            ++result.residualReliableSupport;
+        if(depthStable)
+            ++result.rawDepthConsistentSupport;
+
+        const bool reliable = foundStable && frameStable && residualStable;
+        if(!reliable)
+            continue;
+
+        ++result.reliableSupport;
+        if(depthStable)
+            ++result.depthConsistentSupport;
+    }
+
+    result.pass =
+        result.reliableSupport >=
+            DynamicMapAdmissionSupportQualityMinReliableSupport() &&
+        result.depthConsistentSupport >=
+            DynamicMapAdmissionSupportQualityMinDepthSupport();
+    return result;
+}
+
 bool RequireMotionEvidenceForRgbdDynamicSplit()
 {
     static const bool value =
         GetEnvFlagOrDefault("STSLAM_RGBD_DYNAMIC_SPLIT_REQUIRE_MOTION_EVIDENCE", true);
+    return value;
+}
+
+bool SequentialLocalMappingMode()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_SEQUENTIAL_LOCAL_MAPPING", false);
+    return value;
+}
+
+bool HoldAcceptKeyFramesWhenSequentialQueueHasWork()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_SEQUENTIAL_LOCAL_MAPPING_HOLD_ACCEPT_WHEN_QUEUED", true);
+    return value;
+}
+
+int GetEnvIntOrDefault(const char* name, const int defaultValue, const int minValue);
+
+int SequentialLocalMappingMaintenancePeriod()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_SEQUENTIAL_LOCAL_MAPPING_MAINTENANCE_PERIOD", 1, 1);
     return value;
 }
 
@@ -437,7 +1636,12 @@ bool HasMatureInstanceBackendState(Instance* pInstance, KeyFrame* pKF)
 LocalMapping::LocalMapping(System* pSys, Atlas *pAtlas, const float bMonocular, bool bInertial, const string &_strSeqName):
     mpSystem(pSys), mbMonocular(bMonocular), mbInertial(bInertial), mbResetRequested(false), mbResetRequestedActiveMap(false), mbFinishRequested(false), mbFinished(true), mpAtlas(pAtlas), bInitializing(false),
     mbAbortBA(false), mbStopped(false), mbStopRequested(false), mbNotStop(false), mbAcceptKeyFrames(true),
-    mIdxInit(0), mScale(1.0), mInitSect(0), mbNotBA1(true), mbNotBA2(true), mIdxIteration(0), infoInertial(Eigen::MatrixXd::Zero(9,9))
+    mIdxInit(0), mScale(1.0), mInitSect(0), mbNotBA1(true), mbNotBA2(true), mIdxIteration(0),
+    mbSequentialMaintenancePending(false), mnSequentialKeyFramesSinceMaintenance(0),
+    mnAdmissionLastLBAEdges(0), mnAdmissionLastLBAMapPoints(0),
+    mnAdmissionLastLBAOptKeyFrames(0), mnAdmissionLastLBAFixedKeyFrames(0),
+    mbAdmissionStateHasKfStepEwma(false), mdAdmissionStateKfStepEwma(0.0),
+    infoInertial(Eigen::MatrixXd::Zero(9,9))
 {
     mnMatchesInliers = 0;
 
@@ -471,219 +1675,258 @@ void LocalMapping::Run()
 
     while(1)
     {
-        // Tracking will see that Local Mapping is busy
-        SetAcceptKeyFrames(false);
-
-        // Check if there are keyframes in the queue
-        if(CheckNewKeyFrames() && !mbBadImu)
-        {
-#ifdef REGISTER_TIMES
-            double timeLBA_ms = 0;
-            double timeKFCulling_ms = 0;
-
-            std::chrono::steady_clock::time_point time_StartProcessKF = std::chrono::steady_clock::now();
-#endif
-            // BoW conversion and insertion in Map
-            ProcessNewKeyFrame();
-#ifdef REGISTER_TIMES
-            std::chrono::steady_clock::time_point time_EndProcessKF = std::chrono::steady_clock::now();
-
-            double timeProcessKF = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndProcessKF - time_StartProcessKF).count();
-            vdKFInsert_ms.push_back(timeProcessKF);
-#endif
-
-            // Check recent MapPoints
-            MapPointCulling();
-#ifdef REGISTER_TIMES
-            std::chrono::steady_clock::time_point time_EndMPCulling = std::chrono::steady_clock::now();
-
-            double timeMPCulling = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndMPCulling - time_EndProcessKF).count();
-            vdMPCulling_ms.push_back(timeMPCulling);
-#endif
-
-            // Triangulate new MapPoints
-            CreateNewMapPoints();
-            UpdateInstanceStructure();
-
-            mbAbortBA = false;
-
-            if(!CheckNewKeyFrames())
-            {
-                // Find more matches in neighbor keyframes and fuse point duplications
-                SearchInNeighbors();
-            }
-
-#ifdef REGISTER_TIMES
-            std::chrono::steady_clock::time_point time_EndMPCreation = std::chrono::steady_clock::now();
-
-            double timeMPCreation = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndMPCreation - time_EndMPCulling).count();
-            vdMPCreation_ms.push_back(timeMPCreation);
-#endif
-
-            bool b_doneLBA = false;
-            int num_FixedKF_BA = 0;
-            int num_OptKF_BA = 0;
-            int num_MPs_BA = 0;
-            int num_edges_BA = 0;
-
-            if(!CheckNewKeyFrames() && !stopRequested())
-            {
-                if(mpAtlas->KeyFramesInMap()>2)
-                {
-
-                    if(mbInertial && mpCurrentKeyFrame->GetMap()->isImuInitialized())
-                    {
-                        float dist = (mpCurrentKeyFrame->mPrevKF->GetCameraCenter() - mpCurrentKeyFrame->GetCameraCenter()).norm() +
-                                (mpCurrentKeyFrame->mPrevKF->mPrevKF->GetCameraCenter() - mpCurrentKeyFrame->mPrevKF->GetCameraCenter()).norm();
-
-                        if(dist>0.05)
-                            mTinit += mpCurrentKeyFrame->mTimeStamp - mpCurrentKeyFrame->mPrevKF->mTimeStamp;
-                        if(!mpCurrentKeyFrame->GetMap()->GetIniertialBA2())
-                        {
-                            if((mTinit<10.f) && (dist<0.02))
-                            {
-                                cout << "Not enough motion for initializing. Reseting..." << endl;
-                                unique_lock<mutex> lock(mMutexReset);
-                                mbResetRequestedActiveMap = true;
-                                mpMapToReset = mpCurrentKeyFrame->GetMap();
-                                mbBadImu = true;
-                            }
-                        }
-
-                        bool bLarge = ((mpTracker->GetMatchesInliers()>75)&&mbMonocular)||((mpTracker->GetMatchesInliers()>100)&&!mbMonocular);
-                        Optimizer::LocalInertialBA(mpCurrentKeyFrame, &mbAbortBA, mpCurrentKeyFrame->GetMap(),num_FixedKF_BA,num_OptKF_BA,num_MPs_BA,num_edges_BA, bLarge, !mpCurrentKeyFrame->GetMap()->GetIniertialBA2());
-                        b_doneLBA = true;
-                    }
-                    else
-                    {
-                        Optimizer::LocalBundleAdjustment(mpCurrentKeyFrame,&mbAbortBA, mpCurrentKeyFrame->GetMap(),num_FixedKF_BA,num_OptKF_BA,num_MPs_BA,num_edges_BA);
-                        b_doneLBA = true;
-                    }
-
-                }
-#ifdef REGISTER_TIMES
-                std::chrono::steady_clock::time_point time_EndLBA = std::chrono::steady_clock::now();
-
-                if(b_doneLBA)
-                {
-                    timeLBA_ms = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndLBA - time_EndMPCreation).count();
-                    vdLBA_ms.push_back(timeLBA_ms);
-
-                    nLBA_exec += 1;
-                    if(mbAbortBA)
-                    {
-                        nLBA_abort += 1;
-                    }
-                    vnLBA_edges.push_back(num_edges_BA);
-                    vnLBA_KFopt.push_back(num_OptKF_BA);
-                    vnLBA_KFfixed.push_back(num_FixedKF_BA);
-                    vnLBA_MPs.push_back(num_MPs_BA);
-                }
-
-#endif
-
-                // Initialize IMU here
-                if(!mpCurrentKeyFrame->GetMap()->isImuInitialized() && mbInertial)
-                {
-                    if (mbMonocular)
-                        InitializeIMU(1e2, 1e10, true);
-                    else
-                        InitializeIMU(1e2, 1e5, true);
-                }
-
-
-                // Check redundant local Keyframes
-                KeyFrameCulling();
-
-#ifdef REGISTER_TIMES
-                std::chrono::steady_clock::time_point time_EndKFCulling = std::chrono::steady_clock::now();
-
-                timeKFCulling_ms = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndKFCulling - time_EndLBA).count();
-                vdKFCulling_ms.push_back(timeKFCulling_ms);
-#endif
-
-                if ((mTinit<50.0f) && mbInertial)
-                {
-                    if(mpCurrentKeyFrame->GetMap()->isImuInitialized() && mpTracker->mState==Tracking::OK) // Enter here everytime local-mapping is called
-                    {
-                        if(!mpCurrentKeyFrame->GetMap()->GetIniertialBA1()){
-                            if (mTinit>5.0f)
-                            {
-                                cout << "start VIBA 1" << endl;
-                                mpCurrentKeyFrame->GetMap()->SetIniertialBA1();
-                                if (mbMonocular)
-                                    InitializeIMU(1.f, 1e5, true);
-                                else
-                                    InitializeIMU(1.f, 1e5, true);
-
-                                cout << "end VIBA 1" << endl;
-                            }
-                        }
-                        else if(!mpCurrentKeyFrame->GetMap()->GetIniertialBA2()){
-                            if (mTinit>15.0f){
-                                cout << "start VIBA 2" << endl;
-                                mpCurrentKeyFrame->GetMap()->SetIniertialBA2();
-                                if (mbMonocular)
-                                    InitializeIMU(0.f, 0.f, true);
-                                else
-                                    InitializeIMU(0.f, 0.f, true);
-
-                                cout << "end VIBA 2" << endl;
-                            }
-                        }
-
-                        // scale refinement
-                        if (((mpAtlas->KeyFramesInMap())<=200) &&
-                                ((mTinit>25.0f && mTinit<25.5f)||
-                                (mTinit>35.0f && mTinit<35.5f)||
-                                (mTinit>45.0f && mTinit<45.5f)||
-                                (mTinit>55.0f && mTinit<55.5f)||
-                                (mTinit>65.0f && mTinit<65.5f)||
-                                (mTinit>75.0f && mTinit<75.5f))){
-                            if (mbMonocular)
-                                ScaleRefinement();
-                        }
-                    }
-                }
-            }
-
-#ifdef REGISTER_TIMES
-            vdLBASync_ms.push_back(timeKFCulling_ms);
-            vdKFCullingSync_ms.push_back(timeKFCulling_ms);
-#endif
-
-            mpLoopCloser->InsertKeyFrame(mpCurrentKeyFrame);
-
-#ifdef REGISTER_TIMES
-            std::chrono::steady_clock::time_point time_EndLocalMap = std::chrono::steady_clock::now();
-
-            double timeLocalMap = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndLocalMap - time_StartProcessKF).count();
-            vdLMTotal_ms.push_back(timeLocalMap);
-#endif
-        }
-        else if(Stop() && !mbBadImu)
-        {
-            // Safe area to stop
-            while(isStopped() && !CheckFinish())
-            {
-                usleep(3000);
-            }
-            if(CheckFinish())
-                break;
-        }
-
-        ResetIfRequested();
-
-        // Tracking will see that Local Mapping is busy
-        SetAcceptKeyFrames(true);
-
         if(CheckFinish())
             break;
+
+        RunOneStep();
 
         usleep(3000);
     }
 
+    PrintAdmissionV5AggregateSummary();
     SetFinish();
+}
+
+bool LocalMapping::RunOneStep()
+{
+    bool processedKeyFrame = false;
+
+    // Tracking will see that Local Mapping is busy
+    SetAcceptKeyFrames(false);
+
+    // Check if there are keyframes in the queue
+    if(CheckNewKeyFrames() && !mbBadImu)
+    {
+#ifdef REGISTER_TIMES
+        double timeLBA_ms = 0;
+        double timeKFCulling_ms = 0;
+
+        std::chrono::steady_clock::time_point time_StartProcessKF = std::chrono::steady_clock::now();
+#endif
+        processedKeyFrame = true;
+
+        // BoW conversion and insertion in Map
+        ProcessNewKeyFrame();
+#ifdef REGISTER_TIMES
+        std::chrono::steady_clock::time_point time_EndProcessKF = std::chrono::steady_clock::now();
+
+        double timeProcessKF = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndProcessKF - time_StartProcessKF).count();
+        vdKFInsert_ms.push_back(timeProcessKF);
+#endif
+
+        // Check recent MapPoints
+        MapPointCulling();
+#ifdef REGISTER_TIMES
+        std::chrono::steady_clock::time_point time_EndMPCulling = std::chrono::steady_clock::now();
+
+        double timeMPCulling = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndMPCulling - time_EndProcessKF).count();
+        vdMPCulling_ms.push_back(timeMPCulling);
+#endif
+
+        // Triangulate new MapPoints
+        CreateNewMapPoints();
+        UpdateInstanceStructure();
+
+#ifdef REGISTER_TIMES
+        std::chrono::steady_clock::time_point time_EndMPCreation = std::chrono::steady_clock::now();
+
+        double timeMPCreation = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndMPCreation - time_EndMPCulling).count();
+        vdMPCreation_ms.push_back(timeMPCreation);
+#endif
+
+        mbSequentialMaintenancePending = true;
+        if(SequentialLocalMappingMode())
+            ++mnSequentialKeyFramesSinceMaintenance;
+
+        mbAbortBA = false;
+
+        const bool queueDrained = !CheckNewKeyFrames();
+        bool runMaintenanceNow = queueDrained && !stopRequested();
+        if(runMaintenanceNow && SequentialLocalMappingMode())
+        {
+            runMaintenanceNow =
+                mnSequentialKeyFramesSinceMaintenance >= SequentialLocalMappingMaintenancePeriod();
+        }
+
+        if(runMaintenanceNow)
+            RunMaintenanceStep(false);
+    }
+    else if(Stop() && !mbBadImu)
+    {
+        // Safe area to stop
+        while(isStopped() && !CheckFinish())
+        {
+            usleep(3000);
+        }
+    }
+
+    ResetIfRequested();
+
+    // Tracking will see that Local Mapping is idle
+    SetAcceptKeyFrames(true);
+
+    return processedKeyFrame;
+}
+
+bool LocalMapping::RunMaintenanceStep(const bool force)
+{
+    if(!mpCurrentKeyFrame || !mbSequentialMaintenancePending)
+        return false;
+    if(!force && CheckNewKeyFrames())
+        return false;
+    if(stopRequested())
+        return false;
+
+#ifdef REGISTER_TIMES
+    double timeKFCulling_ms = 0;
+    std::chrono::steady_clock::time_point time_StartMaintenance = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point time_EndMPCreation = time_StartMaintenance;
+#endif
+
+    SearchInNeighbors();
+
+#ifdef REGISTER_TIMES
+    time_EndMPCreation = std::chrono::steady_clock::now();
+#endif
+
+    bool b_doneLBA = false;
+    int num_FixedKF_BA = 0;
+    int num_OptKF_BA = 0;
+    int num_MPs_BA = 0;
+    int num_edges_BA = 0;
+
+    if(mpAtlas->KeyFramesInMap()>2)
+    {
+        if(mbInertial && mpCurrentKeyFrame->GetMap()->isImuInitialized())
+        {
+            float dist = (mpCurrentKeyFrame->mPrevKF->GetCameraCenter() - mpCurrentKeyFrame->GetCameraCenter()).norm() +
+                    (mpCurrentKeyFrame->mPrevKF->mPrevKF->GetCameraCenter() - mpCurrentKeyFrame->mPrevKF->GetCameraCenter()).norm();
+
+            if(dist>0.05)
+                mTinit += mpCurrentKeyFrame->mTimeStamp - mpCurrentKeyFrame->mPrevKF->mTimeStamp;
+            if(!mpCurrentKeyFrame->GetMap()->GetIniertialBA2())
+            {
+                if((mTinit<10.f) && (dist<0.02))
+                {
+                    cout << "Not enough motion for initializing. Reseting..." << endl;
+                    unique_lock<mutex> lock(mMutexReset);
+                    mbResetRequestedActiveMap = true;
+                    mpMapToReset = mpCurrentKeyFrame->GetMap();
+                    mbBadImu = true;
+                }
+            }
+
+            bool bLarge = ((mpTracker->GetMatchesInliers()>75)&&mbMonocular)||((mpTracker->GetMatchesInliers()>100)&&!mbMonocular);
+            Optimizer::LocalInertialBA(mpCurrentKeyFrame, &mbAbortBA, mpCurrentKeyFrame->GetMap(),num_FixedKF_BA,num_OptKF_BA,num_MPs_BA,num_edges_BA, bLarge, !mpCurrentKeyFrame->GetMap()->GetIniertialBA2());
+            b_doneLBA = true;
+        }
+        else
+        {
+            Optimizer::LocalBundleAdjustment(mpCurrentKeyFrame,&mbAbortBA, mpCurrentKeyFrame->GetMap(),num_FixedKF_BA,num_OptKF_BA,num_MPs_BA,num_edges_BA);
+            b_doneLBA = true;
+        }
+    }
+
+    if(b_doneLBA)
+    {
+        mnAdmissionLastLBAEdges = num_edges_BA;
+        mnAdmissionLastLBAMapPoints = num_MPs_BA;
+        mnAdmissionLastLBAOptKeyFrames = num_OptKF_BA;
+        mnAdmissionLastLBAFixedKeyFrames = num_FixedKF_BA;
+    }
+
+#ifdef REGISTER_TIMES
+    std::chrono::steady_clock::time_point time_EndLBA = std::chrono::steady_clock::now();
+
+    if(b_doneLBA)
+    {
+        const double timeLBA_ms = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndLBA - time_EndMPCreation).count();
+        vdLBA_ms.push_back(timeLBA_ms);
+
+        nLBA_exec += 1;
+        if(mbAbortBA)
+            nLBA_abort += 1;
+        vnLBA_edges.push_back(num_edges_BA);
+        vnLBA_KFopt.push_back(num_OptKF_BA);
+        vnLBA_KFfixed.push_back(num_FixedKF_BA);
+        vnLBA_MPs.push_back(num_MPs_BA);
+    }
+#endif
+
+    if(!mpCurrentKeyFrame->GetMap()->isImuInitialized() && mbInertial)
+    {
+        if (mbMonocular)
+            InitializeIMU(1e2, 1e10, true);
+        else
+            InitializeIMU(1e2, 1e5, true);
+    }
+
+    KeyFrameCulling();
+
+#ifdef REGISTER_TIMES
+    std::chrono::steady_clock::time_point time_EndKFCulling = std::chrono::steady_clock::now();
+    timeKFCulling_ms = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndKFCulling - time_EndLBA).count();
+    vdKFCulling_ms.push_back(timeKFCulling_ms);
+#endif
+
+    if ((mTinit<50.0f) && mbInertial)
+    {
+        if(mpCurrentKeyFrame->GetMap()->isImuInitialized() && mpTracker->mState==Tracking::OK)
+        {
+            if(!mpCurrentKeyFrame->GetMap()->GetIniertialBA1()){
+                if (mTinit>5.0f)
+                {
+                    cout << "start VIBA 1" << endl;
+                    mpCurrentKeyFrame->GetMap()->SetIniertialBA1();
+                    if (mbMonocular)
+                        InitializeIMU(1.f, 1e5, true);
+                    else
+                        InitializeIMU(1.f, 1e5, true);
+                    cout << "end VIBA 1" << endl;
+                }
+            }
+            else if(!mpCurrentKeyFrame->GetMap()->GetIniertialBA2()){
+                if (mTinit>15.0f){
+                    cout << "start VIBA 2" << endl;
+                    mpCurrentKeyFrame->GetMap()->SetIniertialBA2();
+                    if (mbMonocular)
+                        InitializeIMU(0.f, 0.f, true);
+                    else
+                        InitializeIMU(0.f, 0.f, true);
+                    cout << "end VIBA 2" << endl;
+                }
+            }
+
+            if (((mpAtlas->KeyFramesInMap())<=200) &&
+                    ((mTinit>25.0f && mTinit<25.5f)||
+                    (mTinit>35.0f && mTinit<35.5f)||
+                    (mTinit>45.0f && mTinit<45.5f)||
+                    (mTinit>55.0f && mTinit<55.5f)||
+                    (mTinit>65.0f && mTinit<65.5f)||
+                    (mTinit>75.0f && mTinit<75.5f))){
+                if (mbMonocular)
+                    ScaleRefinement();
+            }
+        }
+    }
+
+#ifdef REGISTER_TIMES
+    vdLBASync_ms.push_back(timeKFCulling_ms);
+    vdKFCullingSync_ms.push_back(timeKFCulling_ms);
+#endif
+
+    if(mpLoopCloser)
+        mpLoopCloser->InsertKeyFrame(mpCurrentKeyFrame);
+
+#ifdef REGISTER_TIMES
+    std::chrono::steady_clock::time_point time_EndLocalMap = std::chrono::steady_clock::now();
+    const double timeLocalMap = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndLocalMap - time_StartMaintenance).count();
+    vdLMTotal_ms.push_back(timeLocalMap);
+#endif
+
+    mbSequentialMaintenancePending = false;
+    mnSequentialKeyFramesSinceMaintenance = 0;
+    return true;
 }
 
 void LocalMapping::InsertKeyFrame(KeyFrame *pKF)
@@ -691,6 +1934,8 @@ void LocalMapping::InsertKeyFrame(KeyFrame *pKF)
     unique_lock<mutex> lock(mMutexNewKFs);
     mlNewKeyFrames.push_back(pKF);
     mbAbortBA=true;
+    if(SequentialLocalMappingMode() && HoldAcceptKeyFramesWhenSequentialQueueHasWork())
+        SetAcceptKeyFrames(false);
 }
 
 
@@ -821,31 +2066,157 @@ void LocalMapping::MapPointCulling()
         nThObs = 3;
     const int cnThObs = nThObs;
 
-    int borrar = mlpRecentAddedMapPoints.size();
+    const int recentPointsAtEntry = mlpRecentAddedMapPoints.size();
+    int borrar = recentPointsAtEntry;
+    const bool nearBoundaryDiagnostics = EnableNearBoundaryDiagnostics();
+    const bool v5UsefulnessLog = DynamicMapAdmissionV5UsefulnessLog();
+    int recentNearBoundaryPoints = 0;
+    int recentCleanStaticPoints = 0;
+    int recentDirectDynamicPoints = 0;
+    int recentScoreAdmissionPoints = 0;
+    int culledNearBoundaryPreBad = 0;
+    int culledNearBoundaryFoundRatio = 0;
+    int culledNearBoundaryLowObs = 0;
+    int culledScoreAdmissionPreBad = 0;
+    int culledScoreAdmissionFoundRatio = 0;
+    int culledScoreAdmissionLowObs = 0;
+    int culledCleanFoundRatio = 0;
+    int culledCleanLowObs = 0;
+    int survivedNearBoundaryPoints = 0;
+    int survivedCleanStaticPoints = 0;
+    int survivedScoreAdmissionPoints = 0;
+    int maturedNearBoundaryPoints = 0;
+    int maturedCleanStaticPoints = 0;
+    int maturedScoreAdmissionPoints = 0;
+    int scoreAdmissionPoseUseEdges = 0;
+    int scoreAdmissionPoseUseInliers = 0;
+    double scoreAdmissionPoseUseChi2Sum = 0.0;
 
     while(lit!=mlpRecentAddedMapPoints.end())
     {
         MapPoint* pMP = *lit;
+        const bool admissionNearBoundary =
+            nearBoundaryDiagnostics && pMP &&
+            pMP->WasCreatedFromStaticNearDynamicBoundary();
+        const bool admissionDirectDynamic =
+            nearBoundaryDiagnostics && pMP &&
+            pMP->WasCreatedFromDirectDynamicAdmission();
+        const bool scoreAdmission =
+            v5UsefulnessLog && pMP && pMP->WasCreatedFromScoreAdmission();
+        if(nearBoundaryDiagnostics && pMP)
+        {
+            if(admissionDirectDynamic)
+                ++recentDirectDynamicPoints;
+            else if(admissionNearBoundary)
+                ++recentNearBoundaryPoints;
+            else
+                ++recentCleanStaticPoints;
+        }
+        if(scoreAdmission)
+        {
+            ++recentScoreAdmissionPoints;
+            const int poseUseCount = pMP->GetSupportQualityPoseUseCount();
+            scoreAdmissionPoseUseEdges += poseUseCount;
+            scoreAdmissionPoseUseInliers += pMP->GetSupportQualityPoseUseInliers();
+            scoreAdmissionPoseUseChi2Sum +=
+                pMP->GetSupportQualityPoseUseMeanChi2() *
+                static_cast<double>(poseUseCount);
+        }
 
         if(pMP->isBad())
+        {
+            if(admissionNearBoundary)
+                ++culledNearBoundaryPreBad;
+            if(scoreAdmission)
+                ++culledScoreAdmissionPreBad;
             lit = mlpRecentAddedMapPoints.erase(lit);
+        }
         else if(pMP->GetFoundRatio()<0.25f)
         {
+            if(admissionNearBoundary)
+                ++culledNearBoundaryFoundRatio;
+            else if(nearBoundaryDiagnostics && !admissionDirectDynamic)
+                ++culledCleanFoundRatio;
+            if(scoreAdmission)
+                ++culledScoreAdmissionFoundRatio;
             pMP->SetBadFlag();
             lit = mlpRecentAddedMapPoints.erase(lit);
         }
         else if(((int)nCurrentKFid-(int)pMP->mnFirstKFid)>=2 && pMP->Observations()<=cnThObs)
         {
+            if(admissionNearBoundary)
+                ++culledNearBoundaryLowObs;
+            else if(nearBoundaryDiagnostics && !admissionDirectDynamic)
+                ++culledCleanLowObs;
+            if(scoreAdmission)
+                ++culledScoreAdmissionLowObs;
             pMP->SetBadFlag();
             lit = mlpRecentAddedMapPoints.erase(lit);
         }
         else if(((int)nCurrentKFid-(int)pMP->mnFirstKFid)>=3)
+        {
+            if(admissionNearBoundary)
+                ++maturedNearBoundaryPoints;
+            else if(nearBoundaryDiagnostics && !admissionDirectDynamic)
+                ++maturedCleanStaticPoints;
+            if(scoreAdmission)
+                ++maturedScoreAdmissionPoints;
             lit = mlpRecentAddedMapPoints.erase(lit);
+        }
         else
         {
+            if(admissionNearBoundary)
+                ++survivedNearBoundaryPoints;
+            else if(nearBoundaryDiagnostics && !admissionDirectDynamic)
+                ++survivedCleanStaticPoints;
+            if(scoreAdmission)
+                ++survivedScoreAdmissionPoints;
             lit++;
             borrar--;
         }
+    }
+
+    if(nearBoundaryDiagnostics)
+    {
+        std::cout << "[STSLAM_NEAR_BOUNDARY_CULLING]"
+                  << " frame=" << mpCurrentKeyFrame->mnFrameId
+                  << " current_kf=" << mpCurrentKeyFrame->mnId
+                  << " recent_points=" << recentPointsAtEntry
+                  << " remaining_recent_points=" << borrar
+                  << " recent_near_boundary=" << recentNearBoundaryPoints
+                  << " recent_clean_static=" << recentCleanStaticPoints
+                  << " recent_direct_dynamic=" << recentDirectDynamicPoints
+                  << " near_prebad=" << culledNearBoundaryPreBad
+                  << " near_culled_found_ratio="
+                  << culledNearBoundaryFoundRatio
+                  << " near_culled_low_obs=" << culledNearBoundaryLowObs
+                  << " near_survived=" << survivedNearBoundaryPoints
+                  << " near_matured=" << maturedNearBoundaryPoints
+                  << " clean_culled_found_ratio=" << culledCleanFoundRatio
+                  << " clean_culled_low_obs=" << culledCleanLowObs
+                  << " clean_survived=" << survivedCleanStaticPoints
+                  << " clean_matured=" << maturedCleanStaticPoints
+                  << std::endl;
+    }
+
+    if(v5UsefulnessLog && recentScoreAdmissionPoints > 0)
+    {
+        RecordAdmissionV5LifecycleEvent(
+            mpCurrentKeyFrame,
+            recentPointsAtEntry,
+            borrar,
+            recentScoreAdmissionPoints,
+            culledScoreAdmissionPreBad,
+            culledScoreAdmissionFoundRatio,
+            culledScoreAdmissionLowObs,
+            survivedScoreAdmissionPoints,
+            maturedScoreAdmissionPoints,
+            scoreAdmissionPoseUseEdges,
+            scoreAdmissionPoseUseInliers,
+            scoreAdmissionPoseUseEdges > 0 ?
+                scoreAdmissionPoseUseChi2Sum /
+                    static_cast<double>(scoreAdmissionPoseUseEdges) :
+                0.0);
     }
 }
 
@@ -870,9 +2241,36 @@ void LocalMapping::CreateNewMapPoints()
     int sameInstancePairsAfterReproj1 = 0;
     int sameInstancePairsAfterReproj2 = 0;
     int sameInstancePairsAfterScale = 0;
+    const bool nearBoundaryDiagnostics = EnableNearBoundaryDiagnostics();
+    int lmCreatedNearBoundaryPoints = 0;
+    int lmCreatedCleanStaticPoints = 0;
+    int lmCreatedDirectDynamicPoints = 0;
     const KeyFrameFeatureStats currentKFStats =
         debugFocusFrame ? CollectKeyFrameFeatureStats(mpCurrentKeyFrame) : KeyFrameFeatureStats();
     std::map<int, int> skippedShortBaselineNeighbors;
+    const AdmissionStateAwarenessContext admissionStateContext =
+        MakeAdmissionStateAwarenessContext(
+            mpTracker,
+            mpCurrentKeyFrame,
+            mbAdmissionStateHasKfStepEwma,
+            mdAdmissionStateKfStepEwma,
+            mnAdmissionLastLBAEdges,
+            mnAdmissionLastLBAMapPoints);
+    if(admissionStateContext.keyframeStep >= 0.0)
+    {
+        const double alpha = DynamicMapAdmissionStateKfStepEwmaAlpha();
+        if(mbAdmissionStateHasKfStepEwma)
+        {
+            mdAdmissionStateKfStepEwma =
+                (1.0 - alpha) * mdAdmissionStateKfStepEwma +
+                alpha * admissionStateContext.keyframeStep;
+        }
+        else
+        {
+            mdAdmissionStateKfStepEwma = admissionStateContext.keyframeStep;
+            mbAdmissionStateHasKfStepEwma = true;
+        }
+    }
 
     // Retrieve neighbor keyframes in covisibility graph
     int nn = 10;
@@ -989,13 +2387,135 @@ void LocalMapping::CreateNewMapPoints()
         bool bCoarse = mbInertial && mpTracker->mState==Tracking::RECENTLY_LOST && mpCurrentKeyFrame->GetMap()->GetIniertialBA2();
 
         matcher.SearchForTriangulation(mpCurrentKeyFrame,pKF2,vMatchedIndices,false,bCoarse);
+        const bool dynamicMapAdmissionVetoCreateNewMapPoints =
+            DynamicMapAdmissionVetoCreateNewMapPoints();
+        const bool dynamicMapAdmissionBoundaryVetoCreateNewMapPoints =
+            DynamicMapAdmissionBoundaryVetoCreateNewMapPoints();
+        const bool dynamicMapAdmissionBoundarySameCountControlCreateNewMapPoints =
+            DynamicMapAdmissionBoundarySameCountControlCreateNewMapPoints();
+        const bool dynamicMapAdmissionBoundaryMatchedControlCreateNewMapPoints =
+            DynamicMapAdmissionBoundaryMatchedControlCreateNewMapPoints();
+        const bool dynamicMapAdmissionDelayedBoundaryCreateNewMapPoints =
+            DynamicMapAdmissionDelayedBoundaryCreateNewMapPoints();
+        const bool dynamicMapAdmissionSupportQuality =
+            DynamicMapAdmissionSupportQuality();
+        const bool dynamicMapAdmissionScoreBased =
+            DynamicMapAdmissionScoreBased() &&
+            dynamicMapAdmissionSupportQuality &&
+            dynamicMapAdmissionDelayedBoundaryCreateNewMapPoints;
+        const bool dynamicMapAdmissionV5UsefulnessLog =
+            DynamicMapAdmissionV5UsefulnessLog() &&
+            dynamicMapAdmissionScoreBased;
+        const bool dynamicMapAdmissionBoundaryGateCreateNewMapPoints =
+            dynamicMapAdmissionBoundaryVetoCreateNewMapPoints ||
+            dynamicMapAdmissionDelayedBoundaryCreateNewMapPoints;
+        int supportPromotedBoundaryPairs = 0;
+        int promotedGeomEnter = 0;
+        int promotedGeomAfterParallax = 0;
+        int promotedGeomAfterTriangulation = 0;
+        int promotedGeomAfterDepth = 0;
+        int promotedGeomAfterReproj1 = 0;
+        int promotedGeomAfterReproj2 = 0;
+        int promotedGeomAfterScale = 0;
+        int promotedGeomCreated = 0;
+        std::set<std::pair<size_t, size_t> > promotedBoundaryPairsForGeometry;
+        std::map<std::pair<size_t, size_t>, AdmissionScoreCandidateInfo> scoreCandidateInfoByPair;
+        int scoreSupportCandidateBoundaryPairs = 0;
+        int scoreSupportAcceptedBoundaryPairs = 0;
+        int scoreSupportRejectedBoundaryPairs = 0;
+        int scoreCandidateGeomEvaluatedBoundaryPairs = 0;
+        int scorePostGeomRejectedBoundaryPairs = 0;
+        int scoreCreatedBoundaryPairs = 0;
+        int stateAwareCandidateBoundaryPairs = 0;
+        int stateAwareAllowedBoundaryPairs = 0;
+        int stateAwareRejectedBoundaryPairs = 0;
         if((ForceFilterDetectedDynamicFeatures() ||
+            dynamicMapAdmissionVetoCreateNewMapPoints ||
+            dynamicMapAdmissionBoundaryGateCreateNewMapPoints ||
+            dynamicMapAdmissionBoundarySameCountControlCreateNewMapPoints ||
+            dynamicMapAdmissionBoundaryMatchedControlCreateNewMapPoints ||
             SplitDetectedDynamicFeaturesFromStaticMapping()) &&
            !vMatchedIndices.empty())
         {
             vector<pair<size_t,size_t> > vStaticMatchedIndices;
             vStaticMatchedIndices.reserve(vMatchedIndices.size());
             int skippedInstancePairs = 0;
+            int skippedBoundaryPairs = 0;
+            int delayedBoundaryRejectedPairs = 0;
+            int boundarySupportSum = 0;
+            int qualityRejectedBoundaryPairs = 0;
+            int qualityRawSupportSum = 0;
+            int qualityFoundSupportSum = 0;
+            int qualityFrameSupportSum = 0;
+            int qualityRawDepthSupportSum = 0;
+            int qualityReliableSupportSum = 0;
+            int qualityResidualSupportSum = 0;
+            int qualityDepthSupportSum = 0;
+            int boundarySameCountBudget = 0;
+            int skippedNonBoundaryControlPairs = 0;
+            int boundaryMatchedControlBudget = 0;
+            int skippedMatchedNonBoundaryControlPairs = 0;
+            int exactSkippedMatchedNonBoundaryControlPairs = 0;
+            int fallbackSkippedMatchedNonBoundaryControlPairs = 0;
+            std::map<AdmissionMatchedControlBin, int> boundaryMatchedExactBudget;
+            std::map<AdmissionMatchedControlBin, int> boundaryMatchedFallbackBudget;
+            if(dynamicMapAdmissionBoundarySameCountControlCreateNewMapPoints)
+            {
+                for(size_t pairIdx = 0; pairIdx < vMatchedIndices.size(); ++pairIdx)
+                {
+                    const int idx1 = static_cast<int>(vMatchedIndices[pairIdx].first);
+                    const int idx2 = static_cast<int>(vMatchedIndices[pairIdx].second);
+                    const int instanceId1 = mpCurrentKeyFrame->GetFeatureInstanceId(idx1);
+                    const int instanceId2 = pKF2->GetFeatureInstanceId(idx2);
+                    const bool shouldSkipInstancePair =
+                        (ForceFilterDetectedDynamicFeatures() ||
+                         dynamicMapAdmissionVetoCreateNewMapPoints) ?
+                        (instanceId1 > 0 || instanceId2 > 0) :
+                        (ShouldDetachRgbdInstanceFromStaticPath(mpCurrentKeyFrame->GetMap(), instanceId1) ||
+                         ShouldDetachRgbdInstanceFromStaticPath(mpCurrentKeyFrame->GetMap(), instanceId2));
+                    if(shouldSkipInstancePair)
+                        continue;
+
+                    if(mpCurrentKeyFrame->IsFeatureStaticNearDynamicMask(idx1) ||
+                       pKF2->IsFeatureStaticNearDynamicMask(idx2))
+                        ++boundarySameCountBudget;
+                }
+            }
+            if(dynamicMapAdmissionBoundaryMatchedControlCreateNewMapPoints)
+            {
+                for(size_t pairIdx = 0; pairIdx < vMatchedIndices.size(); ++pairIdx)
+                {
+                    const int idx1 = static_cast<int>(vMatchedIndices[pairIdx].first);
+                    const int idx2 = static_cast<int>(vMatchedIndices[pairIdx].second);
+                    const int instanceId1 = mpCurrentKeyFrame->GetFeatureInstanceId(idx1);
+                    const int instanceId2 = pKF2->GetFeatureInstanceId(idx2);
+                    const bool shouldSkipInstancePair =
+                        (ForceFilterDetectedDynamicFeatures() ||
+                         dynamicMapAdmissionVetoCreateNewMapPoints) ?
+                        (instanceId1 > 0 || instanceId2 > 0) :
+                        (ShouldDetachRgbdInstanceFromStaticPath(mpCurrentKeyFrame->GetMap(), instanceId1) ||
+                         ShouldDetachRgbdInstanceFromStaticPath(mpCurrentKeyFrame->GetMap(), instanceId2));
+                    if(shouldSkipInstancePair)
+                        continue;
+
+                    const bool isBoundaryRiskPair =
+                        mpCurrentKeyFrame->IsFeatureStaticNearDynamicMask(idx1) ||
+                        pKF2->IsFeatureStaticNearDynamicMask(idx2);
+                    if(isBoundaryRiskPair)
+                    {
+                        ++boundaryMatchedControlBudget;
+                        const float pairDepth =
+                            PairMatchedControlDepth(mpCurrentKeyFrame, idx1, pKF2, idx2);
+                        AddAdmissionMatchedControlBudget(
+                            boundaryMatchedExactBudget,
+                            boundaryMatchedFallbackBudget,
+                            MakeAdmissionMatchedControlBin(
+                                mpCurrentKeyFrame, idx1, pairDepth, true),
+                            MakeAdmissionMatchedControlBin(
+                                mpCurrentKeyFrame, idx1, pairDepth, false));
+                    }
+                }
+            }
             for(size_t pairIdx = 0; pairIdx < vMatchedIndices.size(); ++pairIdx)
             {
                 const int idx1 = static_cast<int>(vMatchedIndices[pairIdx].first);
@@ -1003,7 +2523,8 @@ void LocalMapping::CreateNewMapPoints()
                 const int instanceId1 = mpCurrentKeyFrame->GetFeatureInstanceId(idx1);
                 const int instanceId2 = pKF2->GetFeatureInstanceId(idx2);
                 const bool shouldSkipInstancePair =
-                    ForceFilterDetectedDynamicFeatures() ?
+                    (ForceFilterDetectedDynamicFeatures() ||
+                     dynamicMapAdmissionVetoCreateNewMapPoints) ?
                     (instanceId1 > 0 || instanceId2 > 0) :
                     (ShouldDetachRgbdInstanceFromStaticPath(mpCurrentKeyFrame->GetMap(), instanceId1) ||
                      ShouldDetachRgbdInstanceFromStaticPath(mpCurrentKeyFrame->GetMap(), instanceId2));
@@ -1012,18 +2533,317 @@ void LocalMapping::CreateNewMapPoints()
                     ++skippedInstancePairs;
                     continue;
                 }
+                const bool isBoundaryRiskCurrent =
+                    mpCurrentKeyFrame->IsFeatureStaticNearDynamicMask(idx1);
+                const bool isBoundaryRiskNeighbor =
+                    pKF2->IsFeatureStaticNearDynamicMask(idx2);
+                const bool isBoundaryRiskPair =
+                    isBoundaryRiskCurrent || isBoundaryRiskNeighbor;
+                if(dynamicMapAdmissionBoundaryGateCreateNewMapPoints &&
+                   isBoundaryRiskPair)
+                {
+                    int support1 = 0;
+                    int support2 = 0;
+                    bool supportOk = false;
+                    AdmissionScoreCandidateInfo scoreInfo;
+                    if(dynamicMapAdmissionDelayedBoundaryCreateNewMapPoints)
+                    {
+                        if(isBoundaryRiskCurrent)
+                        {
+                            if(dynamicMapAdmissionSupportQuality)
+                            {
+                                const AdmissionSupportQualityResult quality1 =
+                                    EvaluateCleanStaticMapSupportQualityNearFeature(
+                                        mpCurrentKeyFrame,
+                                        idx1,
+                                        DynamicMapAdmissionDelayedBoundarySupportRadiusPx(),
+                                        DynamicMapAdmissionDelayedBoundaryMinObservations(),
+                                        idx1 < static_cast<int>(mpCurrentKeyFrame->mvDepth.size()) ?
+                                        mpCurrentKeyFrame->mvDepth[idx1] :
+                                        -1.0f);
+                                support1 = quality1.rawSupport;
+                                qualityRawSupportSum += quality1.rawSupport;
+                                qualityFoundSupportSum +=
+                                    quality1.foundStableSupport;
+                                qualityFrameSupportSum +=
+                                    quality1.frameStableSupport;
+                                qualityRawDepthSupportSum +=
+                                    quality1.rawDepthConsistentSupport;
+                                qualityReliableSupportSum += quality1.reliableSupport;
+                                qualityResidualSupportSum +=
+                                    quality1.residualReliableSupport;
+                                qualityDepthSupportSum +=
+                                    quality1.depthConsistentSupport;
+                                if(dynamicMapAdmissionScoreBased)
+                                    AccumulateAdmissionScoreSupport(scoreInfo, quality1);
+                                supportOk = quality1.pass;
+                            }
+                            else
+                            {
+                                support1 = CountCleanStaticMapSupportNearFeature(
+                                    mpCurrentKeyFrame,
+                                    idx1,
+                                    DynamicMapAdmissionDelayedBoundarySupportRadiusPx(),
+                                    DynamicMapAdmissionDelayedBoundaryMinObservations());
+                            }
+                        }
+                        if(isBoundaryRiskNeighbor)
+                        {
+                            if(dynamicMapAdmissionSupportQuality)
+                            {
+                                const AdmissionSupportQualityResult quality2 =
+                                    EvaluateCleanStaticMapSupportQualityNearFeature(
+                                        pKF2,
+                                        idx2,
+                                        DynamicMapAdmissionDelayedBoundarySupportRadiusPx(),
+                                        DynamicMapAdmissionDelayedBoundaryMinObservations(),
+                                        idx2 < static_cast<int>(pKF2->mvDepth.size()) ?
+                                        pKF2->mvDepth[idx2] :
+                                        -1.0f);
+                                support2 = quality2.rawSupport;
+                                qualityRawSupportSum += quality2.rawSupport;
+                                qualityFoundSupportSum +=
+                                    quality2.foundStableSupport;
+                                qualityFrameSupportSum +=
+                                    quality2.frameStableSupport;
+                                qualityRawDepthSupportSum +=
+                                    quality2.rawDepthConsistentSupport;
+                                qualityReliableSupportSum += quality2.reliableSupport;
+                                qualityResidualSupportSum +=
+                                    quality2.residualReliableSupport;
+                                qualityDepthSupportSum +=
+                                    quality2.depthConsistentSupport;
+                                if(dynamicMapAdmissionScoreBased)
+                                    AccumulateAdmissionScoreSupport(scoreInfo, quality2);
+                                supportOk = (!isBoundaryRiskCurrent || supportOk) &&
+                                            quality2.pass;
+                            }
+                            else
+                            {
+                                support2 = CountCleanStaticMapSupportNearFeature(
+                                    pKF2,
+                                    idx2,
+                                    DynamicMapAdmissionDelayedBoundarySupportRadiusPx(),
+                                    DynamicMapAdmissionDelayedBoundaryMinObservations());
+                            }
+                        }
+
+                        if(!dynamicMapAdmissionSupportQuality)
+                        {
+                            const bool currentOk =
+                                !isBoundaryRiskCurrent ||
+                                support1 >= DynamicMapAdmissionDelayedBoundaryMinSupport();
+                            const bool neighborOk =
+                                !isBoundaryRiskNeighbor ||
+                                support2 >= DynamicMapAdmissionDelayedBoundaryMinSupport();
+                            supportOk = currentOk && neighborOk;
+                        }
+                        boundarySupportSum += support1 + support2;
+                    }
+
+                    if(dynamicMapAdmissionScoreBased)
+                    {
+                        ++scoreSupportCandidateBoundaryPairs;
+                        scoreInfo.supportScore =
+                            ComputeAdmissionSupportScore(scoreInfo);
+                        supportOk =
+                            AdmissionScoreSupportAllowsGeometry(scoreInfo);
+                        if(DynamicMapAdmissionStateAware() && supportOk)
+                        {
+                            ++stateAwareCandidateBoundaryPairs;
+                            if(admissionStateContext.allowAdmission)
+                                ++stateAwareAllowedBoundaryPairs;
+                            else
+                            {
+                                ++stateAwareRejectedBoundaryPairs;
+                                supportOk = false;
+                            }
+                        }
+                        if(dynamicMapAdmissionV5UsefulnessLog)
+                        {
+                            PrintAdmissionV5CandidateSupportEvent(
+                                mpCurrentKeyFrame,
+                                pKF2,
+                                idx1,
+                                idx2,
+                                isBoundaryRiskCurrent,
+                                isBoundaryRiskNeighbor,
+                                supportOk,
+                                scoreInfo);
+                        }
+                    }
+
+                    if(dynamicMapAdmissionDelayedBoundaryCreateNewMapPoints &&
+                       supportOk)
+                    {
+                        ++supportPromotedBoundaryPairs;
+                        promotedBoundaryPairsForGeometry.insert(vMatchedIndices[pairIdx]);
+                        if(dynamicMapAdmissionScoreBased)
+                        {
+                            ++scoreSupportAcceptedBoundaryPairs;
+                            scoreCandidateInfoByPair[vMatchedIndices[pairIdx]] = scoreInfo;
+                        }
+                    }
+                    else
+                    {
+                        ++skippedBoundaryPairs;
+                        if(dynamicMapAdmissionScoreBased)
+                            ++scoreSupportRejectedBoundaryPairs;
+                        if(dynamicMapAdmissionDelayedBoundaryCreateNewMapPoints)
+                        {
+                            ++delayedBoundaryRejectedPairs;
+                            if(dynamicMapAdmissionSupportQuality)
+                                ++qualityRejectedBoundaryPairs;
+                        }
+                        continue;
+                    }
+                }
+                if(dynamicMapAdmissionBoundarySameCountControlCreateNewMapPoints &&
+                   !isBoundaryRiskPair &&
+                   skippedNonBoundaryControlPairs < boundarySameCountBudget)
+                {
+                    ++skippedNonBoundaryControlPairs;
+                    continue;
+                }
+                if(dynamicMapAdmissionBoundaryMatchedControlCreateNewMapPoints &&
+                   !isBoundaryRiskPair)
+                {
+                    bool usedExact = false;
+                    const float pairDepth =
+                        PairMatchedControlDepth(mpCurrentKeyFrame, idx1, pKF2, idx2);
+                    if(ConsumeAdmissionMatchedControlBudget(
+                           boundaryMatchedExactBudget,
+                           boundaryMatchedFallbackBudget,
+                           MakeAdmissionMatchedControlBin(
+                               mpCurrentKeyFrame, idx1, pairDepth, true),
+                           MakeAdmissionMatchedControlBin(
+                               mpCurrentKeyFrame, idx1, pairDepth, false),
+                           usedExact))
+                    {
+                        ++skippedMatchedNonBoundaryControlPairs;
+                        if(usedExact)
+                            ++exactSkippedMatchedNonBoundaryControlPairs;
+                        else
+                            ++fallbackSkippedMatchedNonBoundaryControlPairs;
+                        continue;
+                    }
+                }
                 vStaticMatchedIndices.push_back(vMatchedIndices[pairIdx]);
             }
 
             if(skippedInstancePairs > 0)
             {
-                std::cout << "[STSLAM_STATIC_MAPPING_DYNAMIC_SPLIT]"
+                std::cout << (dynamicMapAdmissionVetoCreateNewMapPoints ?
+                              "[STSLAM_DYNAMIC_MAP_ADMISSION_VETO]" :
+                              "[STSLAM_STATIC_MAPPING_DYNAMIC_SPLIT]")
                           << " frame=" << mpCurrentKeyFrame->mnFrameId
                           << " stage=create_new_map_points"
                           << " current_kf=" << mpCurrentKeyFrame->mnId
                           << " neighbor_kf=" << pKF2->mnId
                           << " skipped_instance_pairs=" << skippedInstancePairs
                           << " kept_static_pairs=" << vStaticMatchedIndices.size()
+                          << std::endl;
+            }
+            if(skippedBoundaryPairs > 0)
+            {
+                std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_VETO]"
+                          << " frame=" << mpCurrentKeyFrame->mnFrameId
+                          << " stage=create_new_map_points"
+                          << " current_kf=" << mpCurrentKeyFrame->mnId
+                          << " neighbor_kf=" << pKF2->mnId
+                          << " radius_px=" << DynamicMapAdmissionBoundaryRadiusPx()
+                          << " skipped_boundary_pairs=" << skippedBoundaryPairs
+                          << " kept_pairs=" << vStaticMatchedIndices.size()
+                          << std::endl;
+            }
+            if(dynamicMapAdmissionDelayedBoundaryCreateNewMapPoints)
+            {
+                std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY]"
+                          << " frame=" << mpCurrentKeyFrame->mnFrameId
+                          << " stage=create_new_map_points"
+                          << " current_kf=" << mpCurrentKeyFrame->mnId
+                          << " neighbor_kf=" << pKF2->mnId
+                          << " radius_px=" << DynamicMapAdmissionBoundaryRadiusPx()
+                          << " support_radius_px="
+                          << DynamicMapAdmissionDelayedBoundarySupportRadiusPx()
+                          << " min_support="
+                          << DynamicMapAdmissionDelayedBoundaryMinSupport()
+                          << " min_obs="
+                          << DynamicMapAdmissionDelayedBoundaryMinObservations()
+                          << " support_quality="
+                          << (dynamicMapAdmissionSupportQuality ? 1 : 0)
+                          << " score_based="
+                          << (dynamicMapAdmissionScoreBased ? 1 : 0)
+                          << " quality_min_reliable_support="
+                          << DynamicMapAdmissionSupportQualityMinReliableSupport()
+                          << " quality_min_depth_support="
+                          << DynamicMapAdmissionSupportQualityMinDepthSupport()
+                          << " quality_min_residual_obs="
+                          << DynamicMapAdmissionSupportQualityMinResidualObs()
+                          << " quality_min_inlier_rate="
+                          << DynamicMapAdmissionSupportQualityMinInlierRate()
+                          << " quality_max_mean_chi2="
+                          << DynamicMapAdmissionSupportQualityMaxMeanChi2()
+                          << " quality_min_found_ratio="
+                          << DynamicMapAdmissionSupportQualityMinFoundRatio()
+                          << " quality_min_frame_span="
+                          << DynamicMapAdmissionSupportQualityMinFrameSpan()
+                          << " quality_max_depth_rel_diff="
+                          << DynamicMapAdmissionSupportQualityMaxDepthRelDiff()
+                          << " delayed_rejected_boundary_pairs="
+                          << delayedBoundaryRejectedPairs
+                          << " support_promoted_boundary_pairs="
+                          << supportPromotedBoundaryPairs
+                          << " support_sum=" << boundarySupportSum
+                          << " quality_rejected_boundary_pairs="
+                          << qualityRejectedBoundaryPairs
+                          << " quality_raw_support_sum="
+                          << qualityRawSupportSum
+                          << " quality_found_support_sum="
+                          << qualityFoundSupportSum
+                          << " quality_frame_support_sum="
+                          << qualityFrameSupportSum
+                          << " quality_raw_depth_support_sum="
+                          << qualityRawDepthSupportSum
+                          << " quality_reliable_support_sum="
+                          << qualityReliableSupportSum
+                          << " quality_residual_support_sum="
+                          << qualityResidualSupportSum
+                          << " quality_depth_support_sum="
+                          << qualityDepthSupportSum
+                          << " kept_pairs=" << vStaticMatchedIndices.size()
+                          << std::endl;
+            }
+            if(dynamicMapAdmissionBoundarySameCountControlCreateNewMapPoints)
+            {
+                std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_CONTROL]"
+                          << " frame=" << mpCurrentKeyFrame->mnFrameId
+                          << " stage=create_new_map_points"
+                          << " current_kf=" << mpCurrentKeyFrame->mnId
+                          << " neighbor_kf=" << pKF2->mnId
+                          << " radius_px=" << DynamicMapAdmissionBoundaryRadiusPx()
+                          << " boundary_budget=" << boundarySameCountBudget
+                          << " skipped_nonboundary_pairs="
+                          << skippedNonBoundaryControlPairs
+                          << " kept_pairs=" << vStaticMatchedIndices.size()
+                          << std::endl;
+            }
+            if(dynamicMapAdmissionBoundaryMatchedControlCreateNewMapPoints)
+            {
+                std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_MATCHED_CONTROL]"
+                          << " frame=" << mpCurrentKeyFrame->mnFrameId
+                          << " stage=create_new_map_points"
+                          << " current_kf=" << mpCurrentKeyFrame->mnId
+                          << " neighbor_kf=" << pKF2->mnId
+                          << " radius_px=" << DynamicMapAdmissionBoundaryRadiusPx()
+                          << " boundary_budget=" << boundaryMatchedControlBudget
+                          << " skipped_matched_nonboundary_pairs="
+                          << skippedMatchedNonBoundaryControlPairs
+                          << " exact_skipped_pairs="
+                          << exactSkippedMatchedNonBoundaryControlPairs
+                          << " fallback_skipped_pairs="
+                          << fallbackSkippedMatchedNonBoundaryControlPairs
+                          << " kept_pairs=" << vStaticMatchedIndices.size()
                           << std::endl;
             }
             vMatchedIndices.swap(vStaticMatchedIndices);
@@ -1111,8 +2931,25 @@ void LocalMapping::CreateNewMapPoints()
         int pairSameInstanceAfterScale = 0;
         for(int ikp=0; ikp<nmatches; ikp++)
         {
-            const int &idx1 = vMatchedIndices[ikp].first;
-            const int &idx2 = vMatchedIndices[ikp].second;
+            const std::pair<size_t, size_t>& matchedPair = vMatchedIndices[ikp];
+            const int &idx1 = matchedPair.first;
+            const int &idx2 = matchedPair.second;
+            const bool promotedBoundaryCandidate =
+                promotedBoundaryPairsForGeometry.find(matchedPair) !=
+                promotedBoundaryPairsForGeometry.end();
+            const std::map<std::pair<size_t, size_t>, AdmissionScoreCandidateInfo>::const_iterator scoreInfoIt =
+                scoreCandidateInfoByPair.find(matchedPair);
+            const bool scoreBasedBoundaryCandidate =
+                dynamicMapAdmissionScoreBased &&
+                scoreInfoIt != scoreCandidateInfoByPair.end();
+            if(promotedBoundaryCandidate)
+                ++promotedGeomEnter;
+            double parallaxScore = 0.0;
+            double reprojRatio1 = 1.0;
+            double reprojRatio2 = 1.0;
+            double scaleScore = 0.0;
+            double finalCandidateScore = 0.0;
+            double finalTotalScore = 0.0;
             const int instanceIdCandidate1 = mpCurrentKeyFrame->GetFeatureInstanceId(idx1);
             const int instanceIdCandidate2 = pKF2->GetFeatureInstanceId(idx2);
             const bool sameInstanceCandidate =
@@ -1232,9 +3069,35 @@ void LocalMapping::CreateNewMapPoints()
                     ++sameInstancePairsAfterParallax;
                     ++pairSameInstanceAfterParallax;
                 }
+                if(promotedBoundaryCandidate)
+                    ++promotedGeomAfterParallax;
+                parallaxScore = Clamp01(
+                    (static_cast<double>(parallaxCosThreshold) -
+                     static_cast<double>(cosParallaxRays)) /
+                    std::max(1e-9,
+                             1.0 - static_cast<double>(parallaxCosThreshold)));
                 goodProj = GeometricTools::Triangulate(xn1, xn2, eigTcw1, eigTcw2, x3D);
                 if(!goodProj)
+                {
+                    if(dynamicMapAdmissionV5UsefulnessLog &&
+                       scoreBasedBoundaryCandidate)
+                    {
+                        PrintAdmissionV5CandidateGeometryEvent(
+                            mpCurrentKeyFrame,
+                            pKF2,
+                            idx1,
+                            idx2,
+                            "reject_triangulate",
+                            scoreInfoIt->second,
+                            parallaxScore,
+                            reprojRatio1,
+                            reprojRatio2,
+                            scaleScore,
+                            finalCandidateScore,
+                            finalTotalScore);
+                    }
                     continue;
+                }
             }
             else if(bStereo1 && cosParallaxStereo1<cosParallaxStereo2)
             {
@@ -1245,6 +3108,9 @@ void LocalMapping::CreateNewMapPoints()
                     ++sameInstancePairsAfterParallax;
                     ++pairSameInstanceAfterParallax;
                 }
+                if(promotedBoundaryCandidate)
+                    ++promotedGeomAfterParallax;
+                parallaxScore = 1.0;
                 goodProj = mpCurrentKeyFrame->UnprojectStereo(idx1, x3D);
             }
             else if(bStereo2 && cosParallaxStereo2<cosParallaxStereo1)
@@ -1256,10 +3122,30 @@ void LocalMapping::CreateNewMapPoints()
                     ++sameInstancePairsAfterParallax;
                     ++pairSameInstanceAfterParallax;
                 }
+                if(promotedBoundaryCandidate)
+                    ++promotedGeomAfterParallax;
+                parallaxScore = 1.0;
                 goodProj = pKF2->UnprojectStereo(idx2, x3D);
             }
             else
             {
+                if(dynamicMapAdmissionV5UsefulnessLog &&
+                   scoreBasedBoundaryCandidate)
+                {
+                    PrintAdmissionV5CandidateGeometryEvent(
+                        mpCurrentKeyFrame,
+                        pKF2,
+                        idx1,
+                        idx2,
+                        "reject_parallax",
+                        scoreInfoIt->second,
+                        parallaxScore,
+                        reprojRatio1,
+                        reprojRatio2,
+                        scaleScore,
+                        finalCandidateScore,
+                        finalTotalScore);
+                }
                 continue; //No stereo and very low parallax
             }
 
@@ -1267,26 +3153,87 @@ void LocalMapping::CreateNewMapPoints()
                 countStereoGoodProj++;
 
             if(!goodProj)
+            {
+                if(dynamicMapAdmissionV5UsefulnessLog &&
+                   scoreBasedBoundaryCandidate)
+                {
+                    PrintAdmissionV5CandidateGeometryEvent(
+                        mpCurrentKeyFrame,
+                        pKF2,
+                        idx1,
+                        idx2,
+                        "reject_triangulate",
+                        scoreInfoIt->second,
+                        parallaxScore,
+                        reprojRatio1,
+                        reprojRatio2,
+                        scaleScore,
+                        finalCandidateScore,
+                        finalTotalScore);
+                }
                 continue;
+            }
             if(sameInstanceCandidate)
             {
                 ++sameInstancePairsAfterTriangulation;
                 ++pairSameInstanceAfterTriangulation;
             }
+            if(promotedBoundaryCandidate)
+                ++promotedGeomAfterTriangulation;
 
             //Check triangulation in front of cameras
             float z1 = Rcw1.row(2).dot(x3D) + tcw1(2);
             if(z1<=0)
+            {
+                if(dynamicMapAdmissionV5UsefulnessLog &&
+                   scoreBasedBoundaryCandidate)
+                {
+                    PrintAdmissionV5CandidateGeometryEvent(
+                        mpCurrentKeyFrame,
+                        pKF2,
+                        idx1,
+                        idx2,
+                        "reject_depth",
+                        scoreInfoIt->second,
+                        parallaxScore,
+                        reprojRatio1,
+                        reprojRatio2,
+                        scaleScore,
+                        finalCandidateScore,
+                        finalTotalScore);
+                }
                 continue;
+            }
 
             float z2 = Rcw2.row(2).dot(x3D) + tcw2(2);
             if(z2<=0)
+            {
+                if(dynamicMapAdmissionV5UsefulnessLog &&
+                   scoreBasedBoundaryCandidate)
+                {
+                    PrintAdmissionV5CandidateGeometryEvent(
+                        mpCurrentKeyFrame,
+                        pKF2,
+                        idx1,
+                        idx2,
+                        "reject_depth",
+                        scoreInfoIt->second,
+                        parallaxScore,
+                        reprojRatio1,
+                        reprojRatio2,
+                        scaleScore,
+                        finalCandidateScore,
+                        finalTotalScore);
+                }
                 continue;
+            }
             if(sameInstanceCandidate)
             {
                 ++sameInstancePairsAfterPositiveDepth;
                 ++pairSameInstanceAfterDepth;
             }
+            if(promotedBoundaryCandidate)
+                ++promotedGeomAfterDepth;
 
             //Check reprojection error in first keyframe
             const float &sigmaSquare1 = mpCurrentKeyFrame->mvLevelSigma2[kp1.octave];
@@ -1300,8 +3247,33 @@ void LocalMapping::CreateNewMapPoints()
                 float errX1 = uv1.x - kp1.pt.x;
                 float errY1 = uv1.y - kp1.pt.y;
 
-                if((errX1*errX1+errY1*errY1)>5.991*sigmaSquare1)
+                const double reprojError1 =
+                    static_cast<double>(errX1 * errX1 + errY1 * errY1);
+                const double reprojLimit1 =
+                    static_cast<double>(5.991 * sigmaSquare1);
+                reprojRatio1 =
+                    reprojLimit1 > 0.0 ? reprojError1 / reprojLimit1 : 1.0;
+                if(reprojRatio1 > 1.0)
+                {
+                    if(dynamicMapAdmissionV5UsefulnessLog &&
+                       scoreBasedBoundaryCandidate)
+                    {
+                        PrintAdmissionV5CandidateGeometryEvent(
+                            mpCurrentKeyFrame,
+                            pKF2,
+                            idx1,
+                            idx2,
+                            "reject_reproj1",
+                            scoreInfoIt->second,
+                            parallaxScore,
+                            reprojRatio1,
+                            reprojRatio2,
+                            scaleScore,
+                            finalCandidateScore,
+                            finalTotalScore);
+                    }
                     continue;
+                }
 
             }
             else
@@ -1312,14 +3284,42 @@ void LocalMapping::CreateNewMapPoints()
                 float errX1 = u1 - kp1.pt.x;
                 float errY1 = v1 - kp1.pt.y;
                 float errX1_r = u1_r - kp1_ur;
-                if((errX1*errX1+errY1*errY1+errX1_r*errX1_r)>7.8*sigmaSquare1)
+                const double reprojError1 =
+                    static_cast<double>(errX1 * errX1 + errY1 * errY1 +
+                                        errX1_r * errX1_r);
+                const double reprojLimit1 =
+                    static_cast<double>(7.8 * sigmaSquare1);
+                reprojRatio1 =
+                    reprojLimit1 > 0.0 ? reprojError1 / reprojLimit1 : 1.0;
+                if(reprojRatio1 > 1.0)
+                {
+                    if(dynamicMapAdmissionV5UsefulnessLog &&
+                       scoreBasedBoundaryCandidate)
+                    {
+                        PrintAdmissionV5CandidateGeometryEvent(
+                            mpCurrentKeyFrame,
+                            pKF2,
+                            idx1,
+                            idx2,
+                            "reject_reproj1",
+                            scoreInfoIt->second,
+                            parallaxScore,
+                            reprojRatio1,
+                            reprojRatio2,
+                            scaleScore,
+                            finalCandidateScore,
+                            finalTotalScore);
+                    }
                     continue;
+                }
             }
             if(sameInstanceCandidate)
             {
                 ++sameInstancePairsAfterReproj1;
                 ++pairSameInstanceAfterReproj1;
             }
+            if(promotedBoundaryCandidate)
+                ++promotedGeomAfterReproj1;
 
             //Check reprojection error in second keyframe
             const float sigmaSquare2 = pKF2->mvLevelSigma2[kp2.octave];
@@ -1331,8 +3331,33 @@ void LocalMapping::CreateNewMapPoints()
                 cv::Point2f uv2 = pCamera2->project(cv::Point3f(x2,y2,z2));
                 float errX2 = uv2.x - kp2.pt.x;
                 float errY2 = uv2.y - kp2.pt.y;
-                if((errX2*errX2+errY2*errY2)>5.991*sigmaSquare2)
+                const double reprojError2 =
+                    static_cast<double>(errX2 * errX2 + errY2 * errY2);
+                const double reprojLimit2 =
+                    static_cast<double>(5.991 * sigmaSquare2);
+                reprojRatio2 =
+                    reprojLimit2 > 0.0 ? reprojError2 / reprojLimit2 : 1.0;
+                if(reprojRatio2 > 1.0)
+                {
+                    if(dynamicMapAdmissionV5UsefulnessLog &&
+                       scoreBasedBoundaryCandidate)
+                    {
+                        PrintAdmissionV5CandidateGeometryEvent(
+                            mpCurrentKeyFrame,
+                            pKF2,
+                            idx1,
+                            idx2,
+                            "reject_reproj2",
+                            scoreInfoIt->second,
+                            parallaxScore,
+                            reprojRatio1,
+                            reprojRatio2,
+                            scaleScore,
+                            finalCandidateScore,
+                            finalTotalScore);
+                    }
                     continue;
+                }
             }
             else
             {
@@ -1342,14 +3367,42 @@ void LocalMapping::CreateNewMapPoints()
                 float errX2 = u2 - kp2.pt.x;
                 float errY2 = v2 - kp2.pt.y;
                 float errX2_r = u2_r - kp2_ur;
-                if((errX2*errX2+errY2*errY2+errX2_r*errX2_r)>7.8*sigmaSquare2)
+                const double reprojError2 =
+                    static_cast<double>(errX2 * errX2 + errY2 * errY2 +
+                                        errX2_r * errX2_r);
+                const double reprojLimit2 =
+                    static_cast<double>(7.8 * sigmaSquare2);
+                reprojRatio2 =
+                    reprojLimit2 > 0.0 ? reprojError2 / reprojLimit2 : 1.0;
+                if(reprojRatio2 > 1.0)
+                {
+                    if(dynamicMapAdmissionV5UsefulnessLog &&
+                       scoreBasedBoundaryCandidate)
+                    {
+                        PrintAdmissionV5CandidateGeometryEvent(
+                            mpCurrentKeyFrame,
+                            pKF2,
+                            idx1,
+                            idx2,
+                            "reject_reproj2",
+                            scoreInfoIt->second,
+                            parallaxScore,
+                            reprojRatio1,
+                            reprojRatio2,
+                            scaleScore,
+                            finalCandidateScore,
+                            finalTotalScore);
+                    }
                     continue;
+                }
             }
             if(sameInstanceCandidate)
             {
                 ++sameInstancePairsAfterReproj2;
                 ++pairSameInstanceAfterReproj2;
             }
+            if(promotedBoundaryCandidate)
+                ++promotedGeomAfterReproj2;
 
             //Check scale consistency
             Eigen::Vector3f normal1 = x3D - Ow1;
@@ -1359,26 +3412,188 @@ void LocalMapping::CreateNewMapPoints()
             float dist2 = normal2.norm();
 
             if(dist1==0 || dist2==0)
+            {
+                if(dynamicMapAdmissionV5UsefulnessLog &&
+                   scoreBasedBoundaryCandidate)
+                {
+                    PrintAdmissionV5CandidateGeometryEvent(
+                        mpCurrentKeyFrame,
+                        pKF2,
+                        idx1,
+                        idx2,
+                        "reject_scale",
+                        scoreInfoIt->second,
+                        parallaxScore,
+                        reprojRatio1,
+                        reprojRatio2,
+                        scaleScore,
+                        finalCandidateScore,
+                        finalTotalScore);
+                }
                 continue;
+            }
 
             if(mbFarPoints && (dist1>=mThFarPoints||dist2>=mThFarPoints)) // MODIFICATION
+            {
+                if(dynamicMapAdmissionV5UsefulnessLog &&
+                   scoreBasedBoundaryCandidate)
+                {
+                    PrintAdmissionV5CandidateGeometryEvent(
+                        mpCurrentKeyFrame,
+                        pKF2,
+                        idx1,
+                        idx2,
+                        "reject_scale",
+                        scoreInfoIt->second,
+                        parallaxScore,
+                        reprojRatio1,
+                        reprojRatio2,
+                        scaleScore,
+                        finalCandidateScore,
+                        finalTotalScore);
+                }
                 continue;
+            }
 
             const float ratioDist = dist2/dist1;
             const float ratioOctave = mpCurrentKeyFrame->mvScaleFactors[kp1.octave]/pKF2->mvScaleFactors[kp2.octave];
 
             if(ratioDist*ratioFactor<ratioOctave || ratioDist>ratioOctave*ratioFactor)
+            {
+                if(dynamicMapAdmissionV5UsefulnessLog &&
+                   scoreBasedBoundaryCandidate)
+                {
+                    PrintAdmissionV5CandidateGeometryEvent(
+                        mpCurrentKeyFrame,
+                        pKF2,
+                        idx1,
+                        idx2,
+                        "reject_scale",
+                        scoreInfoIt->second,
+                        parallaxScore,
+                        reprojRatio1,
+                        reprojRatio2,
+                        scaleScore,
+                        finalCandidateScore,
+                        finalTotalScore);
+                }
                 continue;
+            }
+            const double ratioScale =
+                std::max(1e-9,
+                         static_cast<double>(ratioDist) /
+                         std::max(1e-9, static_cast<double>(ratioOctave)));
+            scaleScore =
+                Clamp01(1.0 -
+                        std::fabs(std::log(ratioScale)) /
+                        std::max(1e-9, std::log(static_cast<double>(ratioFactor))));
             if(sameInstanceCandidate)
             {
                 ++sameInstancePairsAfterScale;
                 ++pairSameInstanceAfterScale;
+            }
+            if(promotedBoundaryCandidate)
+                ++promotedGeomAfterScale;
+
+            if(scoreBasedBoundaryCandidate)
+            {
+                ++scoreCandidateGeomEvaluatedBoundaryPairs;
+                finalCandidateScore =
+                    ComputeAdmissionCandidateScore(parallaxScore,
+                                                   reprojRatio1,
+                                                   reprojRatio2,
+                                                   scaleScore);
+                finalTotalScore =
+                    DynamicMapAdmissionScoreSupportWeight() *
+                        scoreInfoIt->second.supportScore +
+                    DynamicMapAdmissionScoreCandidateWeight() *
+                        finalCandidateScore;
+                if(finalCandidateScore <
+                       DynamicMapAdmissionScoreMinCandidateScore() ||
+                   finalTotalScore < DynamicMapAdmissionScoreMinTotalScore())
+                {
+                    ++scorePostGeomRejectedBoundaryPairs;
+                    if(dynamicMapAdmissionV5UsefulnessLog)
+                    {
+                        PrintAdmissionV5CandidateGeometryEvent(
+                            mpCurrentKeyFrame,
+                            pKF2,
+                            idx1,
+                            idx2,
+                            "reject_score",
+                            scoreInfoIt->second,
+                            parallaxScore,
+                            reprojRatio1,
+                            reprojRatio2,
+                            scaleScore,
+                            finalCandidateScore,
+                            finalTotalScore);
+                    }
+                    continue;
+                }
+                ++scoreCreatedBoundaryPairs;
+                if(dynamicMapAdmissionV5UsefulnessLog)
+                {
+                    PrintAdmissionV5CandidateGeometryEvent(
+                        mpCurrentKeyFrame,
+                        pKF2,
+                        idx1,
+                        idx2,
+                        "created",
+                        scoreInfoIt->second,
+                        parallaxScore,
+                        reprojRatio1,
+                        reprojRatio2,
+                        scaleScore,
+                        finalCandidateScore,
+                        finalTotalScore);
+                }
             }
 
             // Triangulation is succesfull
             ++triangulatedPoints;
             MapPoint* pMP = new MapPoint(x3D, mpCurrentKeyFrame, mpAtlas->GetCurrentMap());
             ++createdMapPoints;
+            if(promotedBoundaryCandidate)
+                ++promotedGeomCreated;
+            const bool createdDirectDynamic =
+                mpCurrentKeyFrame->GetFeatureInstanceId(idx1) > 0 ||
+                pKF2->GetFeatureInstanceId(idx2) > 0;
+            const bool createdStaticNearDynamicBoundary =
+                !createdDirectDynamic &&
+                (mpCurrentKeyFrame->IsFeatureStaticNearDynamicMask(idx1) ||
+                 pKF2->IsFeatureStaticNearDynamicMask(idx2));
+            if(nearBoundaryDiagnostics)
+            {
+                pMP->SetAdmissionDiagnostics(
+                    createdDirectDynamic,
+                    createdStaticNearDynamicBoundary,
+                    static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                    static_cast<long>(mpCurrentKeyFrame->mnId),
+                    idx1,
+                    DynamicMapAdmissionBoundaryRadiusPx());
+            }
+            if(dynamicMapAdmissionV5UsefulnessLog &&
+               scoreBasedBoundaryCandidate)
+            {
+                pMP->SetScoreAdmissionDiagnostics(
+                    scoreInfoIt->second.supportScore,
+                    finalCandidateScore,
+                    finalTotalScore,
+                    scoreInfoIt->second.rawSupport,
+                    scoreInfoIt->second.reliableSupport,
+                    scoreInfoIt->second.residualReliableSupport,
+                    scoreInfoIt->second.depthConsistentSupport);
+            }
+            if(nearBoundaryDiagnostics)
+            {
+                if(createdDirectDynamic)
+                    ++lmCreatedDirectDynamicPoints;
+                else if(createdStaticNearDynamicBoundary)
+                    ++lmCreatedNearBoundaryPoints;
+                else
+                    ++lmCreatedCleanStaticPoints;
+            }
             if (bPointStereo)
                 countStereo++;
             
@@ -1446,6 +3661,108 @@ void LocalMapping::CreateNewMapPoints()
             mlpRecentAddedMapPoints.push_back(pMP);
         }
 
+        if(dynamicMapAdmissionDelayedBoundaryCreateNewMapPoints &&
+           supportPromotedBoundaryPairs > 0)
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_PROMOTED_GEOM]"
+                      << " frame=" << mpCurrentKeyFrame->mnFrameId
+                      << " stage=create_new_map_points"
+                      << " current_kf=" << mpCurrentKeyFrame->mnId
+                      << " neighbor_kf=" << pKF2->mnId
+                      << " support_promoted_boundary_pairs="
+                      << supportPromotedBoundaryPairs
+                      << " promoted_geom_enter=" << promotedGeomEnter
+                      << " promoted_geom_parallax="
+                      << promotedGeomAfterParallax
+                      << " promoted_geom_triangulated="
+                      << promotedGeomAfterTriangulation
+                      << " promoted_geom_depth="
+                      << promotedGeomAfterDepth
+                      << " promoted_geom_reproj1="
+                      << promotedGeomAfterReproj1
+                      << " promoted_geom_reproj2="
+                      << promotedGeomAfterReproj2
+                      << " promoted_geom_scale="
+                      << promotedGeomAfterScale
+                      << " promoted_geom_created="
+                      << promotedGeomCreated
+                      << std::endl;
+        }
+
+        if(dynamicMapAdmissionScoreBased &&
+           scoreSupportCandidateBoundaryPairs > 0)
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_SCORE_BASED]"
+                      << " frame=" << mpCurrentKeyFrame->mnFrameId
+                      << " stage=create_new_map_points"
+                      << " current_kf=" << mpCurrentKeyFrame->mnId
+                      << " neighbor_kf=" << pKF2->mnId
+                      << " min_support_score="
+                      << DynamicMapAdmissionScoreMinSupportScore()
+                      << " min_candidate_score="
+                      << DynamicMapAdmissionScoreMinCandidateScore()
+                      << " min_total_score="
+                      << DynamicMapAdmissionScoreMinTotalScore()
+                      << " support_candidates="
+                      << scoreSupportCandidateBoundaryPairs
+                      << " support_accepted="
+                      << scoreSupportAcceptedBoundaryPairs
+                      << " support_rejected="
+                      << scoreSupportRejectedBoundaryPairs
+                      << " geom_evaluated="
+                      << scoreCandidateGeomEvaluatedBoundaryPairs
+                      << " post_geom_rejected="
+                      << scorePostGeomRejectedBoundaryPairs
+                      << " score_created="
+                      << scoreCreatedBoundaryPairs
+                      << std::endl;
+        }
+
+        if(DynamicMapAdmissionStateAware() &&
+           stateAwareCandidateBoundaryPairs > 0)
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_STATE_AWARE]"
+                      << " frame=" << mpCurrentKeyFrame->mnFrameId
+                      << " stage=create_new_map_points"
+                      << " current_kf=" << mpCurrentKeyFrame->mnId
+                      << " neighbor_kf=" << pKF2->mnId
+                      << " state_candidates="
+                      << stateAwareCandidateBoundaryPairs
+                      << " state_allowed="
+                      << stateAwareAllowedBoundaryPairs
+                      << " state_rejected="
+                      << stateAwareRejectedBoundaryPairs
+                      << " need_score="
+                      << admissionStateContext.needScore
+                      << " min_need_score="
+                      << DynamicMapAdmissionStateMinNeedScore()
+                      << " tracking_inliers="
+                      << admissionStateContext.trackingInliers
+                      << " tracking_pressure="
+                      << (admissionStateContext.trackingPressure ? 1 : 0)
+                      << " keyframe_gap="
+                      << admissionStateContext.keyframeFrameGap
+                      << " keyframe_pressure="
+                      << (admissionStateContext.keyframePressure ? 1 : 0)
+                      << " kf_step="
+                      << admissionStateContext.keyframeStep
+                      << " kf_step_ewma="
+                      << admissionStateContext.keyframeStepEwma
+                      << " kf_step_ratio="
+                      << admissionStateContext.keyframeStepRatio
+                      << " scale_pressure="
+                      << (admissionStateContext.scalePressure ? 1 : 0)
+                      << " last_lba_edges="
+                      << admissionStateContext.lastLBAEdges
+                      << " last_lba_mps="
+                      << admissionStateContext.lastLBAMapPoints
+                      << " last_lba_edges_per_mp="
+                      << admissionStateContext.lastLBAEdgesPerMP
+                      << " lba_pressure="
+                      << (admissionStateContext.localBAPressure ? 1 : 0)
+                      << std::endl;
+        }
+
         if(debugFocusFrame)
         {
             std::cout << "[STSLAM_FOCUS] frame=" << mpCurrentKeyFrame->mnFrameId
@@ -1487,6 +3804,24 @@ void LocalMapping::CreateNewMapPoints()
                   << "}"
                   << " created_per_instance=" << FormatTopCounts(createdPointsPerInstance)
                   << " mismatched_instances=" << FormatTopCounts(mismatchedPairInstanceCounts)
+                  << std::endl;
+    }
+
+    if(nearBoundaryDiagnostics)
+    {
+        std::cout << "[STSLAM_NEAR_BOUNDARY_ADMISSION]"
+                  << " stage=create_new_map_points"
+                  << " frame=" << mpCurrentKeyFrame->mnFrameId
+                  << " current_kf=" << mpCurrentKeyFrame->mnId
+                  << " radius_px=" << DynamicMapAdmissionBoundaryRadiusPx()
+                  << " created_near_boundary_new_points="
+                  << lmCreatedNearBoundaryPoints
+                  << " created_clean_static_new_points="
+                  << lmCreatedCleanStaticPoints
+                  << " created_direct_dynamic_new_points="
+                  << lmCreatedDirectDynamicPoints
+                  << " triangulated_points=" << triangulatedPoints
+                  << " created_map_points=" << createdMapPoints
                   << std::endl;
     }
 }
@@ -1835,11 +4170,7 @@ void LocalMapping::KeyFrameCulling()
 
 void LocalMapping::RequestReset()
 {
-    {
-        unique_lock<mutex> lock(mMutexReset);
-        cout << "LM: Map reset recieved" << endl;
-        mbResetRequested = true;
-    }
+    QueueReset();
     cout << "LM: Map reset, waiting..." << endl;
 
     while(1)
@@ -1854,14 +4185,18 @@ void LocalMapping::RequestReset()
     cout << "LM: Map reset, Done!!!" << endl;
 }
 
-void LocalMapping::RequestResetActiveMap(Map* pMap)
+void LocalMapping::QueueReset()
 {
     {
         unique_lock<mutex> lock(mMutexReset);
-        cout << "LM: Active map reset recieved" << endl;
-        mbResetRequestedActiveMap = true;
-        mpMapToReset = pMap;
+        cout << "LM: Map reset recieved" << endl;
+        mbResetRequested = true;
     }
+}
+
+void LocalMapping::RequestResetActiveMap(Map* pMap)
+{
+    QueueResetActiveMap(pMap);
     cout << "LM: Active map reset, waiting..." << endl;
 
     while(1)
@@ -1874,6 +4209,22 @@ void LocalMapping::RequestResetActiveMap(Map* pMap)
         usleep(3000);
     }
     cout << "LM: Active map reset, Done!!!" << endl;
+}
+
+void LocalMapping::QueueResetActiveMap(Map* pMap)
+{
+    {
+        unique_lock<mutex> lock(mMutexReset);
+        cout << "LM: Active map reset recieved" << endl;
+        mbResetRequestedActiveMap = true;
+        mpMapToReset = pMap;
+    }
+}
+
+void LocalMapping::ServicePendingResetRequests()
+{
+    ResetIfRequested();
+    SetAcceptKeyFrames(true);
 }
 
 void LocalMapping::ResetIfRequested()
@@ -1927,6 +4278,7 @@ void LocalMapping::ResetIfRequested()
 void LocalMapping::RequestFinish()
 {
     unique_lock<mutex> lock(mMutexFinish);
+    PrintAdmissionV5AggregateSummary();
     mbFinishRequested = true;
 }
 

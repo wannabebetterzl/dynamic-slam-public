@@ -28,6 +28,7 @@
 #include <iostream>
 #include <limits>
 #include <sstream>
+#include <string>
 
 #include <Eigen/StdVector>
 #include <Eigen/Dense>
@@ -241,6 +242,65 @@ const std::vector<DynamicInstancePointObservation>& GetFrameDynamicInstancePoint
 {
     return frame.isKeyFrame ? frame.pKeyFrame->GetDynamicInstancePointObservations()
                             : frame.pWindowFrame->mvDynamicInstancePointObservations;
+}
+
+double GetPoseOnlyDynamicReprojectionWeight(const Frame* pFrame, const int idx)
+{
+    if(!pFrame || idx < 0)
+        return 1.0;
+
+    const double weight =
+        ORB_SLAM3::GetFrameDynamicReprojectionWeight(pFrame->mnId, idx);
+    if(!std::isfinite(weight))
+        return 1.0;
+    return std::min(1.0, std::max(0.01, weight));
+}
+
+bool UseFrameDynamicReprojectionWeights()
+{
+    static const bool value = []() {
+        const char* enabledValue =
+            std::getenv("STSLAM_GEOMETRIC_DYNAMIC_REJECTION");
+        if(!enabledValue)
+            return false;
+
+        std::string enabled(enabledValue);
+        std::transform(enabled.begin(), enabled.end(), enabled.begin(),
+                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        if(enabled == "0" || enabled == "false" || enabled == "off" || enabled == "no")
+            return false;
+
+        const char* actionValue =
+            std::getenv("STSLAM_GEOMETRIC_DYNAMIC_REJECTION_ACTION");
+        if(!actionValue)
+            return false;
+
+        std::string action(actionValue);
+        std::transform(action.begin(), action.end(), action.begin(),
+                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        return action == "soft" || action == "soft_weight" || action == "weight";
+    }();
+    return value;
+}
+
+Eigen::Matrix2d MakePoseOnlyInformation2(const Frame* pFrame,
+                                         const int idx,
+                                         const float invSigma2)
+{
+    Eigen::Matrix2d information = Eigen::Matrix2d::Identity() * invSigma2;
+    if(UseFrameDynamicReprojectionWeights())
+        information *= GetPoseOnlyDynamicReprojectionWeight(pFrame, idx);
+    return information;
+}
+
+Eigen::Matrix3d MakePoseOnlyInformation3(const Frame* pFrame,
+                                         const int idx,
+                                         const float invSigma2)
+{
+    Eigen::Matrix3d information = Eigen::Matrix3d::Identity() * invSigma2;
+    if(UseFrameDynamicReprojectionWeights())
+        information *= GetPoseOnlyDynamicReprojectionWeight(pFrame, idx);
+    return information;
 }
 
 bool SortKeyFramesByTimestamp(KeyFrame* pA, KeyFrame* pB)
@@ -2277,6 +2337,236 @@ bool EnableBundleAdjustmentDebugProbe()
     return envValue && std::string(envValue) != "0";
 }
 
+bool EnablePoseOptimizationDebug()
+{
+    return GetEnvFlagOrDefault("STSLAM_DEBUG_POSE_OPT", false);
+}
+
+bool EnablePoseOptimizationEdgeValidation()
+{
+    return GetEnvFlagOrDefault("STSLAM_DEBUG_POSE_OPT_VALIDATE", false);
+}
+
+bool EnableNearBoundaryDiagnostics()
+{
+    return GetEnvFlagOrDefault("STSLAM_NEAR_BOUNDARY_DIAGNOSTICS", false);
+}
+
+bool EnableDynamicMapAdmissionSupportQuality()
+{
+    return GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY", false);
+}
+
+int GetNearBoundaryDiagnosticRadiusPx()
+{
+    return GetEnvIntOrDefault("STSLAM_NEAR_BOUNDARY_DIAGNOSTIC_RADIUS_PX", 5, 0);
+}
+
+int ReadOptimizerPanopticIdAt(const cv::Mat& panopticMask, const int x, const int y)
+{
+    if(panopticMask.type() == CV_16UC1)
+        return static_cast<int>(panopticMask.at<unsigned short>(y, x));
+    return panopticMask.at<int>(y, x);
+}
+
+bool HasDynamicMaskSupportNearFeature(const Frame& frame, const int idx, const int radiusPx)
+{
+    if(!frame.HasPanopticObservation() || idx < 0 ||
+       idx >= static_cast<int>(frame.mvKeys.size()))
+        return false;
+
+    const cv::Mat& panopticMask = frame.mPanopticObservation.rawPanopticMask;
+    if(panopticMask.empty() || panopticMask.channels() != 1 ||
+       (panopticMask.type() != CV_16UC1 && panopticMask.type() != CV_32SC1))
+        return false;
+
+    const int x0 = static_cast<int>(std::round(frame.mvKeys[idx].pt.x));
+    const int y0 = static_cast<int>(std::round(frame.mvKeys[idx].pt.y));
+    if(x0 < 0 || x0 >= panopticMask.cols || y0 < 0 || y0 >= panopticMask.rows)
+        return false;
+
+    const int radius = std::max(0, radiusPx);
+    const int minX = std::max(0, x0 - radius);
+    const int maxX = std::min(panopticMask.cols - 1, x0 + radius);
+    const int minY = std::max(0, y0 - radius);
+    const int maxY = std::min(panopticMask.rows - 1, y0 + radius);
+    for(int y = minY; y <= maxY; ++y)
+    {
+        for(int x = minX; x <= maxX; ++x)
+        {
+            if(ReadOptimizerPanopticIdAt(panopticMask, x, y) > 0)
+                return true;
+        }
+    }
+    return false;
+}
+
+bool IsDirectDynamicFeature(const Frame& frame, const int idx)
+{
+    return idx >= 0 &&
+           (frame.GetFeaturePanopticId(static_cast<size_t>(idx)) > 0 ||
+            frame.GetFeatureInstanceId(static_cast<size_t>(idx)) > 0);
+}
+
+bool IsStaticNearDynamicBoundaryFeature(const Frame& frame,
+                                        const int idx,
+                                        const int radiusPx)
+{
+    return idx >= 0 &&
+           !IsDirectDynamicFeature(frame, idx) &&
+           HasDynamicMaskSupportNearFeature(frame, idx, radiusPx);
+}
+
+struct PoseUseGroupStats
+{
+    int edges = 0;
+    int inliers = 0;
+    int outliers = 0;
+    double chi2Sum = 0.0;
+    double inlierChi2Sum = 0.0;
+};
+
+void AccumulatePoseUseGroup(PoseUseGroupStats& stats,
+                            const double chi2,
+                            const bool isOutlier)
+{
+    ++stats.edges;
+    stats.chi2Sum += chi2;
+    if(isOutlier)
+        ++stats.outliers;
+    else
+    {
+        ++stats.inliers;
+        stats.inlierChi2Sum += chi2;
+    }
+}
+
+double SafeMean(const double sum, const int count)
+{
+    return count > 0 ? sum / static_cast<double>(count) : 0.0;
+}
+
+struct NearBoundaryPoseUseStats
+{
+    PoseUseGroupStats all;
+    PoseUseGroupStats cleanStatic;
+    PoseUseGroupStats staticNearBoundary;
+    PoseUseGroupStats directDynamic;
+    PoseUseGroupStats admissionNearBoundary;
+};
+
+void AccumulateNearBoundaryPoseUseEdge(Frame* pFrame,
+                                       const size_t idx,
+                                       const double chi2,
+                                       NearBoundaryPoseUseStats& stats,
+                                       const int radiusPx)
+{
+    if(!pFrame || idx >= pFrame->mvpMapPoints.size() ||
+       idx >= pFrame->mvbOutlier.size())
+        return;
+
+    const bool isOutlier = pFrame->mvbOutlier[idx];
+    AccumulatePoseUseGroup(stats.all, chi2, isOutlier);
+
+    const int featureIdx = static_cast<int>(idx);
+    const bool directDynamic = IsDirectDynamicFeature(*pFrame, featureIdx);
+    const bool staticNearBoundary =
+        IsStaticNearDynamicBoundaryFeature(*pFrame, featureIdx, radiusPx);
+    if(directDynamic)
+        AccumulatePoseUseGroup(stats.directDynamic, chi2, isOutlier);
+    else if(staticNearBoundary)
+        AccumulatePoseUseGroup(stats.staticNearBoundary, chi2, isOutlier);
+    else
+        AccumulatePoseUseGroup(stats.cleanStatic, chi2, isOutlier);
+
+    MapPoint* pMP = pFrame->mvpMapPoints[idx];
+    if(pMP && pMP->WasCreatedFromStaticNearDynamicBoundary())
+        AccumulatePoseUseGroup(stats.admissionNearBoundary, chi2, isOutlier);
+}
+
+template<typename EdgeT>
+void AccumulateNearBoundaryPoseUseEdges(Frame* pFrame,
+                                        const std::vector<EdgeT*>& edges,
+                                        const std::vector<size_t>& indices,
+                                        NearBoundaryPoseUseStats& stats,
+                                        const int radiusPx)
+{
+    const size_t n = std::min(edges.size(), indices.size());
+    for(size_t edgeIdx = 0; edgeIdx < n; ++edgeIdx)
+    {
+        if(!edges[edgeIdx])
+            continue;
+        AccumulateNearBoundaryPoseUseEdge(
+            pFrame, indices[edgeIdx], edges[edgeIdx]->chi2(), stats, radiusPx);
+    }
+}
+
+template<typename EdgeT>
+void UpdateSupportQualityPoseUseEdges(Frame* pFrame,
+                                      const std::vector<EdgeT*>& edges,
+                                      const std::vector<size_t>& indices)
+{
+    if(!pFrame)
+        return;
+
+    const size_t n = std::min(edges.size(), indices.size());
+    for(size_t edgeIdx = 0; edgeIdx < n; ++edgeIdx)
+    {
+        if(!edges[edgeIdx])
+            continue;
+        const size_t idx = indices[edgeIdx];
+        if(idx >= pFrame->mvpMapPoints.size() || idx >= pFrame->mvbOutlier.size())
+            continue;
+
+        MapPoint* pMP = pFrame->mvpMapPoints[idx];
+        if(!pMP || pMP->isBad())
+            continue;
+
+        pMP->UpdateSupportQualityPoseUse(
+            edges[edgeIdx]->chi2(), !pFrame->mvbOutlier[idx]);
+    }
+}
+
+void PrintNearBoundaryPoseUseStats(const Frame* pFrame,
+                                   const NearBoundaryPoseUseStats& stats,
+                                   const int radiusPx)
+{
+    if(!pFrame)
+        return;
+
+    const PoseUseGroupStats& near = stats.staticNearBoundary;
+    const PoseUseGroupStats& clean = stats.cleanStatic;
+    const PoseUseGroupStats& direct = stats.directDynamic;
+    const PoseUseGroupStats& admissionNear = stats.admissionNearBoundary;
+    std::cout << "[STSLAM_NEAR_BOUNDARY_POSE_USE]"
+              << " frame=" << pFrame->mnId
+              << " radius_px=" << radiusPx
+              << " all_edges=" << stats.all.edges
+              << " all_inliers=" << stats.all.inliers
+              << " all_outliers=" << stats.all.outliers
+              << " near_edges=" << near.edges
+              << " near_inliers=" << near.inliers
+              << " near_outliers=" << near.outliers
+              << " near_chi2_mean=" << SafeMean(near.chi2Sum, near.edges)
+              << " near_inlier_chi2_mean="
+              << SafeMean(near.inlierChi2Sum, near.inliers)
+              << " clean_edges=" << clean.edges
+              << " clean_inliers=" << clean.inliers
+              << " clean_outliers=" << clean.outliers
+              << " clean_chi2_mean=" << SafeMean(clean.chi2Sum, clean.edges)
+              << " clean_inlier_chi2_mean="
+              << SafeMean(clean.inlierChi2Sum, clean.inliers)
+              << " direct_dynamic_edges=" << direct.edges
+              << " direct_dynamic_inliers=" << direct.inliers
+              << " direct_dynamic_outliers=" << direct.outliers
+              << " admission_near_edges=" << admissionNear.edges
+              << " admission_near_inliers=" << admissionNear.inliers
+              << " admission_near_outliers=" << admissionNear.outliers
+              << " admission_near_chi2_mean="
+              << SafeMean(admissionNear.chi2Sum, admissionNear.edges)
+              << std::endl;
+}
+
 void PrintPoseVertexDebugInfo(const char* stage, g2o::VertexSE3Expmap* vSE3)
 {
     if(!vSE3)
@@ -3169,6 +3459,9 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
 
 int Optimizer::PoseOptimization(Frame *pFrame)
 {
+    if(!pFrame)
+        return 0;
+
     g2o::SparseOptimizer optimizer;
     g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
 
@@ -3194,11 +3487,14 @@ int Optimizer::PoseOptimization(Frame *pFrame)
 
     vector<ORB_SLAM3::EdgeSE3ProjectXYZOnlyPose*> vpEdgesMono;
     vector<ORB_SLAM3::EdgeSE3ProjectXYZOnlyPoseToBody *> vpEdgesMono_FHR;
-    vector<size_t> vnIndexEdgeMono, vnIndexEdgeRight;
+    vector<g2o::EdgeSE3ProjectXYZOnlyPose*> vpEdgesMonoPinhole;
+    vector<size_t> vnIndexEdgeMono, vnIndexEdgeRight, vnIndexEdgeMonoPinhole;
     vpEdgesMono.reserve(N);
     vpEdgesMono_FHR.reserve(N);
+    vpEdgesMonoPinhole.reserve(N);
     vnIndexEdgeMono.reserve(N);
     vnIndexEdgeRight.reserve(N);
+    vnIndexEdgeMonoPinhole.reserve(N);
 
     vector<g2o::EdgeStereoSE3ProjectXYZOnlyPose*> vpEdgesStereo;
     vector<size_t> vnIndexEdgeStereo;
@@ -3207,53 +3503,129 @@ int Optimizer::PoseOptimization(Frame *pFrame)
 
     const float deltaMono = sqrt(5.991);
     const float deltaStereo = sqrt(7.815);
+    const bool useDynamicReprojectionWeights =
+        UseFrameDynamicReprojectionWeights();
+    const bool debugPoseOptimization = EnablePoseOptimizationDebug();
+
+    if(debugPoseOptimization)
+    {
+        std::cerr << "[STSLAM_POSE_OPT] frame=" << pFrame->mnId
+                  << " N=" << N
+                  << " map_points=" << pFrame->mvpMapPoints.size()
+                  << " outliers=" << pFrame->mvbOutlier.size()
+                  << " keys_un=" << pFrame->mvKeysUn.size()
+                  << " keys_left=" << pFrame->mvKeys.size()
+                  << " keys_right=" << pFrame->mvKeysRight.size()
+                  << " right=" << pFrame->mvuRight.size()
+                  << " inv_levels=" << pFrame->mvInvLevelSigma2.size()
+                  << " camera=" << static_cast<const void*>(pFrame->mpCamera)
+                  << " camera2=" << static_cast<const void*>(pFrame->mpCamera2)
+                  << std::endl;
+    }
 
     {
     unique_lock<mutex> lock(MapPoint::mGlobalMutex);
 
-    for(int i=0; i<N; i++)
+    const int nFeatureSlots = std::min(N, static_cast<int>(pFrame->mvpMapPoints.size()));
+    int nSkippedBounds = 0;
+    int nSkippedBadMapPoint = 0;
+    int nSkippedInvalidGeometry = 0;
+
+    for(int i=0; i<nFeatureSlots; i++)
     {
+        if(i >= static_cast<int>(pFrame->mvbOutlier.size()))
+        {
+            nSkippedBounds++;
+            continue;
+        }
+
         MapPoint* pMP = pFrame->mvpMapPoints[i];
         if(pMP)
         {
+            if(pMP->isBad())
+            {
+                nSkippedBadMapPoint++;
+                continue;
+            }
+
+            const Eigen::Vector3f pointWorld = pMP->GetWorldPos();
+            if(!pointWorld.allFinite())
+            {
+                nSkippedInvalidGeometry++;
+                continue;
+            }
+
             //Conventional SLAM
             if(!pFrame->mpCamera2){
+                if(i >= static_cast<int>(pFrame->mvuRight.size()) ||
+                   i >= static_cast<int>(pFrame->mvKeysUn.size()))
+                {
+                    nSkippedBounds++;
+                    continue;
+                }
+
+                const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
+                if(kpUn.octave < 0 ||
+                   kpUn.octave >= static_cast<int>(pFrame->mvInvLevelSigma2.size()) ||
+                   !std::isfinite(kpUn.pt.x) ||
+                   !std::isfinite(kpUn.pt.y))
+                {
+                    nSkippedInvalidGeometry++;
+                    continue;
+                }
+
                 // Monocular observation
                 if(pFrame->mvuRight[i]<0)
                 {
+                    if(!pFrame->mpCamera)
+                    {
+                        nSkippedBounds++;
+                        continue;
+                    }
+
                     nInitialCorrespondences++;
                     pFrame->mvbOutlier[i] = false;
 
                     Eigen::Matrix<double,2,1> obs;
-                    const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
                     obs << kpUn.pt.x, kpUn.pt.y;
 
-                    ORB_SLAM3::EdgeSE3ProjectXYZOnlyPose* e = new ORB_SLAM3::EdgeSE3ProjectXYZOnlyPose();
+                    g2o::EdgeSE3ProjectXYZOnlyPose* e = new g2o::EdgeSE3ProjectXYZOnlyPose();
 
                     e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
                     e->setMeasurement(obs);
                     const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
-                    e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
+                    if(useDynamicReprojectionWeights)
+                        e->setInformation(MakePoseOnlyInformation2(pFrame, i, invSigma2));
+                    else
+                        e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                     e->setRobustKernel(rk);
                     rk->setDelta(deltaMono);
 
-                    e->pCamera = pFrame->mpCamera;
-                    e->Xw = pMP->GetWorldPos().cast<double>();
+                    e->fx = pFrame->fx;
+                    e->fy = pFrame->fy;
+                    e->cx = pFrame->cx;
+                    e->cy = pFrame->cy;
+                    e->Xw = pointWorld.cast<double>();
 
                     optimizer.addEdge(e);
 
-                    vpEdgesMono.push_back(e);
-                    vnIndexEdgeMono.push_back(i);
+                    vpEdgesMonoPinhole.push_back(e);
+                    vnIndexEdgeMonoPinhole.push_back(i);
                 }
                 else  // Stereo observation
                 {
+                    if(!std::isfinite(pFrame->mvuRight[i]))
+                    {
+                        nSkippedInvalidGeometry++;
+                        continue;
+                    }
+
                     nInitialCorrespondences++;
                     pFrame->mvbOutlier[i] = false;
 
                     Eigen::Matrix<double,3,1> obs;
-                    const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
                     const float &kp_ur = pFrame->mvuRight[i];
                     obs << kpUn.pt.x, kpUn.pt.y, kp_ur;
 
@@ -3262,7 +3634,9 @@ int Optimizer::PoseOptimization(Frame *pFrame)
                     e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
                     e->setMeasurement(obs);
                     const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
-                    Eigen::Matrix3d Info = Eigen::Matrix3d::Identity()*invSigma2;
+                    Eigen::Matrix3d Info = useDynamicReprojectionWeights
+                        ? MakePoseOnlyInformation3(pFrame, i, invSigma2)
+                        : Eigen::Matrix3d::Identity()*invSigma2;
                     e->setInformation(Info);
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
@@ -3274,7 +3648,7 @@ int Optimizer::PoseOptimization(Frame *pFrame)
                     e->cx = pFrame->cx;
                     e->cy = pFrame->cy;
                     e->bf = pFrame->mbf;
-                    e->Xw = pMP->GetWorldPos().cast<double>();
+                    e->Xw = pointWorld.cast<double>();
 
                     optimizer.addEdge(e);
 
@@ -3284,12 +3658,26 @@ int Optimizer::PoseOptimization(Frame *pFrame)
             }
             //SLAM with respect a rigid body
             else{
-                nInitialCorrespondences++;
-
                 cv::KeyPoint kpUn;
 
                 if (i < pFrame->Nleft) {    //Left camera observation
+                    if(!pFrame->mpCamera || i >= static_cast<int>(pFrame->mvKeys.size()))
+                    {
+                        nSkippedBounds++;
+                        continue;
+                    }
+
                     kpUn = pFrame->mvKeys[i];
+                    if(kpUn.octave < 0 ||
+                       kpUn.octave >= static_cast<int>(pFrame->mvInvLevelSigma2.size()) ||
+                       !std::isfinite(kpUn.pt.x) ||
+                       !std::isfinite(kpUn.pt.y))
+                    {
+                        nSkippedInvalidGeometry++;
+                        continue;
+                    }
+
+                    nInitialCorrespondences++;
 
                     pFrame->mvbOutlier[i] = false;
 
@@ -3301,14 +3689,17 @@ int Optimizer::PoseOptimization(Frame *pFrame)
                     e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex *>(optimizer.vertex(0)));
                     e->setMeasurement(obs);
                     const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
-                    e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
+                    if(useDynamicReprojectionWeights)
+                        e->setInformation(MakePoseOnlyInformation2(pFrame, i, invSigma2));
+                    else
+                        e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
 
                     g2o::RobustKernelHuber *rk = new g2o::RobustKernelHuber;
                     e->setRobustKernel(rk);
                     rk->setDelta(deltaMono);
 
                     e->pCamera = pFrame->mpCamera;
-                    e->Xw = pMP->GetWorldPos().cast<double>();
+                    e->Xw = pointWorld.cast<double>();
 
                     optimizer.addEdge(e);
 
@@ -3316,7 +3707,26 @@ int Optimizer::PoseOptimization(Frame *pFrame)
                     vnIndexEdgeMono.push_back(i);
                 }
                 else {
+                    const int rightIndex = i - pFrame->Nleft;
+                    if(!pFrame->mpCamera2 ||
+                       rightIndex < 0 ||
+                       rightIndex >= static_cast<int>(pFrame->mvKeysRight.size()))
+                    {
+                        nSkippedBounds++;
+                        continue;
+                    }
+
                     kpUn = pFrame->mvKeysRight[i - pFrame->Nleft];
+                    if(kpUn.octave < 0 ||
+                       kpUn.octave >= static_cast<int>(pFrame->mvInvLevelSigma2.size()) ||
+                       !std::isfinite(kpUn.pt.x) ||
+                       !std::isfinite(kpUn.pt.y))
+                    {
+                        nSkippedInvalidGeometry++;
+                        continue;
+                    }
+
+                    nInitialCorrespondences++;
 
                     Eigen::Matrix<double, 2, 1> obs;
                     obs << kpUn.pt.x, kpUn.pt.y;
@@ -3328,14 +3738,17 @@ int Optimizer::PoseOptimization(Frame *pFrame)
                     e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex *>(optimizer.vertex(0)));
                     e->setMeasurement(obs);
                     const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
-                    e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
+                    if(useDynamicReprojectionWeights)
+                        e->setInformation(MakePoseOnlyInformation2(pFrame, i, invSigma2));
+                    else
+                        e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
 
                     g2o::RobustKernelHuber *rk = new g2o::RobustKernelHuber;
                     e->setRobustKernel(rk);
                     rk->setDelta(deltaMono);
 
                     e->pCamera = pFrame->mpCamera2;
-                    e->Xw = pMP->GetWorldPos().cast<double>();
+                    e->Xw = pointWorld.cast<double>();
 
                     e->mTrl = g2o::SE3Quat(pFrame->GetRelativePoseTrl().unit_quaternion().cast<double>(), pFrame->GetRelativePoseTrl().translation().cast<double>());
 
@@ -3347,10 +3760,33 @@ int Optimizer::PoseOptimization(Frame *pFrame)
             }
         }
     }
+
+    if(debugPoseOptimization)
+    {
+        std::cerr << "[STSLAM_POSE_OPT] frame=" << pFrame->mnId
+                  << " initial_edges=" << nInitialCorrespondences
+                  << " mono=" << vpEdgesMono.size()
+                  << " mono_pinhole=" << vpEdgesMonoPinhole.size()
+                  << " body_mono=" << vpEdgesMono_FHR.size()
+                  << " stereo=" << vpEdgesStereo.size()
+                  << " graph_edges=" << optimizer.edges().size()
+                  << " skipped_bounds=" << nSkippedBounds
+                  << " skipped_bad_mappoint=" << nSkippedBadMapPoint
+                  << " skipped_invalid_geometry=" << nSkippedInvalidGeometry
+                  << std::endl;
+    }
     }
 
     if(nInitialCorrespondences<3)
+    {
+        if(debugPoseOptimization)
+        {
+            std::cerr << "[STSLAM_POSE_OPT] frame=" << pFrame->mnId
+                      << " abort initial_edges=" << nInitialCorrespondences
+                      << std::endl;
+        }
         return 0;
+    }
 
     // We perform 4 optimizations, after each optimization we classify observation as inlier/outlier
     // At the next optimization, outliers are not included, but at the end they can be classified as inliers again.
@@ -3359,13 +3795,123 @@ int Optimizer::PoseOptimization(Frame *pFrame)
     const int its[4]={10,10,10,10};    
 
     int nBad=0;
+    const bool validatePoseOptimizationEdges = EnablePoseOptimizationEdgeValidation();
+    if(validatePoseOptimizationEdges)
+    {
+        std::cerr << "[STSLAM_POSE_OPT_VALIDATE] frame=" << pFrame->mnId
+                  << " begin mono=" << vpEdgesMono.size()
+                  << " mono_pinhole=" << vpEdgesMonoPinhole.size()
+                  << " body_mono=" << vpEdgesMono_FHR.size()
+                  << " stereo=" << vpEdgesStereo.size()
+                  << std::endl;
+
+        for(size_t i=0, iend=vpEdgesMono.size(); i<iend; i++)
+        {
+            ORB_SLAM3::EdgeSE3ProjectXYZOnlyPose* e = vpEdgesMono[i];
+            const size_t idx = vnIndexEdgeMono[i];
+            std::cerr << "[STSLAM_POSE_OPT_VALIDATE] frame=" << pFrame->mnId
+                      << " mono_edge=" << i
+                      << " idx=" << idx
+                      << " before_compute" << std::endl;
+            e->computeError();
+            const float chi2 = e->chi2();
+            std::cerr << "[STSLAM_POSE_OPT_VALIDATE] frame=" << pFrame->mnId
+                      << " mono_edge=" << i
+                      << " idx=" << idx
+                      << " chi2=" << chi2
+                      << " finite=" << std::isfinite(chi2)
+                      << " depth_positive=" << e->isDepthPositive()
+                      << std::endl;
+        }
+
+        for(size_t i=0, iend=vpEdgesMonoPinhole.size(); i<iend; i++)
+        {
+            g2o::EdgeSE3ProjectXYZOnlyPose* e = vpEdgesMonoPinhole[i];
+            const size_t idx = vnIndexEdgeMonoPinhole[i];
+            std::cerr << "[STSLAM_POSE_OPT_VALIDATE] frame=" << pFrame->mnId
+                      << " mono_pinhole_edge=" << i
+                      << " idx=" << idx
+                      << " before_compute" << std::endl;
+            e->computeError();
+            const float chi2 = e->chi2();
+            std::cerr << "[STSLAM_POSE_OPT_VALIDATE] frame=" << pFrame->mnId
+                      << " mono_pinhole_edge=" << i
+                      << " idx=" << idx
+                      << " chi2=" << chi2
+                      << " finite=" << std::isfinite(chi2)
+                      << " depth_positive=" << e->isDepthPositive()
+                      << std::endl;
+        }
+
+        for(size_t i=0, iend=vpEdgesMono_FHR.size(); i<iend; i++)
+        {
+            ORB_SLAM3::EdgeSE3ProjectXYZOnlyPoseToBody* e = vpEdgesMono_FHR[i];
+            const size_t idx = vnIndexEdgeRight[i];
+            std::cerr << "[STSLAM_POSE_OPT_VALIDATE] frame=" << pFrame->mnId
+                      << " body_edge=" << i
+                      << " idx=" << idx
+                      << " before_compute" << std::endl;
+            e->computeError();
+            const float chi2 = e->chi2();
+            std::cerr << "[STSLAM_POSE_OPT_VALIDATE] frame=" << pFrame->mnId
+                      << " body_edge=" << i
+                      << " idx=" << idx
+                      << " chi2=" << chi2
+                      << " finite=" << std::isfinite(chi2)
+                      << " depth_positive=" << e->isDepthPositive()
+                      << std::endl;
+        }
+
+        for(size_t i=0, iend=vpEdgesStereo.size(); i<iend; i++)
+        {
+            g2o::EdgeStereoSE3ProjectXYZOnlyPose* e = vpEdgesStereo[i];
+            const size_t idx = vnIndexEdgeStereo[i];
+            std::cerr << "[STSLAM_POSE_OPT_VALIDATE] frame=" << pFrame->mnId
+                      << " stereo_edge=" << i
+                      << " idx=" << idx
+                      << " before_compute" << std::endl;
+            e->computeError();
+            const float chi2 = e->chi2();
+            std::cerr << "[STSLAM_POSE_OPT_VALIDATE] frame=" << pFrame->mnId
+                      << " stereo_edge=" << i
+                      << " idx=" << idx
+                      << " chi2=" << chi2
+                      << " finite=" << std::isfinite(chi2)
+                      << " depth_positive=" << e->isDepthPositive()
+                      << std::endl;
+        }
+
+        std::cerr << "[STSLAM_POSE_OPT_VALIDATE] frame=" << pFrame->mnId
+                  << " end" << std::endl;
+    }
+
     for(size_t it=0; it<4; it++)
     {
         Tcw = pFrame->GetPose();
         vSE3->setEstimate(g2o::SE3Quat(Tcw.unit_quaternion().cast<double>(),Tcw.translation().cast<double>()));
 
+        if(debugPoseOptimization)
+        {
+            std::cerr << "[STSLAM_POSE_OPT] frame=" << pFrame->mnId
+                      << " iter=" << it
+                      << " before_initialize graph_edges=" << optimizer.edges().size()
+                      << std::endl;
+        }
         optimizer.initializeOptimization(0);
+        if(debugPoseOptimization)
+        {
+            std::cerr << "[STSLAM_POSE_OPT] frame=" << pFrame->mnId
+                      << " iter=" << it
+                      << " before_optimize iterations=" << its[it]
+                      << std::endl;
+        }
         optimizer.optimize(its[it]);
+        if(debugPoseOptimization)
+        {
+            std::cerr << "[STSLAM_POSE_OPT] frame=" << pFrame->mnId
+                      << " iter=" << it
+                      << " after_optimize" << std::endl;
+        }
 
         nBad=0;
         for(size_t i=0, iend=vpEdgesMono.size(); i<iend; i++)
@@ -3383,6 +3929,35 @@ int Optimizer::PoseOptimization(Frame *pFrame)
 
             if(chi2>chi2Mono[it])
             {                
+                pFrame->mvbOutlier[idx]=true;
+                e->setLevel(1);
+                nBad++;
+            }
+            else
+            {
+                pFrame->mvbOutlier[idx]=false;
+                e->setLevel(0);
+            }
+
+            if(it==2)
+                e->setRobustKernel(0);
+        }
+
+        for(size_t i=0, iend=vpEdgesMonoPinhole.size(); i<iend; i++)
+        {
+            g2o::EdgeSE3ProjectXYZOnlyPose* e = vpEdgesMonoPinhole[i];
+
+            const size_t idx = vnIndexEdgeMonoPinhole[i];
+
+            if(pFrame->mvbOutlier[idx])
+            {
+                e->computeError();
+            }
+
+            const float chi2 = e->chi2();
+
+            if(chi2>chi2Mono[it])
+            {
                 pFrame->mvbOutlier[idx]=true;
                 e->setLevel(1);
                 nBad++;
@@ -3466,6 +4041,40 @@ int Optimizer::PoseOptimization(Frame *pFrame)
             SE3quat_recov.translation().cast<float>());
     pFrame->SetPose(pose);
 
+    if(EnableDynamicMapAdmissionSupportQuality())
+    {
+        UpdateSupportQualityPoseUseEdges(pFrame, vpEdgesMono, vnIndexEdgeMono);
+        UpdateSupportQualityPoseUseEdges(
+            pFrame, vpEdgesMonoPinhole, vnIndexEdgeMonoPinhole);
+        UpdateSupportQualityPoseUseEdges(
+            pFrame, vpEdgesMono_FHR, vnIndexEdgeRight);
+        UpdateSupportQualityPoseUseEdges(
+            pFrame, vpEdgesStereo, vnIndexEdgeStereo);
+    }
+
+    if(EnableNearBoundaryDiagnostics())
+    {
+        NearBoundaryPoseUseStats nearBoundaryStats;
+        const int radiusPx = GetNearBoundaryDiagnosticRadiusPx();
+        AccumulateNearBoundaryPoseUseEdges(
+            pFrame, vpEdgesMono, vnIndexEdgeMono, nearBoundaryStats, radiusPx);
+        AccumulateNearBoundaryPoseUseEdges(
+            pFrame,
+            vpEdgesMonoPinhole,
+            vnIndexEdgeMonoPinhole,
+            nearBoundaryStats,
+            radiusPx);
+        AccumulateNearBoundaryPoseUseEdges(
+            pFrame,
+            vpEdgesMono_FHR,
+            vnIndexEdgeRight,
+            nearBoundaryStats,
+            radiusPx);
+        AccumulateNearBoundaryPoseUseEdges(
+            pFrame, vpEdgesStereo, vnIndexEdgeStereo, nearBoundaryStats, radiusPx);
+        PrintNearBoundaryPoseUseStats(pFrame, nearBoundaryStats, radiusPx);
+    }
+
     return nInitialCorrespondences-nBad;
 }
 
@@ -3524,6 +4133,8 @@ int Optimizer::PoseOptimizationPanoptic(Frame *pFrame)
 
     const float deltaMono = sqrt(5.991);
     const float deltaStereo = sqrt(7.815);
+    const bool useDynamicReprojectionWeights =
+        UseFrameDynamicReprojectionWeights();
 
     {
     unique_lock<mutex> lock(MapPoint::mGlobalMutex);
@@ -3548,7 +4159,10 @@ int Optimizer::PoseOptimizationPanoptic(Frame *pFrame)
                     e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
                     e->setMeasurement(obs);
                     const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
-                    e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
+                    if(useDynamicReprojectionWeights)
+                        e->setInformation(MakePoseOnlyInformation2(pFrame, i, invSigma2));
+                    else
+                        e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                     e->setRobustKernel(rk);
@@ -3577,7 +4191,9 @@ int Optimizer::PoseOptimizationPanoptic(Frame *pFrame)
                     e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
                     e->setMeasurement(obs);
                     const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
-                    Eigen::Matrix3d Info = Eigen::Matrix3d::Identity()*invSigma2;
+                    Eigen::Matrix3d Info = useDynamicReprojectionWeights
+                        ? MakePoseOnlyInformation3(pFrame, i, invSigma2)
+                        : Eigen::Matrix3d::Identity()*invSigma2;
                     e->setInformation(Info);
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
@@ -3615,7 +4231,10 @@ int Optimizer::PoseOptimizationPanoptic(Frame *pFrame)
                     e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex *>(optimizer.vertex(0)));
                     e->setMeasurement(obs);
                     const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
-                    e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
+                    if(useDynamicReprojectionWeights)
+                        e->setInformation(MakePoseOnlyInformation2(pFrame, i, invSigma2));
+                    else
+                        e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
 
                     g2o::RobustKernelHuber *rk = new g2o::RobustKernelHuber;
                     e->setRobustKernel(rk);
@@ -3642,7 +4261,10 @@ int Optimizer::PoseOptimizationPanoptic(Frame *pFrame)
                     e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex *>(optimizer.vertex(0)));
                     e->setMeasurement(obs);
                     const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
-                    e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
+                    if(useDynamicReprojectionWeights)
+                        e->setInformation(MakePoseOnlyInformation2(pFrame, i, invSigma2));
+                    else
+                        e->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
 
                     g2o::RobustKernelHuber *rk = new g2o::RobustKernelHuber;
                     e->setRobustKernel(rk);

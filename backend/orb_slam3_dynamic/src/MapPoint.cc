@@ -21,12 +21,45 @@
 #include "ORBmatcher.h"
 
 #include<mutex>
+#include<map>
+#include<cmath>
 
 namespace ORB_SLAM3
 {
 
 namespace
 {
+
+struct AdmissionDiagnosticsRecord
+{
+    bool directDynamic = false;
+    bool staticNearDynamicBoundary = false;
+    bool scoreAdmission = false;
+    long frameId = -1;
+    long keyFrameId = -1;
+    int featureIdx = -1;
+    int boundaryRadiusPx = 0;
+    int scoreRawSupport = 0;
+    int scoreReliableSupport = 0;
+    int scoreResidualSupport = 0;
+    int scoreDepthSupport = 0;
+    double supportScore = 0.0;
+    double candidateScore = 0.0;
+    double totalScore = 0.0;
+};
+
+struct SupportQualityPoseUseRecord
+{
+    int observations = 0;
+    int inliers = 0;
+    double chi2Sum = 0.0;
+};
+
+std::mutex gAdmissionDiagnosticsMutex;
+std::map<const MapPoint*, AdmissionDiagnosticsRecord> gAdmissionDiagnostics;
+
+std::mutex gSupportQualityPoseUseMutex;
+std::map<const MapPoint*, SupportQualityPoseUseRecord> gSupportQualityPoseUse;
 
 void CleanupInstanceMembership(Map* pMap,
                                const int instanceId,
@@ -240,6 +273,173 @@ void MapPoint::UpdateObservationStats(int frameId)
         mnFirstObservationFrame = frameId;
     mnLastObservationFrame = frameId;
     ++mnObservationCount;
+}
+
+void MapPoint::SetAdmissionDiagnostics(bool directDynamic,
+                                       bool staticNearDynamicBoundary,
+                                       long frameId,
+                                       long keyFrameId,
+                                       int featureIdx,
+                                       int boundaryRadiusPx)
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    AdmissionDiagnosticsRecord& record = gAdmissionDiagnostics[this];
+    record.directDynamic = directDynamic;
+    record.staticNearDynamicBoundary = staticNearDynamicBoundary;
+    record.frameId = frameId;
+    record.keyFrameId = keyFrameId;
+    record.featureIdx = featureIdx;
+    record.boundaryRadiusPx = boundaryRadiusPx;
+}
+
+bool MapPoint::WasCreatedFromDirectDynamicAdmission()
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+        gAdmissionDiagnostics.find(this);
+    return it != gAdmissionDiagnostics.end() && it->second.directDynamic;
+}
+
+bool MapPoint::WasCreatedFromStaticNearDynamicBoundary()
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+        gAdmissionDiagnostics.find(this);
+    return it != gAdmissionDiagnostics.end() && it->second.staticNearDynamicBoundary;
+}
+
+long MapPoint::GetAdmissionFrameId()
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+        gAdmissionDiagnostics.find(this);
+    return it != gAdmissionDiagnostics.end() ? it->second.frameId : -1;
+}
+
+long MapPoint::GetAdmissionKeyFrameId()
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+        gAdmissionDiagnostics.find(this);
+    return it != gAdmissionDiagnostics.end() ? it->second.keyFrameId : -1;
+}
+
+int MapPoint::GetAdmissionFeatureIdx()
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+        gAdmissionDiagnostics.find(this);
+    return it != gAdmissionDiagnostics.end() ? it->second.featureIdx : -1;
+}
+
+int MapPoint::GetAdmissionBoundaryRadiusPx()
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+        gAdmissionDiagnostics.find(this);
+    return it != gAdmissionDiagnostics.end() ? it->second.boundaryRadiusPx : 0;
+}
+
+void MapPoint::SetScoreAdmissionDiagnostics(double supportScore,
+                                            double candidateScore,
+                                            double totalScore,
+                                            int rawSupport,
+                                            int reliableSupport,
+                                            int residualSupport,
+                                            int depthSupport)
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    AdmissionDiagnosticsRecord& record = gAdmissionDiagnostics[this];
+    record.scoreAdmission = true;
+    record.supportScore = supportScore;
+    record.candidateScore = candidateScore;
+    record.totalScore = totalScore;
+    record.scoreRawSupport = rawSupport;
+    record.scoreReliableSupport = reliableSupport;
+    record.scoreResidualSupport = residualSupport;
+    record.scoreDepthSupport = depthSupport;
+}
+
+bool MapPoint::WasCreatedFromScoreAdmission()
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+        gAdmissionDiagnostics.find(this);
+    return it != gAdmissionDiagnostics.end() && it->second.scoreAdmission;
+}
+
+double MapPoint::GetScoreAdmissionSupportScore()
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+        gAdmissionDiagnostics.find(this);
+    return it != gAdmissionDiagnostics.end() ? it->second.supportScore : 0.0;
+}
+
+double MapPoint::GetScoreAdmissionCandidateScore()
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+        gAdmissionDiagnostics.find(this);
+    return it != gAdmissionDiagnostics.end() ? it->second.candidateScore : 0.0;
+}
+
+double MapPoint::GetScoreAdmissionTotalScore()
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+        gAdmissionDiagnostics.find(this);
+    return it != gAdmissionDiagnostics.end() ? it->second.totalScore : 0.0;
+}
+
+void MapPoint::UpdateSupportQualityPoseUse(double chi2, bool inlier)
+{
+    if(!std::isfinite(chi2))
+        return;
+
+    unique_lock<mutex> lock(gSupportQualityPoseUseMutex);
+    SupportQualityPoseUseRecord& record = gSupportQualityPoseUse[this];
+    ++record.observations;
+    if(inlier)
+        ++record.inliers;
+    record.chi2Sum += chi2;
+}
+
+int MapPoint::GetSupportQualityPoseUseCount()
+{
+    unique_lock<mutex> lock(gSupportQualityPoseUseMutex);
+    std::map<const MapPoint*, SupportQualityPoseUseRecord>::const_iterator it =
+        gSupportQualityPoseUse.find(this);
+    return it != gSupportQualityPoseUse.end() ? it->second.observations : 0;
+}
+
+int MapPoint::GetSupportQualityPoseUseInliers()
+{
+    unique_lock<mutex> lock(gSupportQualityPoseUseMutex);
+    std::map<const MapPoint*, SupportQualityPoseUseRecord>::const_iterator it =
+        gSupportQualityPoseUse.find(this);
+    return it != gSupportQualityPoseUse.end() ? it->second.inliers : 0;
+}
+
+double MapPoint::GetSupportQualityPoseUseInlierRate()
+{
+    unique_lock<mutex> lock(gSupportQualityPoseUseMutex);
+    std::map<const MapPoint*, SupportQualityPoseUseRecord>::const_iterator it =
+        gSupportQualityPoseUse.find(this);
+    if(it == gSupportQualityPoseUse.end() || it->second.observations <= 0)
+        return 0.0;
+    return static_cast<double>(it->second.inliers) /
+           static_cast<double>(it->second.observations);
+}
+
+double MapPoint::GetSupportQualityPoseUseMeanChi2()
+{
+    unique_lock<mutex> lock(gSupportQualityPoseUseMutex);
+    std::map<const MapPoint*, SupportQualityPoseUseRecord>::const_iterator it =
+        gSupportQualityPoseUse.find(this);
+    if(it == gSupportQualityPoseUse.end() || it->second.observations <= 0)
+        return 0.0;
+    return it->second.chi2Sum / static_cast<double>(it->second.observations);
 }
 
 

@@ -40,6 +40,7 @@
 #include <cstdlib>
 #include <mutex>
 #include <chrono>
+#include <map>
 #include <unordered_map>
 #include <sstream>
 #include <cctype>
@@ -115,6 +116,23 @@ int GetEnvIntOrDefault(const char* name, const int defaultValue, const int minVa
 {
     const char* envValue = std::getenv(name);
     return envValue ? std::max(minValue, std::atoi(envValue)) : defaultValue;
+}
+
+double GetEnvDoubleClamped(const char* name,
+                           const double defaultValue,
+                           const double minValue,
+                           const double maxValue)
+{
+    const char* envValue = std::getenv(name);
+    if(!envValue)
+        return defaultValue;
+
+    char* endPtr = NULL;
+    const double value = std::strtod(envValue, &endPtr);
+    if(endPtr == envValue || !std::isfinite(value))
+        return defaultValue;
+
+    return std::min(maxValue, std::max(minValue, value));
 }
 
 bool GetEnvFlagOrDefault(const char* name, const bool defaultValue)
@@ -237,6 +255,41 @@ bool EnableGeometricDynamicRejectionForStage(const std::string& stage)
     return false;
 }
 
+enum class GeometricDynamicRejectionAction
+{
+    kHardDelete,
+    kSoftWeight,
+    kRiskOnly
+};
+
+GeometricDynamicRejectionAction GetGeometricDynamicRejectionAction()
+{
+    static const GeometricDynamicRejectionAction value = []() {
+        const char* envValue =
+            std::getenv("STSLAM_GEOMETRIC_DYNAMIC_REJECTION_ACTION");
+        std::string action = envValue ? std::string(envValue) : std::string("hard_delete");
+        std::transform(action.begin(), action.end(), action.begin(),
+                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+
+        if(action == "soft" || action == "soft_weight" || action == "weight")
+            return GeometricDynamicRejectionAction::kSoftWeight;
+        if(action == "risk_only" || action == "mark" || action == "mark_after_pose")
+            return GeometricDynamicRejectionAction::kRiskOnly;
+        return GeometricDynamicRejectionAction::kHardDelete;
+    }();
+    return value;
+}
+
+std::string GeometricDynamicRejectionActionName(
+    const GeometricDynamicRejectionAction action)
+{
+    if(action == GeometricDynamicRejectionAction::kSoftWeight)
+        return "soft_weight";
+    if(action == GeometricDynamicRejectionAction::kRiskOnly)
+        return "risk_only";
+    return "hard_delete";
+}
+
 int GetSemanticGeometricMinStaticMapObservations()
 {
     static const int value =
@@ -276,6 +329,33 @@ double GetGeometricDynamicRejectionMaxDepthErrorM()
 {
     const char* envValue = std::getenv("STSLAM_GEOMETRIC_DYNAMIC_REJECTION_MAX_DEPTH_ERROR_M");
     static const double value = envValue ? std::max(0.0, std::atof(envValue)) : 0.10;
+    return value;
+}
+
+double GetGeometricDynamicRejectionSoftWeight()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_GEOMETRIC_DYNAMIC_REJECTION_SOFT_WEIGHT",
+                            0.25,
+                            0.01,
+                            1.0);
+    return value;
+}
+
+double GetGeometricDynamicRejectionMaxRejectRatio()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_GEOMETRIC_DYNAMIC_REJECTION_MAX_REJECT_RATIO",
+                            1.0,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+int GetGeometricDynamicRejectionProtectMinInliers()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_GEOMETRIC_DYNAMIC_REJECTION_PROTECT_MIN_INLIERS", 0, 0);
     return value;
 }
 
@@ -367,6 +447,597 @@ bool EnablePanopticSideChannelOnly()
     static const bool value =
         GetEnvFlagOrDefault("STSLAM_PANOPTIC_SIDE_CHANNEL_ONLY", false);
     return value;
+}
+
+bool EnableDynamicDepthInvalidation()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_DEPTH_INVALIDATION", false);
+    return value;
+}
+
+bool EnableDynamicMapAdmissionVeto()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_VETO", false);
+    return value;
+}
+
+bool EnableDynamicMapAdmissionVetoStereoInitialization()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_VETO_STEREO_INITIALIZATION",
+                            EnableDynamicMapAdmissionVeto());
+    return value;
+}
+
+bool EnableDynamicMapAdmissionVetoNeedNewKeyFrame()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_VETO_NEED_NEW_KEYFRAME",
+                            EnableDynamicMapAdmissionVeto());
+    return value;
+}
+
+bool EnableDynamicMapAdmissionVetoCreateNewKeyFrame()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_VETO_CREATE_NEW_KEYFRAME",
+                            EnableDynamicMapAdmissionVeto());
+    return value;
+}
+
+bool ShouldVetoDynamicMapAdmission(const Frame& frame,
+                                   const int idx,
+                                   const bool stageEnabled)
+{
+    if(!stageEnabled || idx < 0)
+        return false;
+    if(frame.GetFeaturePanopticId(static_cast<size_t>(idx)) > 0)
+        return true;
+    return frame.GetFeatureInstanceId(static_cast<size_t>(idx)) > 0;
+}
+
+bool EnableDynamicMapAdmissionBoundaryDiagnostics()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_DIAGNOSTICS", false);
+    return value;
+}
+
+bool EnableNearBoundaryDiagnostics()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_NEAR_BOUNDARY_DIAGNOSTICS", false);
+    return value;
+}
+
+bool EnableDynamicMapAdmissionBoundaryVeto()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_VETO", false);
+    return value;
+}
+
+bool EnableDynamicMapAdmissionBoundaryVetoCreateNewKeyFrame()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_VETO_CREATE_NEW_KEYFRAME",
+                            EnableDynamicMapAdmissionBoundaryVeto());
+    return value;
+}
+
+bool EnableDynamicMapAdmissionBoundarySameCountControl()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_SAME_COUNT_CONTROL", false);
+    return value;
+}
+
+bool EnableDynamicMapAdmissionBoundarySameCountControlCreateNewKeyFrame()
+{
+    static const bool value =
+        GetEnvFlagOrDefault(
+            "STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_SAME_COUNT_CONTROL_CREATE_NEW_KEYFRAME",
+            EnableDynamicMapAdmissionBoundarySameCountControl());
+    return value;
+}
+
+bool EnableDynamicMapAdmissionBoundaryMatchedControl()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_MATCHED_CONTROL", false);
+    return value;
+}
+
+bool EnableDynamicMapAdmissionBoundaryMatchedControlCreateNewKeyFrame()
+{
+    static const bool value =
+        GetEnvFlagOrDefault(
+            "STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_MATCHED_CONTROL_CREATE_NEW_KEYFRAME",
+            EnableDynamicMapAdmissionBoundaryMatchedControl());
+    return value;
+}
+
+bool EnableDynamicMapAdmissionDelayedBoundary()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY", false);
+    return value;
+}
+
+bool EnableDynamicMapAdmissionDelayedBoundaryCreateNewKeyFrame()
+{
+    static const bool value =
+        GetEnvFlagOrDefault(
+            "STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY_CREATE_NEW_KEYFRAME",
+            EnableDynamicMapAdmissionDelayedBoundary());
+    return value;
+}
+
+int GetDynamicMapAdmissionBoundaryRadiusPx()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_RADIUS_PX", 5, 0);
+    return value;
+}
+
+int GetDynamicMapAdmissionMatchedControlGridCols()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_MATCHED_CONTROL_GRID_COLS", 4, 1);
+    return value;
+}
+
+int GetDynamicMapAdmissionMatchedControlGridRows()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_MATCHED_CONTROL_GRID_ROWS", 3, 1);
+    return value;
+}
+
+struct AdmissionMatchedControlBin
+{
+    int gridX;
+    int gridY;
+    int depthBin;
+    int octave;
+
+    bool operator<(const AdmissionMatchedControlBin& other) const
+    {
+        if(gridX != other.gridX)
+            return gridX < other.gridX;
+        if(gridY != other.gridY)
+            return gridY < other.gridY;
+        if(depthBin != other.depthBin)
+            return depthBin < other.depthBin;
+        return octave < other.octave;
+    }
+};
+
+int QuantizeAdmissionMatchedControlDepth(const float depth)
+{
+    if(depth <= 0.0f || !std::isfinite(depth))
+        return -1;
+    if(depth < 1.0f)
+        return 0;
+    if(depth < 2.0f)
+        return 1;
+    if(depth < 3.0f)
+        return 2;
+    if(depth < 4.0f)
+        return 3;
+    if(depth < 6.0f)
+        return 4;
+    return 5;
+}
+
+AdmissionMatchedControlBin MakeAdmissionMatchedControlBin(const Frame& frame,
+                                                          const int idx,
+                                                          const float depth,
+                                                          const bool includeGrid)
+{
+    AdmissionMatchedControlBin bin;
+    bin.gridX = includeGrid ? 0 : -1;
+    bin.gridY = includeGrid ? 0 : -1;
+    bin.depthBin = QuantizeAdmissionMatchedControlDepth(depth);
+    bin.octave = 0;
+
+    if(idx < 0 || idx >= static_cast<int>(frame.mvKeys.size()))
+        return bin;
+
+    const cv::KeyPoint& kp = frame.mvKeys[idx];
+    bin.octave = kp.octave;
+    if(includeGrid)
+    {
+        const int gridCols = GetDynamicMapAdmissionMatchedControlGridCols();
+        const int gridRows = GetDynamicMapAdmissionMatchedControlGridRows();
+        const float width = std::max(1.0f, Frame::mnMaxX - Frame::mnMinX);
+        const float height = std::max(1.0f, Frame::mnMaxY - Frame::mnMinY);
+        const float normX = (kp.pt.x - Frame::mnMinX) / width;
+        const float normY = (kp.pt.y - Frame::mnMinY) / height;
+        bin.gridX =
+            std::min(gridCols - 1, std::max(0, static_cast<int>(std::floor(normX * gridCols))));
+        bin.gridY =
+            std::min(gridRows - 1, std::max(0, static_cast<int>(std::floor(normY * gridRows))));
+    }
+
+    return bin;
+}
+
+void AddAdmissionMatchedControlBudget(
+    std::map<AdmissionMatchedControlBin, int>& exactBudget,
+    std::map<AdmissionMatchedControlBin, int>& fallbackBudget,
+    const AdmissionMatchedControlBin& exactBin,
+    const AdmissionMatchedControlBin& fallbackBin)
+{
+    ++exactBudget[exactBin];
+    ++fallbackBudget[fallbackBin];
+}
+
+bool ConsumeAdmissionMatchedControlBudget(
+    std::map<AdmissionMatchedControlBin, int>& exactBudget,
+    std::map<AdmissionMatchedControlBin, int>& fallbackBudget,
+    const AdmissionMatchedControlBin& exactBin,
+    const AdmissionMatchedControlBin& fallbackBin,
+    bool& usedExact)
+{
+    usedExact = false;
+    std::map<AdmissionMatchedControlBin, int>::iterator exactIt = exactBudget.find(exactBin);
+    if(exactIt != exactBudget.end() && exactIt->second > 0)
+    {
+        --exactIt->second;
+        std::map<AdmissionMatchedControlBin, int>::iterator fallbackIt =
+            fallbackBudget.find(fallbackBin);
+        if(fallbackIt != fallbackBudget.end() && fallbackIt->second > 0)
+            --fallbackIt->second;
+        usedExact = true;
+        return true;
+    }
+
+    std::map<AdmissionMatchedControlBin, int>::iterator fallbackIt =
+        fallbackBudget.find(fallbackBin);
+    if(fallbackIt != fallbackBudget.end() && fallbackIt->second > 0)
+    {
+        --fallbackIt->second;
+        return true;
+    }
+
+    return false;
+}
+
+int GetDynamicMapAdmissionDelayedBoundarySupportRadiusPx()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY_SUPPORT_RADIUS_PX",
+                           18,
+                           0);
+    return value;
+}
+
+int GetDynamicMapAdmissionDelayedBoundaryMinSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY_MIN_SUPPORT",
+                           2,
+                           0);
+    return value;
+}
+
+int GetDynamicMapAdmissionDelayedBoundaryMinObservations()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY_MIN_OBS",
+                           2,
+                           0);
+    return value;
+}
+
+bool EnableDynamicMapAdmissionSupportQuality()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY", false);
+    return value;
+}
+
+int GetDynamicMapAdmissionSupportQualityMinReliableSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MIN_RELIABLE_SUPPORT",
+                           2,
+                           0);
+    return value;
+}
+
+int GetDynamicMapAdmissionSupportQualityMinDepthSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MIN_DEPTH_SUPPORT",
+                           2,
+                           0);
+    return value;
+}
+
+int GetDynamicMapAdmissionSupportQualityMinResidualObs()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MIN_RESIDUAL_OBS",
+                           1,
+                           0);
+    return value;
+}
+
+int GetDynamicMapAdmissionSupportQualityMinFrameSpan()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MIN_FRAME_SPAN",
+                           2,
+                           0);
+    return value;
+}
+
+double GetDynamicMapAdmissionSupportQualityMinInlierRate()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MIN_INLIER_RATE",
+                            0.70,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+double GetDynamicMapAdmissionSupportQualityMaxMeanChi2()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MAX_MEAN_CHI2",
+                            3.0,
+                            0.0,
+                            1000000.0);
+    return value;
+}
+
+double GetDynamicMapAdmissionSupportQualityMinFoundRatio()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MIN_FOUND_RATIO",
+                            0.35,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+double GetDynamicMapAdmissionSupportQualityMaxDepthRelDiff()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_DYNAMIC_MAP_ADMISSION_SUPPORT_QUALITY_MAX_DEPTH_REL_DIFF",
+                            0.25,
+                            0.0,
+                            1000000.0);
+    return value;
+}
+
+bool HasDynamicMaskSupportNearFeature(const Frame& frame, const int idx, const int radiusPx)
+{
+    if(!frame.HasPanopticObservation() || idx < 0 ||
+       idx >= static_cast<int>(frame.mvKeys.size()))
+        return false;
+
+    const cv::Mat& panopticMask = frame.mPanopticObservation.rawPanopticMask;
+    if(panopticMask.empty() || panopticMask.channels() != 1 ||
+       (panopticMask.type() != CV_16UC1 && panopticMask.type() != CV_32SC1))
+        return false;
+
+    const int x0 = static_cast<int>(std::round(frame.mvKeys[idx].pt.x));
+    const int y0 = static_cast<int>(std::round(frame.mvKeys[idx].pt.y));
+    const int radius = std::max(0, radiusPx);
+    const int minX = std::max(0, x0 - radius);
+    const int maxX = std::min(panopticMask.cols - 1, x0 + radius);
+    const int minY = std::max(0, y0 - radius);
+    const int maxY = std::min(panopticMask.rows - 1, y0 + radius);
+
+    for(int y = minY; y <= maxY; ++y)
+    {
+        for(int x = minX; x <= maxX; ++x)
+        {
+            if(ReadPanopticIdAt(panopticMask, x, y) > 0)
+                return true;
+        }
+    }
+
+    return false;
+}
+
+int CountCleanStaticMapSupportNearFeature(const Frame& frame,
+                                          const int idx,
+                                          const int radiusPx,
+                                          const int minObservations)
+{
+    if(idx < 0 || idx >= static_cast<int>(frame.mvKeys.size()))
+        return 0;
+
+    const cv::Point2f center = frame.mvKeys[idx].pt;
+    const float radius = static_cast<float>(std::max(0, radiusPx));
+    const float radiusSq = radius * radius;
+    const int nFeatures = std::min(frame.N, static_cast<int>(frame.mvKeys.size()));
+    int support = 0;
+    for(int candidateIdx = 0; candidateIdx < nFeatures; ++candidateIdx)
+    {
+        if(candidateIdx == idx)
+            continue;
+        if(candidateIdx >= static_cast<int>(frame.mvpMapPoints.size()))
+            continue;
+
+        MapPoint* pMP = frame.mvpMapPoints[candidateIdx];
+        if(!pMP || pMP->isBad() || pMP->IsDynamicInstanceObservationPoint() ||
+           pMP->IsInstanceStructurePoint())
+            continue;
+        if(pMP->Observations() < minObservations)
+            continue;
+        if(frame.GetFeaturePanopticId(static_cast<size_t>(candidateIdx)) > 0 ||
+           frame.GetFeatureInstanceId(static_cast<size_t>(candidateIdx)) > 0)
+            continue;
+        if(HasDynamicMaskSupportNearFeature(frame,
+                                            candidateIdx,
+                                            GetDynamicMapAdmissionBoundaryRadiusPx()))
+            continue;
+
+        const cv::Point2f delta = frame.mvKeys[candidateIdx].pt - center;
+        if(delta.dot(delta) <= radiusSq)
+            ++support;
+    }
+
+    return support;
+}
+
+struct AdmissionSupportQualityResult
+{
+    int rawSupport = 0;
+    int foundStableSupport = 0;
+    int frameStableSupport = 0;
+    int rawDepthConsistentSupport = 0;
+    int reliableSupport = 0;
+    int residualReliableSupport = 0;
+    int depthConsistentSupport = 0;
+    bool pass = false;
+};
+
+bool IsDepthConsistentForSupportQuality(const float candidateDepth,
+                                        const float supportDepth)
+{
+    if(candidateDepth <= 0.0f || supportDepth <= 0.0f ||
+       !std::isfinite(candidateDepth) || !std::isfinite(supportDepth))
+        return false;
+
+    const double denom = std::max(static_cast<double>(candidateDepth),
+                                  static_cast<double>(supportDepth));
+    if(denom <= 0.0)
+        return false;
+
+    const double relDiff =
+        std::fabs(static_cast<double>(candidateDepth) -
+                  static_cast<double>(supportDepth)) /
+        denom;
+    return relDiff <= GetDynamicMapAdmissionSupportQualityMaxDepthRelDiff();
+}
+
+bool IsSupportQualityStableAcrossFrames(MapPoint* pMP)
+{
+    if(!pMP)
+        return false;
+
+    const int minFrameSpan =
+        GetDynamicMapAdmissionSupportQualityMinFrameSpan();
+    if(minFrameSpan <= 0)
+        return true;
+
+    const long firstFrame = pMP->mnFirstObservationFrame;
+    const long lastFrame = pMP->mnLastObservationFrame;
+    const long frameSpan =
+        (firstFrame >= 0 && lastFrame >= firstFrame) ?
+        (lastFrame - firstFrame) :
+        0;
+    return frameSpan >= minFrameSpan ||
+           pMP->mnObservationCount >= minFrameSpan + 1 ||
+           pMP->Observations() >= minFrameSpan + 1;
+}
+
+bool IsSupportQualityResidualStable(MapPoint* pMP)
+{
+    if(!pMP)
+        return false;
+
+    const int minResidualObs =
+        GetDynamicMapAdmissionSupportQualityMinResidualObs();
+    if(minResidualObs <= 0)
+        return true;
+
+    const int poseUseCount = pMP->GetSupportQualityPoseUseCount();
+    if(poseUseCount < minResidualObs)
+        return false;
+
+    return pMP->GetSupportQualityPoseUseInlierRate() >=
+               GetDynamicMapAdmissionSupportQualityMinInlierRate() &&
+           pMP->GetSupportQualityPoseUseMeanChi2() <=
+               GetDynamicMapAdmissionSupportQualityMaxMeanChi2();
+}
+
+AdmissionSupportQualityResult EvaluateCleanStaticMapSupportQualityNearFeature(
+    const Frame& frame,
+    const int idx,
+    const int radiusPx,
+    const int minObservations,
+    const float candidateDepth)
+{
+    AdmissionSupportQualityResult result;
+    if(idx < 0 || idx >= static_cast<int>(frame.mvKeys.size()))
+        return result;
+
+    const cv::Point2f center = frame.mvKeys[idx].pt;
+    const float radius = static_cast<float>(std::max(0, radiusPx));
+    const float radiusSq = radius * radius;
+    const int nFeatures = std::min(frame.N, static_cast<int>(frame.mvKeys.size()));
+    for(int candidateIdx = 0; candidateIdx < nFeatures; ++candidateIdx)
+    {
+        if(candidateIdx == idx)
+            continue;
+        if(candidateIdx >= static_cast<int>(frame.mvpMapPoints.size()))
+            continue;
+
+        const cv::Point2f delta = frame.mvKeys[candidateIdx].pt - center;
+        if(delta.dot(delta) > radiusSq)
+            continue;
+
+        MapPoint* pMP = frame.mvpMapPoints[candidateIdx];
+        if(!pMP || pMP->isBad() || pMP->IsDynamicInstanceObservationPoint() ||
+           pMP->IsInstanceStructurePoint())
+            continue;
+        if(pMP->Observations() < minObservations)
+            continue;
+        if(frame.GetFeaturePanopticId(static_cast<size_t>(candidateIdx)) > 0 ||
+           frame.GetFeatureInstanceId(static_cast<size_t>(candidateIdx)) > 0)
+            continue;
+        if(HasDynamicMaskSupportNearFeature(frame,
+                                            candidateIdx,
+                                            GetDynamicMapAdmissionBoundaryRadiusPx()))
+            continue;
+
+        ++result.rawSupport;
+
+        const bool foundStable =
+            pMP->GetFoundRatio() >=
+            GetDynamicMapAdmissionSupportQualityMinFoundRatio();
+        const bool frameStable = IsSupportQualityStableAcrossFrames(pMP);
+        const bool residualStable = IsSupportQualityResidualStable(pMP);
+        const float supportDepth =
+            candidateIdx < static_cast<int>(frame.mvDepth.size()) ?
+            frame.mvDepth[candidateIdx] :
+            -1.0f;
+        const bool depthStable =
+            IsDepthConsistentForSupportQuality(candidateDepth, supportDepth);
+        if(foundStable)
+            ++result.foundStableSupport;
+        if(frameStable)
+            ++result.frameStableSupport;
+        if(residualStable)
+            ++result.residualReliableSupport;
+        if(depthStable)
+            ++result.rawDepthConsistentSupport;
+
+        const bool reliable = foundStable && frameStable && residualStable;
+        if(!reliable)
+            continue;
+
+        ++result.reliableSupport;
+        if(depthStable)
+            ++result.depthConsistentSupport;
+    }
+
+    result.pass =
+        result.reliableSupport >=
+            GetDynamicMapAdmissionSupportQualityMinReliableSupport() &&
+        result.depthConsistentSupport >=
+            GetDynamicMapAdmissionSupportQualityMinDepthSupport();
+    return result;
 }
 
 bool EnableRgbdDynamicSplitObservationAppend()
@@ -566,15 +1237,51 @@ SemanticGeometricVerificationResult VerifySemanticCandidateWithGeometry(const Fr
                                             GetSemanticGeometricMaxDepthErrorM());
 }
 
+void EnsureDynamicReprojectionWeights(Frame& frame)
+{
+    ClearFrameDynamicReprojectionWeights(frame.mnId);
+}
+
+int CountStaticMapPointMatches(const Frame& frame)
+{
+    const int nFeatures = std::min(frame.N, static_cast<int>(frame.mvpMapPoints.size()));
+    int count = 0;
+    for(int idx = 0; idx < nFeatures; ++idx)
+    {
+        if(frame.GetFeatureInstanceId(static_cast<size_t>(idx)) > 0)
+            continue;
+        if(!frame.mvpMapPoints[idx])
+            continue;
+        if(idx < static_cast<int>(frame.mvbOutlier.size()) && frame.mvbOutlier[idx])
+            continue;
+        ++count;
+    }
+    return count;
+}
+
+int ComputeMaxGeometricDynamicActions(const int eligibleMatches,
+                                      const double maxRejectRatio)
+{
+    if(eligibleMatches <= 0)
+        return 0;
+    if(maxRejectRatio >= 1.0)
+        return eligibleMatches;
+    if(maxRejectRatio <= 0.0)
+        return 0;
+    return std::max(1, static_cast<int>(std::floor(eligibleMatches * maxRejectRatio)));
+}
+
 int ForceFilterDetectedDynamicFeatureMatches(Frame& frame, const std::string& stage)
 {
-    if(!ForceFilterDetectedDynamicFeaturesForStage(stage))
+    const bool forceFilterDetectedDynamicForStage =
+        ForceFilterDetectedDynamicFeaturesForStage(stage);
+    const bool geometricDynamicRejectionEnabledForStage =
+        EnableGeometricDynamicRejectionForStage(stage);
+    if(!forceFilterDetectedDynamicForStage && !geometricDynamicRejectionEnabledForStage)
         return 0;
 
     const bool geometryVerificationEnabledForStage =
         EnableSemanticGeometricVerificationForStage(stage);
-    const bool geometricDynamicRejectionEnabledForStage =
-        EnableGeometricDynamicRejectionForStage(stage);
     int detectedInstanceFeatures = 0;
     int removedMatches = 0;
     int taggedOutliers = 0;
@@ -600,6 +1307,20 @@ int ForceFilterDetectedDynamicFeatureMatches(Frame& frame, const std::string& st
     int geometryDynamicRejectedDepth = 0;
     int geometryDynamicRejectedOther = 0;
     int geometryDynamicRemovedMatches = 0;
+    int geometryDynamicSoftWeighted = 0;
+    int geometryDynamicRiskOnly = 0;
+    int geometryDynamicCapped = 0;
+    int geometryDynamicProtectedMinInliers = 0;
+    int geometryDynamicEligibleMatches = 0;
+    int geometryDynamicMaxActions = 0;
+    const GeometricDynamicRejectionAction geometricDynamicAction =
+        GetGeometricDynamicRejectionAction();
+    const double geometricDynamicSoftWeight =
+        GetGeometricDynamicRejectionSoftWeight();
+    const double geometricDynamicMaxRejectRatio =
+        GetGeometricDynamicRejectionMaxRejectRatio();
+    const int geometricDynamicProtectMinInliers =
+        GetGeometricDynamicRejectionProtectMinInliers();
     const int nFeatures = std::min(frame.N, static_cast<int>(frame.mvpMapPoints.size()));
     int instanceFeatureTotal = 0;
     for(int idx = 0; idx < nFeatures; ++idx)
@@ -620,6 +1341,8 @@ int ForceFilterDetectedDynamicFeatureMatches(Frame& frame, const std::string& st
             ? static_cast<int>(std::floor(instanceFeatureTotal *
                                           GetSemanticSparseFlowMaxDynamicRejectRatio()))
             : 0;
+    if(forceFilterDetectedDynamicForStage)
+    {
     for(int idx = 0; idx < nFeatures; ++idx)
     {
         const int instanceId = frame.GetFeatureInstanceId(static_cast<size_t>(idx));
@@ -866,9 +1589,19 @@ int ForceFilterDetectedDynamicFeatureMatches(Frame& frame, const std::string& st
             ++taggedOutliers;
         }
     }
+    }
 
     if(geometricDynamicRejectionEnabledForStage)
     {
+        geometryDynamicEligibleMatches = CountStaticMapPointMatches(frame);
+        geometryDynamicMaxActions =
+            ComputeMaxGeometricDynamicActions(geometryDynamicEligibleMatches,
+                                              geometricDynamicMaxRejectRatio);
+        int activeStaticSupport = geometryDynamicEligibleMatches;
+        int geometryDynamicAppliedActions = 0;
+        if(geometricDynamicAction == GeometricDynamicRejectionAction::kSoftWeight)
+            EnsureDynamicReprojectionWeights(frame);
+
         for(int idx = 0; idx < nFeatures; ++idx)
         {
             if(frame.GetFeatureInstanceId(static_cast<size_t>(idx)) > 0)
@@ -908,18 +1641,55 @@ int ForceFilterDetectedDynamicFeatureMatches(Frame& frame, const std::string& st
             if(!rejectAsDynamic)
                 continue;
 
+            if(geometryDynamicAppliedActions >= geometryDynamicMaxActions)
+            {
+                ++geometryDynamicCapped;
+                continue;
+            }
+
+            if(geometricDynamicAction == GeometricDynamicRejectionAction::kSoftWeight)
+            {
+                SetFrameDynamicReprojectionWeight(frame.mnId,
+                                                 idx,
+                                                 frame.N,
+                                                 static_cast<float>(geometricDynamicSoftWeight));
+                ++geometryDynamicSoftWeighted;
+                ++geometryDynamicAppliedActions;
+                continue;
+            }
+
+            if(geometricDynamicAction == GeometricDynamicRejectionAction::kRiskOnly)
+            {
+                ++geometryDynamicRiskOnly;
+                ++geometryDynamicAppliedActions;
+                continue;
+            }
+
+            if(geometricDynamicProtectMinInliers > 0 &&
+               activeStaticSupport <= geometricDynamicProtectMinInliers)
+            {
+                ++geometryDynamicProtectedMinInliers;
+                continue;
+            }
+
             frame.mvpMapPoints[idx] = static_cast<MapPoint*>(NULL);
             ++geometryDynamicRemovedMatches;
+            ++geometryDynamicAppliedActions;
+            activeStaticSupport = std::max(0, activeStaticSupport - 1);
             if(idx < static_cast<int>(frame.mvbOutlier.size()) && !frame.mvbOutlier[idx])
                 frame.mvbOutlier[idx] = true;
         }
     }
 
-    if(detectedInstanceFeatures > 0 || geometryDynamicRemovedMatches > 0)
+    if(detectedInstanceFeatures > 0 || geometryDynamicRemovedMatches > 0 ||
+       geometryDynamicSoftWeighted > 0 || geometryDynamicRiskOnly > 0 ||
+       geometryDynamicCapped > 0 || geometryDynamicProtectedMinInliers > 0)
     {
         std::cout << "[STSLAM_FORCE_DYNAMIC_FILTER]"
                   << " frame=" << frame.mnId
                   << " stage=" << stage
+                  << " force_filter_stage_enabled="
+                  << (forceFilterDetectedDynamicForStage ? 1 : 0)
                   << " detected_instance_features=" << detectedInstanceFeatures
                   << " geom_verify_enabled=" << (EnableSemanticGeometricVerification() ? 1 : 0)
                   << " geom_stage_enabled=" << (geometryVerificationEnabledForStage ? 1 : 0)
@@ -957,7 +1727,21 @@ int ForceFilterDetectedDynamicFeatureMatches(Frame& frame, const std::string& st
                   << " geom_dyn_rejected_reprojection=" << geometryDynamicRejectedReprojection
                   << " geom_dyn_rejected_depth=" << geometryDynamicRejectedDepth
                   << " geom_dyn_rejected_other=" << geometryDynamicRejectedOther
+                  << " geom_dyn_action="
+                  << GeometricDynamicRejectionActionName(geometricDynamicAction)
+                  << " geom_dyn_soft_weight=" << geometricDynamicSoftWeight
+                  << " geom_dyn_max_reject_ratio=" << geometricDynamicMaxRejectRatio
+                  << " geom_dyn_protect_min_inliers="
+                  << geometricDynamicProtectMinInliers
+                  << " geom_dyn_eligible_matches="
+                  << geometryDynamicEligibleMatches
+                  << " geom_dyn_max_actions=" << geometryDynamicMaxActions
                   << " geom_dyn_removed_matches=" << geometryDynamicRemovedMatches
+                  << " geom_dyn_soft_weighted=" << geometryDynamicSoftWeighted
+                  << " geom_dyn_risk_only=" << geometryDynamicRiskOnly
+                  << " geom_dyn_capped=" << geometryDynamicCapped
+                  << " geom_dyn_protected_min_inliers="
+                  << geometryDynamicProtectedMinInliers
                   << std::endl;
     }
 
@@ -2381,7 +3165,20 @@ void WriteObservabilityFrameStats(std::ofstream& stream,
                                   const Frame& frame,
                                   const int trackingState,
                                   const int sensor,
-                                  const bool keyFrameCreated)
+                                  const bool keyFrameCreated,
+                                  const long numKeyFrames,
+                                  const long numMapPoints,
+                                  const int localMapMatchesBeforePose,
+                                  const int inlierMapMatchesAfterPose,
+                                  const int inlierMargin30,
+                                  const bool hasPose,
+                                  const double estimatedFrameStep,
+                                  const double estimatedAccumPath,
+                                  const double deltaTimeSec,
+                                  const bool recentRelocalizationGuard,
+                                  const bool relocalizedThisFrame,
+                                  const bool recentlyLost,
+                                  const bool lost)
 {
     if(!stream.is_open())
         return;
@@ -2413,6 +3210,19 @@ void WriteObservabilityFrameStats(std::ofstream& stream,
            << "," << frame.mmPredictedInstanceMotions.size()
            << "," << (frame.mpReferenceKF ? static_cast<long>(frame.mpReferenceKF->mnId) : -1)
            << "," << (keyFrameCreated ? 1 : 0)
+           << "," << numKeyFrames
+           << "," << numMapPoints
+           << "," << localMapMatchesBeforePose
+           << "," << inlierMapMatchesAfterPose
+           << "," << inlierMargin30
+           << "," << (hasPose ? 1 : 0)
+           << "," << std::setprecision(6) << estimatedFrameStep
+           << "," << std::setprecision(6) << estimatedAccumPath
+           << "," << std::setprecision(6) << deltaTimeSec
+           << "," << (recentRelocalizationGuard ? 1 : 0)
+           << "," << (relocalizedThisFrame ? 1 : 0)
+           << "," << (recentlyLost ? 1 : 0)
+           << "," << (lost ? 1 : 0)
            << std::endl;
 }
 
@@ -2662,6 +3472,13 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
     initID = 0; lastID = 0;
     mbInitWith3KFs = false;
     mnNumDataset = 0;
+    mnObservabilityLocalMapMatchesBeforePose = -1;
+    mnObservabilityMatchesInliersAfterPose = -1;
+    mbObservabilityHasLastPose = false;
+    mbObservabilityHasLastTimestamp = false;
+    mObservabilityLastCameraCenter.setZero();
+    mdObservabilityAccumEstimatedPath = 0.0;
+    mdObservabilityLastTimestamp = 0.0;
 
     vector<GeometricCamera*> vpCams = mpAtlas->GetAllCameras();
     std::cout << "There are " << vpCams.size() << " cameras in the atlas" << std::endl;
@@ -2704,7 +3521,11 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
                 << "total_features,instance_bound_features,non_instance_features,"
                 << "tracked_map_points,tracked_static_map_points,tracked_dynamic_map_points,"
                 << "thing_features,stuff_features,static_grid_coverage,dynamic_grid_coverage,total_grid_coverage,"
-                << "predicted_instances,reference_kf_id,is_keyframe_created"
+                << "predicted_instances,reference_kf_id,is_keyframe_created,"
+                << "num_keyframes,num_mappoints,local_map_matches_before_pose,"
+                << "inlier_map_matches_after_pose,inlier_margin_30,has_pose,"
+                << "estimated_frame_step_m,estimated_accum_path_m,delta_time_s,"
+                << "recent_relocalization_guard,relocalized_this_frame,is_recently_lost,is_lost"
                 << std::endl;
         }
     }
@@ -3112,6 +3933,70 @@ Tracking::~Tracking()
     if(f_observability_stats.is_open())
         f_observability_stats.close();
 
+}
+
+void Tracking::AppendObservabilityFrameStats()
+{
+    if(!EnableObservabilityLogging() || mCurrentFrame.N <= 0 || !f_observability_stats.is_open())
+        return;
+
+    double deltaTimeSec = 0.0;
+    if(mbObservabilityHasLastTimestamp)
+        deltaTimeSec = mCurrentFrame.mTimeStamp - mdObservabilityLastTimestamp;
+    mdObservabilityLastTimestamp = mCurrentFrame.mTimeStamp;
+    mbObservabilityHasLastTimestamp = true;
+
+    double estimatedFrameStep = -1.0;
+    const bool hasPose = mCurrentFrame.isSet();
+    if(hasPose)
+    {
+        const Eigen::Vector3f currentCenter = mCurrentFrame.GetCameraCenter();
+        if(mbObservabilityHasLastPose)
+        {
+            estimatedFrameStep =
+                static_cast<double>((currentCenter - mObservabilityLastCameraCenter).norm());
+            mdObservabilityAccumEstimatedPath += estimatedFrameStep;
+        }
+        else
+        {
+            estimatedFrameStep = 0.0;
+        }
+        mObservabilityLastCameraCenter = currentCenter;
+        mbObservabilityHasLastPose = true;
+    }
+
+    long numKeyFrames = -1;
+    long numMapPoints = -1;
+    if(mpAtlas && mpAtlas->GetCurrentMap())
+    {
+        numKeyFrames = static_cast<long>(mpAtlas->KeyFramesInMap());
+        numMapPoints = static_cast<long>(mpAtlas->MapPointsInMap());
+    }
+
+    const int inlierMargin30 =
+        (mnObservabilityMatchesInliersAfterPose >= 0)
+            ? (mnObservabilityMatchesInliersAfterPose - 30)
+            : -999;
+
+    WriteObservabilityFrameStats(f_observability_stats,
+                                 mCurrentFrame,
+                                 mState,
+                                 mSensor,
+                                 mbCurrentFrameCreatedKeyFrame,
+                                 numKeyFrames,
+                                 numMapPoints,
+                                 mnObservabilityLocalMapMatchesBeforePose,
+                                 mnObservabilityMatchesInliersAfterPose,
+                                 inlierMargin30,
+                                 hasPose,
+                                 estimatedFrameStep,
+                                 mdObservabilityAccumEstimatedPath,
+                                 deltaTimeSec,
+                                 mCurrentFrame.mnId < mnLastRelocFrameId + mMaxFrames,
+                                 mnLastRelocFrameId > 0 &&
+                                     mCurrentFrame.mnId == mnLastRelocFrameId,
+                                 mState == RECENTLY_LOST,
+                                 mState == LOST);
 }
 
 void Tracking::newParameterLoader(Settings *settings) {
@@ -4211,6 +5096,18 @@ Sophus::SE3f Tracking::GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, co
                     BuildPanopticFrameObservation(refinedPanopticMask, timestamp, effectiveFilename);
                 mCurrentFrame.AssignPanopticObservation(refinedObservation);
             }
+        }
+
+        if(EnableDynamicDepthInvalidation())
+        {
+            const int invalidated = mCurrentFrame.InvalidateDepthInPanopticMask();
+            std::cout << "[STSLAM_DYNAMIC_DEPTH_INVALIDATION]"
+                      << " frame=" << mCurrentFrame.mnId
+                      << " filename=" << effectiveFilename
+                      << " masked_features=" << mCurrentFrame.mnDynamicDepthMaskedFeatures
+                      << " invalidated_features=" << invalidated
+                      << " no_depth_masked_features=" << mCurrentFrame.mnDynamicDepthNoDepthFeatures
+                      << std::endl;
         }
     }
 
@@ -10434,6 +11331,18 @@ void Tracking::ResetFrameIMU()
 
 void Tracking::Track()
 {
+    mnObservabilityLocalMapMatchesBeforePose = -1;
+    mnObservabilityMatchesInliersAfterPose = -1;
+
+    if(DebugFocusFrame(mCurrentFrame.mnId))
+    {
+        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                  << " stage=track_enter"
+                  << " state=" << static_cast<int>(mState)
+                  << " last_frame_id=" << mLastFrame.mnId
+                  << " current_features=" << mCurrentFrame.N
+                  << std::endl;
+    }
 
     if (bStepByStep)
     {
@@ -10454,6 +11363,14 @@ void Tracking::Track()
     if(!pCurrentMap)
     {
         cout << "ERROR: There is not an active map in the atlas" << endl;
+    }
+    else if(DebugFocusFrame(mCurrentFrame.mnId))
+    {
+        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                  << " stage=track_have_map"
+                  << " keyframes=" << pCurrentMap->KeyFramesInMap()
+                  << " mappoints=" << pCurrentMap->MapPointsInMap()
+                  << std::endl;
     }
 
     if(mState!=NO_IMAGES_YET)
@@ -10581,17 +11498,40 @@ void Tracking::Track()
             {
 
                 // Local Mapping might have changed some MapPoints tracked in last frame
+                if(DebugFocusFrame(mCurrentFrame.mnId))
+                    std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                              << " stage=before_check_replaced" << std::endl;
                 CheckReplacedInLastFrame();
+                if(DebugFocusFrame(mCurrentFrame.mnId))
+                    std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                              << " stage=after_check_replaced"
+                              << " velocity=" << (mbVelocity ? 1 : 0)
+                              << " last_reloc=" << mnLastRelocFrameId
+                              << std::endl;
 
                 if((!mbVelocity && !pCurrentMap->isImuInitialized()) || mCurrentFrame.mnId<mnLastRelocFrameId+2)
                 {
                     Verbose::PrintMess("TRACK: Track with respect to the reference KF ", Verbose::VERBOSITY_DEBUG);
+                    if(DebugFocusFrame(mCurrentFrame.mnId))
+                        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                                  << " stage=before_track_reference" << std::endl;
                     bOK = TrackReferenceKeyFrame();
+                    if(DebugFocusFrame(mCurrentFrame.mnId))
+                        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                                  << " stage=after_track_reference"
+                                  << " ok=" << (bOK ? 1 : 0) << std::endl;
                 }
                 else
                 {
                     Verbose::PrintMess("TRACK: Track with motion model", Verbose::VERBOSITY_DEBUG);
+                    if(DebugFocusFrame(mCurrentFrame.mnId))
+                        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                                  << " stage=before_track_motion" << std::endl;
                     bOK = TrackWithMotionModel();
+                    if(DebugFocusFrame(mCurrentFrame.mnId))
+                        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                                  << " stage=after_track_motion"
+                                  << " ok=" << (bOK ? 1 : 0) << std::endl;
                     if(!bOK)
                         bOK = TrackReferenceKeyFrame();
                 }
@@ -11097,13 +12037,7 @@ void Tracking::Track()
     }
 
     if(EnableObservabilityLogging() && mCurrentFrame.N > 0)
-    {
-        WriteObservabilityFrameStats(f_observability_stats,
-                                     mCurrentFrame,
-                                     mState,
-                                     mSensor,
-                                     mbCurrentFrameCreatedKeyFrame);
-    }
+        AppendObservabilityFrameStats();
 
 #ifdef REGISTER_LOOP
     if (Stop()) {
@@ -11162,9 +12096,18 @@ void Tracking::StereoInitialization()
         mpAtlas->AddKeyFrame(pKFini);
 
         // Create MapPoints and asscoiate to KeyFrame
+        const bool dynamicMapAdmissionVetoStereoInitialization =
+            EnableDynamicMapAdmissionVetoStereoInitialization();
+        int dynamicMapAdmissionVetoed = 0;
         if(!mpCamera2){
             for(int i=0; i<mCurrentFrame.N;i++)
             {
+                if(ShouldVetoDynamicMapAdmission(
+                       mCurrentFrame, i, dynamicMapAdmissionVetoStereoInitialization))
+                {
+                    ++dynamicMapAdmissionVetoed;
+                    continue;
+                }
                 float z = mCurrentFrame.mvDepth[i];
                 if(z>0)
                 {
@@ -11182,6 +12125,12 @@ void Tracking::StereoInitialization()
             }
         } else{
             for(int i = 0; i < mCurrentFrame.Nleft; i++){
+                if(ShouldVetoDynamicMapAdmission(
+                       mCurrentFrame, i, dynamicMapAdmissionVetoStereoInitialization))
+                {
+                    ++dynamicMapAdmissionVetoed;
+                    continue;
+                }
                 int rightIndex = mCurrentFrame.mvLeftToRightMatch[i];
                 if(rightIndex != -1){
                     Eigen::Vector3f x3D = mCurrentFrame.mvStereo3Dpoints[i];
@@ -11202,6 +12151,17 @@ void Tracking::StereoInitialization()
                     mCurrentFrame.mvpMapPoints[rightIndex + mCurrentFrame.Nleft]=pNewMP;
                 }
             }
+        }
+
+        if(dynamicMapAdmissionVetoStereoInitialization)
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_VETO]"
+                      << " stage=stereo_initialization"
+                      << " frame=" << mCurrentFrame.mnId
+                      << " keyframe_id=" << pKFini->mnId
+                      << " vetoed_candidates=" << dynamicMapAdmissionVetoed
+                      << " current_map_points=" << mpAtlas->MapPointsInMap()
+                      << std::endl;
         }
 
         Verbose::PrintMess("New Map created with " + to_string(mpAtlas->MapPointsInMap()) + " points", Verbose::VERBOSITY_QUIET);
@@ -11509,8 +12469,17 @@ void Tracking::CheckReplacedInLastFrame()
 
 bool Tracking::TrackReferenceKeyFrame()
 {
+    if(DebugFocusFrame(mCurrentFrame.mnId))
+        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                  << " stage=track_ref_enter"
+                  << " reference_kf=" << (mpReferenceKF ? static_cast<long>(mpReferenceKF->mnId) : -1)
+                  << std::endl;
+
     // Compute Bag of Words vector
     mCurrentFrame.ComputeBoW();
+    if(DebugFocusFrame(mCurrentFrame.mnId))
+        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                  << " stage=track_ref_after_bow" << std::endl;
 
     // We perform first an ORB matching with the reference keyframe
     // If enough matches are found we setup a PnP solver
@@ -11518,6 +12487,12 @@ bool Tracking::TrackReferenceKeyFrame()
     vector<MapPoint*> vpMapPointMatches;
 
     int nmatches = matcher.SearchByBoW(mpReferenceKF,mCurrentFrame,vpMapPointMatches);
+    if(DebugFocusFrame(mCurrentFrame.mnId))
+        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                  << " stage=track_ref_after_bow_match"
+                  << " matches=" << nmatches
+                  << " match_vector=" << vpMapPointMatches.size()
+                  << std::endl;
 
     if(nmatches<15)
     {
@@ -11532,7 +12507,13 @@ bool Tracking::TrackReferenceKeyFrame()
 
 
     // cout << " TrackReferenceKeyFrame mLastFrame.mTcw:  " << mLastFrame.mTcw << endl;
+    if(DebugFocusFrame(mCurrentFrame.mnId))
+        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                  << " stage=track_ref_before_pose_opt" << std::endl;
     Optimizer::PoseOptimization(&mCurrentFrame);
+    if(DebugFocusFrame(mCurrentFrame.mnId))
+        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                  << " stage=track_ref_after_pose_opt" << std::endl;
 
     // Discard outliers
     int nmatchesMap = 0;
@@ -11643,11 +12624,21 @@ void Tracking::UpdateLastFrame()
 
 bool Tracking::TrackWithMotionModel()
 {
+    if(DebugFocusFrame(mCurrentFrame.mnId))
+        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                  << " stage=track_motion_enter" << std::endl;
+
     ORBmatcher matcher(0.9,true);
 
     // Update last frame pose according to its reference keyframe
     // Create "visual odometry" points if in Localization Mode
+    if(DebugFocusFrame(mCurrentFrame.mnId))
+        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                  << " stage=track_motion_before_update_last" << std::endl;
     UpdateLastFrame();
+    if(DebugFocusFrame(mCurrentFrame.mnId))
+        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                  << " stage=track_motion_after_update_last" << std::endl;
 
     if (mpAtlas->isImuInitialized() && (mCurrentFrame.mnId>mnLastRelocFrameId+mnFramesToResetIMU))
     {
@@ -11657,7 +12648,13 @@ bool Tracking::TrackWithMotionModel()
     }
     else
     {
+        if(DebugFocusFrame(mCurrentFrame.mnId))
+            std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                      << " stage=track_motion_before_set_pose" << std::endl;
         mCurrentFrame.SetPose(mVelocity * mLastFrame.GetPose());
+        if(DebugFocusFrame(mCurrentFrame.mnId))
+            std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                      << " stage=track_motion_after_set_pose" << std::endl;
     }
 
 
@@ -11674,6 +12671,10 @@ bool Tracking::TrackWithMotionModel()
         th=15;
 
     int nmatches = matcher.SearchByProjection(mCurrentFrame,mLastFrame,th,mSensor==System::MONOCULAR || mSensor==System::IMU_MONOCULAR);
+    if(DebugFocusFrame(mCurrentFrame.mnId))
+        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                  << " stage=track_motion_after_projection"
+                  << " matches=" << nmatches << std::endl;
 
     // If few matches, uses a wider window search
     if(nmatches<20)
@@ -11696,7 +12697,13 @@ bool Tracking::TrackWithMotionModel()
     }
 
     // Optimize frame pose with all matches
+    if(DebugFocusFrame(mCurrentFrame.mnId))
+        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                  << " stage=track_motion_before_pose_opt" << std::endl;
     Optimizer::PoseOptimization(&mCurrentFrame);
+    if(DebugFocusFrame(mCurrentFrame.mnId))
+        std::cout << "[STSLAM_FOCUS] frame=" << mCurrentFrame.mnId
+                  << " stage=track_motion_after_pose_opt" << std::endl;
 
     // Discard outliers
     int nmatchesMap = 0;
@@ -11758,6 +12765,7 @@ bool Tracking::TrackLocalMap()
 
     UpdateLocalMap();
     SearchLocalPoints();
+    mnObservabilityLocalMapMatchesBeforePose = CountTrackedMapPoints(mCurrentFrame);
     if(!EnablePanopticSideChannelOnly())
         SplitRgbdDynamicFeatureMatches("track_local_map_pre_pose", true);
     ForceFilterDetectedDynamicFeatureMatches(mCurrentFrame, "track_local_map_pre_pose");
@@ -11833,6 +12841,7 @@ bool Tracking::TrackLocalMap()
     // Decide if the tracking was succesful
     // More restrictive if there was a relocalization recently
     mpLocalMapper->mnMatchesInliers=mnMatchesInliers;
+    mnObservabilityMatchesInliersAfterPose = mnMatchesInliers;
     if(DebugFocusFrame(mCurrentFrame.mnId))
     {
         const FrameFeatureDebugStats matchedStats =
@@ -11930,6 +12939,9 @@ bool Tracking::NeedNewKeyFrame()
     // Check how many "close" points are being tracked and how many could be potentially created.
     int nNonTrackedClose = 0;
     int nTrackedClose= 0;
+    int nDynamicCloseVetoed = 0;
+    const bool dynamicMapAdmissionVetoNeedNewKeyFrame =
+        EnableDynamicMapAdmissionVetoNeedNewKeyFrame();
 
     if(mSensor!=System::MONOCULAR && mSensor!=System::IMU_MONOCULAR)
     {
@@ -11938,12 +12950,28 @@ bool Tracking::NeedNewKeyFrame()
         {
             if(mCurrentFrame.mvDepth[i]>0 && mCurrentFrame.mvDepth[i]<mThDepth)
             {
+                if(ShouldVetoDynamicMapAdmission(
+                       mCurrentFrame, i, dynamicMapAdmissionVetoNeedNewKeyFrame))
+                {
+                    ++nDynamicCloseVetoed;
+                    continue;
+                }
                 if(mCurrentFrame.mvpMapPoints[i] && !mCurrentFrame.mvbOutlier[i])
                     nTrackedClose++;
                 else
                     nNonTrackedClose++;
 
             }
+        }
+        if(dynamicMapAdmissionVetoNeedNewKeyFrame && nDynamicCloseVetoed > 0)
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_VETO]"
+                      << " stage=need_new_keyframe"
+                      << " frame=" << mCurrentFrame.mnId
+                      << " dynamic_close_vetoed=" << nDynamicCloseVetoed
+                      << " tracked_close=" << nTrackedClose
+                      << " nontracked_close=" << nNonTrackedClose
+                      << std::endl;
         }
         //Verbose::PrintMess("[NEEDNEWKF]-> closed points: " + to_string(nTrackedClose) + "; non tracked closed points: " + to_string(nNonTrackedClose), Verbose::VERBOSITY_NORMAL);// Verbose::VERBOSITY_DEBUG);
     }
@@ -12139,8 +13167,100 @@ void Tracking::CreateNewKeyFrame()
         vector<pair<float,int> > vDepthIdx;
         int N = (mCurrentFrame.Nleft != -1) ? mCurrentFrame.Nleft : mCurrentFrame.N;
         vDepthIdx.reserve(mCurrentFrame.N);
+        const bool dynamicMapAdmissionVetoCreateNewKeyFrame =
+            EnableDynamicMapAdmissionVetoCreateNewKeyFrame();
+        const bool dynamicMapAdmissionBoundaryVetoCreateNewKeyFrame =
+            EnableDynamicMapAdmissionBoundaryVetoCreateNewKeyFrame();
+        const bool dynamicMapAdmissionBoundarySameCountControlCreateNewKeyFrame =
+            EnableDynamicMapAdmissionBoundarySameCountControlCreateNewKeyFrame();
+        const bool dynamicMapAdmissionBoundaryMatchedControlCreateNewKeyFrame =
+            EnableDynamicMapAdmissionBoundaryMatchedControlCreateNewKeyFrame();
+        const bool dynamicMapAdmissionDelayedBoundaryCreateNewKeyFrame =
+            EnableDynamicMapAdmissionDelayedBoundaryCreateNewKeyFrame();
+        const bool dynamicMapAdmissionSupportQuality =
+            EnableDynamicMapAdmissionSupportQuality();
+        const bool dynamicMapAdmissionBoundaryGateCreateNewKeyFrame =
+            dynamicMapAdmissionBoundaryVetoCreateNewKeyFrame ||
+            dynamicMapAdmissionDelayedBoundaryCreateNewKeyFrame;
+        int dynamicMapAdmissionVetoed = 0;
+        int dynamicMapAdmissionVetoedDepth = 0;
+        const bool dynamicMapAdmissionBoundaryDiagnostics =
+            EnableDynamicMapAdmissionBoundaryDiagnostics();
+        const bool nearBoundaryDiagnostics = EnableNearBoundaryDiagnostics();
+        const bool dynamicMapAdmissionBoundaryNeedsFlags =
+            dynamicMapAdmissionBoundaryDiagnostics ||
+            nearBoundaryDiagnostics ||
+            dynamicMapAdmissionBoundaryGateCreateNewKeyFrame ||
+            dynamicMapAdmissionBoundarySameCountControlCreateNewKeyFrame ||
+            dynamicMapAdmissionBoundaryMatchedControlCreateNewKeyFrame;
+        const int dynamicMapAdmissionBoundaryRadiusPx =
+            GetDynamicMapAdmissionBoundaryRadiusPx();
+        const int dynamicMapAdmissionDelayedBoundarySupportRadiusPx =
+            GetDynamicMapAdmissionDelayedBoundarySupportRadiusPx();
+        const int dynamicMapAdmissionDelayedBoundaryMinSupport =
+            GetDynamicMapAdmissionDelayedBoundaryMinSupport();
+        const int dynamicMapAdmissionDelayedBoundaryMinObservations =
+            GetDynamicMapAdmissionDelayedBoundaryMinObservations();
+        std::vector<unsigned char> vAdmissionDirectDynamic;
+        std::vector<unsigned char> vAdmissionNearDynamicMask;
+        if(dynamicMapAdmissionBoundaryNeedsFlags)
+        {
+            vAdmissionDirectDynamic.assign(N, 0);
+            vAdmissionNearDynamicMask.assign(N, 0);
+        }
+        int boundaryValidDepthCandidates = 0;
+        int boundaryValidDepthDirectDynamic = 0;
+        int boundaryValidDepthStaticNearMask = 0;
+        int boundaryAcceptedDepthCandidates = 0;
+        int boundaryAcceptedDirectDynamic = 0;
+        int boundaryAcceptedStaticNearMask = 0;
+        int boundaryVetoedDepthDirectDynamic = 0;
+        int boundaryVetoedDepthStaticNearMask = 0;
         for(int i=0; i<N; i++)
         {
+            const float z = mCurrentFrame.mvDepth[i];
+            const bool hasValidDepth = z > 0.0f;
+            bool directDynamicFeature = false;
+            bool staticNearDynamicMaskFeature = false;
+            if(dynamicMapAdmissionBoundaryNeedsFlags)
+            {
+                directDynamicFeature =
+                    (mCurrentFrame.GetFeaturePanopticId(static_cast<size_t>(i)) > 0) ||
+                    (mCurrentFrame.GetFeatureInstanceId(static_cast<size_t>(i)) > 0);
+                const bool nearDynamicMask =
+                    HasDynamicMaskSupportNearFeature(mCurrentFrame,
+                                                     i,
+                                                     dynamicMapAdmissionBoundaryRadiusPx);
+                staticNearDynamicMaskFeature = !directDynamicFeature && nearDynamicMask;
+                vAdmissionDirectDynamic[i] = directDynamicFeature ? 1 : 0;
+                vAdmissionNearDynamicMask[i] = staticNearDynamicMaskFeature ? 1 : 0;
+                if(dynamicMapAdmissionBoundaryDiagnostics && hasValidDepth)
+                {
+                    ++boundaryValidDepthCandidates;
+                    if(directDynamicFeature)
+                        ++boundaryValidDepthDirectDynamic;
+                    if(staticNearDynamicMaskFeature)
+                        ++boundaryValidDepthStaticNearMask;
+                }
+            }
+
+            if(ShouldVetoDynamicMapAdmission(
+                   mCurrentFrame, i, dynamicMapAdmissionVetoCreateNewKeyFrame))
+            {
+                ++dynamicMapAdmissionVetoed;
+                if(hasValidDepth)
+                {
+                    ++dynamicMapAdmissionVetoedDepth;
+                    if(dynamicMapAdmissionBoundaryDiagnostics)
+                    {
+                        if(directDynamicFeature)
+                            ++boundaryVetoedDepthDirectDynamic;
+                        if(staticNearDynamicMaskFeature)
+                            ++boundaryVetoedDepthStaticNearMask;
+                    }
+                }
+                continue;
+            }
             if(EnableRgbdDynamicFrontendSplit() &&
                mCurrentFrame.HasPanopticObservation() &&
                mCurrentFrame.GetFeatureInstanceId(static_cast<size_t>(i)) > 0)
@@ -12154,16 +13274,92 @@ void Tracking::CreateNewKeyFrame()
                 if(ShouldDetachRgbdInstanceFromStaticPath(pInstance))
                     continue;
             }
-            float z = mCurrentFrame.mvDepth[i];
             if(z>0)
             {
                 vDepthIdx.push_back(make_pair(z,i));
+                if(dynamicMapAdmissionBoundaryDiagnostics)
+                {
+                    ++boundaryAcceptedDepthCandidates;
+                    if(directDynamicFeature)
+                        ++boundaryAcceptedDirectDynamic;
+                    if(staticNearDynamicMaskFeature)
+                        ++boundaryAcceptedStaticNearMask;
+                }
             }
         }
 
+        int boundaryCreatedMapPoints = 0;
+        int boundaryCreatedDirectDynamic = 0;
+        int boundaryCreatedStaticNearMask = 0;
+        int boundaryAwareSkippedNewCandidates = 0;
+        int boundaryAwareExistingSupportedCandidates = 0;
+        int boundaryDelayedSupportPromotedNewCandidates = 0;
+        int boundaryDelayedRejectedNewCandidates = 0;
+        int boundaryDelayedSupportSum = 0;
+        int boundarySupportQualityRejectedNewCandidates = 0;
+        int boundarySupportQualityRawSupportSum = 0;
+        int boundarySupportQualityFoundSupportSum = 0;
+        int boundarySupportQualityFrameSupportSum = 0;
+        int boundarySupportQualityRawDepthSupportSum = 0;
+        int boundarySupportQualityReliableSupportSum = 0;
+        int boundarySupportQualityResidualSupportSum = 0;
+        int boundarySupportQualityDepthSupportSum = 0;
+        int boundarySameCountBudget = 0;
+        int boundarySameCountSkippedNewCandidates = 0;
+        int boundaryMatchedControlBudget = 0;
+        int boundaryMatchedControlSkippedNewCandidates = 0;
+        int boundaryMatchedControlExactSkippedNewCandidates = 0;
+        int boundaryMatchedControlFallbackSkippedNewCandidates = 0;
+        int nearBoundaryCreatedNewCandidates = 0;
+        int cleanStaticCreatedNewCandidates = 0;
+        int directDynamicCreatedNewCandidates = 0;
+        std::map<AdmissionMatchedControlBin, int> boundaryMatchedExactBudget;
+        std::map<AdmissionMatchedControlBin, int> boundaryMatchedFallbackBudget;
         if(!vDepthIdx.empty())
         {
             sort(vDepthIdx.begin(),vDepthIdx.end());
+
+            if(dynamicMapAdmissionBoundarySameCountControlCreateNewKeyFrame)
+            {
+                for(size_t j=0; j<vDepthIdx.size(); j++)
+                {
+                    const int i = vDepthIdx[j].second;
+                    MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+                    const bool bWouldCreateNew =
+                        !pMP || pMP->Observations() < 1;
+                    const bool isStaticNearDynamicMask =
+                        i >= 0 &&
+                        i < static_cast<int>(vAdmissionNearDynamicMask.size()) &&
+                        vAdmissionNearDynamicMask[i] != 0;
+                    if(bWouldCreateNew && isStaticNearDynamicMask)
+                        ++boundarySameCountBudget;
+                }
+            }
+            if(dynamicMapAdmissionBoundaryMatchedControlCreateNewKeyFrame)
+            {
+                for(size_t j=0; j<vDepthIdx.size(); j++)
+                {
+                    const int i = vDepthIdx[j].second;
+                    MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+                    const bool bWouldCreateNew =
+                        !pMP || pMP->Observations() < 1;
+                    const bool isStaticNearDynamicMask =
+                        i >= 0 &&
+                        i < static_cast<int>(vAdmissionNearDynamicMask.size()) &&
+                        vAdmissionNearDynamicMask[i] != 0;
+                    if(bWouldCreateNew && isStaticNearDynamicMask)
+                    {
+                        ++boundaryMatchedControlBudget;
+                        AddAdmissionMatchedControlBudget(
+                            boundaryMatchedExactBudget,
+                            boundaryMatchedFallbackBudget,
+                            MakeAdmissionMatchedControlBin(
+                                mCurrentFrame, i, vDepthIdx[j].first, true),
+                            MakeAdmissionMatchedControlBin(
+                                mCurrentFrame, i, vDepthIdx[j].first, false));
+                    }
+                }
+            }
 
             int nPoints = 0;
             for(size_t j=0; j<vDepthIdx.size();j++)
@@ -12181,6 +13377,112 @@ void Tracking::CreateNewKeyFrame()
                     mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint*>(NULL);
                 }
 
+                const bool isStaticNearDynamicMask =
+                    i >= 0 &&
+                    i < static_cast<int>(vAdmissionNearDynamicMask.size()) &&
+                    vAdmissionNearDynamicMask[i] != 0;
+                if(dynamicMapAdmissionBoundaryGateCreateNewKeyFrame &&
+                   bCreateNew && isStaticNearDynamicMask)
+                {
+                    int cleanStaticSupport = 0;
+                    bool supportPass = false;
+                    if(dynamicMapAdmissionDelayedBoundaryCreateNewKeyFrame)
+                    {
+                        if(dynamicMapAdmissionSupportQuality)
+                        {
+                            const AdmissionSupportQualityResult supportQuality =
+                                EvaluateCleanStaticMapSupportQualityNearFeature(
+                                    mCurrentFrame,
+                                    i,
+                                    dynamicMapAdmissionDelayedBoundarySupportRadiusPx,
+                                    dynamicMapAdmissionDelayedBoundaryMinObservations,
+                                    vDepthIdx[j].first);
+                            cleanStaticSupport = supportQuality.rawSupport;
+                            supportPass = supportQuality.pass;
+                            boundarySupportQualityRawSupportSum +=
+                                supportQuality.rawSupport;
+                            boundarySupportQualityFoundSupportSum +=
+                                supportQuality.foundStableSupport;
+                            boundarySupportQualityFrameSupportSum +=
+                                supportQuality.frameStableSupport;
+                            boundarySupportQualityRawDepthSupportSum +=
+                                supportQuality.rawDepthConsistentSupport;
+                            boundarySupportQualityReliableSupportSum +=
+                                supportQuality.reliableSupport;
+                            boundarySupportQualityResidualSupportSum +=
+                                supportQuality.residualReliableSupport;
+                            boundarySupportQualityDepthSupportSum +=
+                                supportQuality.depthConsistentSupport;
+                        }
+                        else
+                        {
+                            cleanStaticSupport =
+                                CountCleanStaticMapSupportNearFeature(
+                                    mCurrentFrame,
+                                    i,
+                                    dynamicMapAdmissionDelayedBoundarySupportRadiusPx,
+                                    dynamicMapAdmissionDelayedBoundaryMinObservations);
+                            supportPass =
+                                cleanStaticSupport >=
+                                dynamicMapAdmissionDelayedBoundaryMinSupport;
+                        }
+                    }
+                    if(dynamicMapAdmissionDelayedBoundaryCreateNewKeyFrame &&
+                       supportPass)
+                    {
+                        ++boundaryDelayedSupportPromotedNewCandidates;
+                        boundaryDelayedSupportSum += cleanStaticSupport;
+                    }
+                    else
+                    {
+                        pKF->EraseMapPointMatch(i);
+                        ++boundaryAwareSkippedNewCandidates;
+                        if(dynamicMapAdmissionDelayedBoundaryCreateNewKeyFrame)
+                        {
+                            ++boundaryDelayedRejectedNewCandidates;
+                            if(dynamicMapAdmissionSupportQuality)
+                                ++boundarySupportQualityRejectedNewCandidates;
+                            boundaryDelayedSupportSum += cleanStaticSupport;
+                        }
+                        continue;
+                    }
+                }
+                if(dynamicMapAdmissionBoundarySameCountControlCreateNewKeyFrame &&
+                   bCreateNew && !isStaticNearDynamicMask &&
+                   boundarySameCountSkippedNewCandidates < boundarySameCountBudget)
+                {
+                    pKF->EraseMapPointMatch(i);
+                    ++boundarySameCountSkippedNewCandidates;
+                    continue;
+                }
+                if(dynamicMapAdmissionBoundaryMatchedControlCreateNewKeyFrame &&
+                   bCreateNew && !isStaticNearDynamicMask)
+                {
+                    bool usedExact = false;
+                    if(ConsumeAdmissionMatchedControlBudget(
+                           boundaryMatchedExactBudget,
+                           boundaryMatchedFallbackBudget,
+                           MakeAdmissionMatchedControlBin(
+                               mCurrentFrame, i, vDepthIdx[j].first, true),
+                           MakeAdmissionMatchedControlBin(
+                               mCurrentFrame, i, vDepthIdx[j].first, false),
+                           usedExact))
+                    {
+                        pKF->EraseMapPointMatch(i);
+                        ++boundaryMatchedControlSkippedNewCandidates;
+                        if(usedExact)
+                            ++boundaryMatchedControlExactSkippedNewCandidates;
+                        else
+                            ++boundaryMatchedControlFallbackSkippedNewCandidates;
+                        continue;
+                    }
+                }
+                if(dynamicMapAdmissionBoundaryGateCreateNewKeyFrame &&
+                   !bCreateNew && isStaticNearDynamicMask)
+                {
+                    ++boundaryAwareExistingSupportedCandidates;
+                }
+
                 if(bCreateNew)
                 {
                     Eigen::Vector3f x3D;
@@ -12193,6 +13495,24 @@ void Tracking::CreateNewKeyFrame()
                     }
 
                     MapPoint* pNewMP = new MapPoint(x3D,pKF,mpAtlas->GetCurrentMap());
+                    const bool createdDirectDynamic =
+                        i >= 0 &&
+                        i < static_cast<int>(vAdmissionDirectDynamic.size()) &&
+                        vAdmissionDirectDynamic[i] != 0;
+                    const bool createdStaticNearDynamicBoundary =
+                        i >= 0 &&
+                        i < static_cast<int>(vAdmissionNearDynamicMask.size()) &&
+                        vAdmissionNearDynamicMask[i] != 0;
+                    if(nearBoundaryDiagnostics)
+                    {
+                        pNewMP->SetAdmissionDiagnostics(
+                            createdDirectDynamic,
+                            createdStaticNearDynamicBoundary,
+                            static_cast<long>(mCurrentFrame.mnId),
+                            static_cast<long>(pKF->mnId),
+                            i,
+                            dynamicMapAdmissionBoundaryRadiusPx);
+                    }
                     pNewMP->AddObservation(pKF,i);
 
                     //Check if it is a stereo observation in order to not
@@ -12210,6 +13530,25 @@ void Tracking::CreateNewKeyFrame()
 
                     mCurrentFrame.mvpMapPoints[i]=pNewMP;
                     nPoints++;
+                    if(nearBoundaryDiagnostics)
+                    {
+                        if(createdDirectDynamic)
+                            ++directDynamicCreatedNewCandidates;
+                        else if(createdStaticNearDynamicBoundary)
+                            ++nearBoundaryCreatedNewCandidates;
+                        else
+                            ++cleanStaticCreatedNewCandidates;
+                    }
+                    if(dynamicMapAdmissionBoundaryDiagnostics)
+                    {
+                        ++boundaryCreatedMapPoints;
+                        if(i >= 0 && i < static_cast<int>(vAdmissionDirectDynamic.size()) &&
+                           vAdmissionDirectDynamic[i] != 0)
+                            ++boundaryCreatedDirectDynamic;
+                        if(i >= 0 && i < static_cast<int>(vAdmissionNearDynamicMask.size()) &&
+                           vAdmissionNearDynamicMask[i] != 0)
+                            ++boundaryCreatedStaticNearMask;
+                    }
                 }
                 else
                 {
@@ -12222,6 +13561,189 @@ void Tracking::CreateNewKeyFrame()
                 }
             }
             //Verbose::PrintMess("new mps for stereo KF: " + to_string(nPoints), Verbose::VERBOSITY_NORMAL);
+        }
+
+        if(dynamicMapAdmissionVetoCreateNewKeyFrame)
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_VETO]"
+                      << " stage=create_new_keyframe"
+                      << " frame=" << mCurrentFrame.mnId
+                      << " keyframe_id=" << pKF->mnId
+                      << " vetoed_candidates=" << dynamicMapAdmissionVetoed
+                      << " accepted_depth_candidates=" << vDepthIdx.size()
+                      << std::endl;
+        }
+
+        if(dynamicMapAdmissionBoundaryVetoCreateNewKeyFrame)
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_VETO]"
+                      << " stage=create_new_keyframe"
+                      << " frame=" << mCurrentFrame.mnId
+                      << " keyframe_id=" << pKF->mnId
+                      << " radius_px=" << dynamicMapAdmissionBoundaryRadiusPx
+                      << " skipped_new_candidates="
+                      << boundaryAwareSkippedNewCandidates
+                      << " existing_supported_candidates="
+                      << boundaryAwareExistingSupportedCandidates
+                      << " accepted_depth_candidates_pre_boundary="
+                      << vDepthIdx.size()
+                      << std::endl;
+        }
+
+        if(dynamicMapAdmissionDelayedBoundaryCreateNewKeyFrame)
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY]"
+                      << " stage=create_new_keyframe"
+                      << " frame=" << mCurrentFrame.mnId
+                      << " keyframe_id=" << pKF->mnId
+                      << " radius_px=" << dynamicMapAdmissionBoundaryRadiusPx
+                      << " support_radius_px="
+                      << dynamicMapAdmissionDelayedBoundarySupportRadiusPx
+                      << " min_support="
+                      << dynamicMapAdmissionDelayedBoundaryMinSupport
+                      << " min_obs="
+                      << dynamicMapAdmissionDelayedBoundaryMinObservations
+                      << " support_quality="
+                      << (dynamicMapAdmissionSupportQuality ? 1 : 0)
+                      << " quality_min_reliable_support="
+                      << GetDynamicMapAdmissionSupportQualityMinReliableSupport()
+                      << " quality_min_depth_support="
+                      << GetDynamicMapAdmissionSupportQualityMinDepthSupport()
+                      << " quality_min_residual_obs="
+                      << GetDynamicMapAdmissionSupportQualityMinResidualObs()
+                      << " quality_min_inlier_rate="
+                      << GetDynamicMapAdmissionSupportQualityMinInlierRate()
+                      << " quality_max_mean_chi2="
+                      << GetDynamicMapAdmissionSupportQualityMaxMeanChi2()
+                      << " quality_min_found_ratio="
+                      << GetDynamicMapAdmissionSupportQualityMinFoundRatio()
+                      << " quality_min_frame_span="
+                      << GetDynamicMapAdmissionSupportQualityMinFrameSpan()
+                      << " quality_max_depth_rel_diff="
+                      << GetDynamicMapAdmissionSupportQualityMaxDepthRelDiff()
+                      << " delayed_rejected_new_candidates="
+                      << boundaryDelayedRejectedNewCandidates
+                      << " support_promoted_new_candidates="
+                      << boundaryDelayedSupportPromotedNewCandidates
+                      << " existing_supported_candidates="
+                      << boundaryAwareExistingSupportedCandidates
+                      << " support_sum="
+                      << boundaryDelayedSupportSum
+                      << " quality_rejected_new_candidates="
+                      << boundarySupportQualityRejectedNewCandidates
+                      << " quality_raw_support_sum="
+                      << boundarySupportQualityRawSupportSum
+                      << " quality_found_support_sum="
+                      << boundarySupportQualityFoundSupportSum
+                      << " quality_frame_support_sum="
+                      << boundarySupportQualityFrameSupportSum
+                      << " quality_raw_depth_support_sum="
+                      << boundarySupportQualityRawDepthSupportSum
+                      << " quality_reliable_support_sum="
+                      << boundarySupportQualityReliableSupportSum
+                      << " quality_residual_support_sum="
+                      << boundarySupportQualityResidualSupportSum
+                      << " quality_depth_support_sum="
+                      << boundarySupportQualityDepthSupportSum
+                      << " accepted_depth_candidates_pre_boundary="
+                      << vDepthIdx.size()
+                      << std::endl;
+        }
+
+        if(dynamicMapAdmissionBoundarySameCountControlCreateNewKeyFrame)
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_CONTROL]"
+                      << " stage=create_new_keyframe"
+                      << " frame=" << mCurrentFrame.mnId
+                      << " keyframe_id=" << pKF->mnId
+                      << " radius_px=" << dynamicMapAdmissionBoundaryRadiusPx
+                      << " boundary_budget=" << boundarySameCountBudget
+                      << " skipped_nonboundary_new_candidates="
+                      << boundarySameCountSkippedNewCandidates
+                      << " accepted_depth_candidates_pre_control="
+                      << vDepthIdx.size()
+                      << std::endl;
+        }
+
+        if(dynamicMapAdmissionBoundaryMatchedControlCreateNewKeyFrame)
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_MATCHED_CONTROL]"
+                      << " stage=create_new_keyframe"
+                      << " frame=" << mCurrentFrame.mnId
+                      << " keyframe_id=" << pKF->mnId
+                      << " radius_px=" << dynamicMapAdmissionBoundaryRadiusPx
+                      << " boundary_budget=" << boundaryMatchedControlBudget
+                      << " skipped_matched_nonboundary_new_candidates="
+                      << boundaryMatchedControlSkippedNewCandidates
+                      << " exact_skipped_new_candidates="
+                      << boundaryMatchedControlExactSkippedNewCandidates
+                      << " fallback_skipped_new_candidates="
+                      << boundaryMatchedControlFallbackSkippedNewCandidates
+                      << " accepted_depth_candidates_pre_control="
+                      << vDepthIdx.size()
+                      << std::endl;
+        }
+
+        if(nearBoundaryDiagnostics)
+        {
+            std::cout << "[STSLAM_NEAR_BOUNDARY_ADMISSION]"
+                      << " stage=create_new_keyframe"
+                      << " frame=" << mCurrentFrame.mnId
+                      << " keyframe_id=" << pKF->mnId
+                      << " radius_px=" << dynamicMapAdmissionBoundaryRadiusPx
+                      << " created_near_boundary_new_points="
+                      << nearBoundaryCreatedNewCandidates
+                      << " created_clean_static_new_points="
+                      << cleanStaticCreatedNewCandidates
+                      << " created_direct_dynamic_new_points="
+                      << directDynamicCreatedNewCandidates
+                      << " existing_near_boundary_candidates="
+                      << boundaryAwareExistingSupportedCandidates
+                      << " accepted_depth_candidates_pre_boundary="
+                      << vDepthIdx.size()
+                      << std::endl;
+        }
+
+        if(dynamicMapAdmissionBoundaryDiagnostics)
+        {
+            const double acceptedStaticNearMaskRatio =
+                boundaryAcceptedDepthCandidates > 0
+                    ? static_cast<double>(boundaryAcceptedStaticNearMask) /
+                          static_cast<double>(boundaryAcceptedDepthCandidates)
+                    : 0.0;
+            const double createdStaticNearMaskRatio =
+                boundaryCreatedMapPoints > 0
+                    ? static_cast<double>(boundaryCreatedStaticNearMask) /
+                          static_cast<double>(boundaryCreatedMapPoints)
+                    : 0.0;
+            std::cout << "[STSLAM_MAP_ADMISSION_BOUNDARY_DIAG]"
+                      << " stage=create_new_keyframe"
+                      << " frame=" << mCurrentFrame.mnId
+                      << " keyframe_id=" << pKF->mnId
+                      << " radius_px=" << dynamicMapAdmissionBoundaryRadiusPx
+                      << " valid_depth_candidates_pre_veto=" << boundaryValidDepthCandidates
+                      << " valid_depth_direct_dynamic=" << boundaryValidDepthDirectDynamic
+                      << " valid_depth_static_near_mask=" << boundaryValidDepthStaticNearMask
+                      << " vetoed_depth_candidates=" << dynamicMapAdmissionVetoedDepth
+                      << " vetoed_depth_direct_dynamic=" << boundaryVetoedDepthDirectDynamic
+                      << " vetoed_depth_static_near_mask=" << boundaryVetoedDepthStaticNearMask
+                      << " accepted_depth_candidates=" << boundaryAcceptedDepthCandidates
+                      << " accepted_direct_dynamic=" << boundaryAcceptedDirectDynamic
+                      << " accepted_static_near_mask=" << boundaryAcceptedStaticNearMask
+                      << " accepted_static_near_mask_ratio="
+                      << acceptedStaticNearMaskRatio
+                      << " created_mappoints=" << boundaryCreatedMapPoints
+                      << " created_direct_dynamic=" << boundaryCreatedDirectDynamic
+                      << " created_static_near_mask=" << boundaryCreatedStaticNearMask
+                      << " created_static_near_mask_ratio="
+                      << createdStaticNearMaskRatio
+                      << " depth_masked_features="
+                      << mCurrentFrame.mnDynamicDepthMaskedFeatures
+                      << " depth_invalidated_features="
+                      << mCurrentFrame.mnDynamicDepthInvalidatedFeatures
+                      << " depth_no_depth_features="
+                      << mCurrentFrame.mnDynamicDepthNoDepthFeatures
+                      << std::endl;
         }
     }
 
@@ -12738,6 +14260,10 @@ bool Tracking::Relocalization()
 void Tracking::Reset(bool bLocMap)
 {
     Verbose::PrintMess("System Reseting", Verbose::VERBOSITY_NORMAL);
+    const bool sequentialLocalMapping =
+        mpSystem && mpSystem->SequentialLocalMappingEnabled();
+    const bool sequentialLoopClosing =
+        mpSystem && mpSystem->SequentialLoopClosingEnabled();
 
     if(mpViewer)
     {
@@ -12750,14 +14276,30 @@ void Tracking::Reset(bool bLocMap)
     if (!bLocMap)
     {
         Verbose::PrintMess("Reseting Local Mapper...", Verbose::VERBOSITY_NORMAL);
-        mpLocalMapper->RequestReset();
+        if(sequentialLocalMapping)
+        {
+            mpLocalMapper->QueueReset();
+            mpLocalMapper->ServicePendingResetRequests();
+        }
+        else
+        {
+            mpLocalMapper->RequestReset();
+        }
         Verbose::PrintMess("done", Verbose::VERBOSITY_NORMAL);
     }
 
 
     // Reset Loop Closing
     Verbose::PrintMess("Reseting Loop Closing...", Verbose::VERBOSITY_NORMAL);
-    mpLoopClosing->RequestReset();
+    if(sequentialLoopClosing)
+    {
+        mpLoopClosing->QueueReset();
+        mpLoopClosing->ServicePendingResetRequests();
+    }
+    else
+    {
+        mpLoopClosing->RequestReset();
+    }
     Verbose::PrintMess("done", Verbose::VERBOSITY_NORMAL);
 
     // Clear BoW Database
@@ -12803,6 +14345,10 @@ void Tracking::Reset(bool bLocMap)
 void Tracking::ResetActiveMap(bool bLocMap)
 {
     Verbose::PrintMess("Active map Reseting", Verbose::VERBOSITY_NORMAL);
+    const bool sequentialLocalMapping =
+        mpSystem && mpSystem->SequentialLocalMappingEnabled();
+    const bool sequentialLoopClosing =
+        mpSystem && mpSystem->SequentialLoopClosingEnabled();
     if(mpViewer)
     {
         mpViewer->RequestStop();
@@ -12815,13 +14361,29 @@ void Tracking::ResetActiveMap(bool bLocMap)
     if (!bLocMap)
     {
         Verbose::PrintMess("Reseting Local Mapper...", Verbose::VERBOSITY_VERY_VERBOSE);
-        mpLocalMapper->RequestResetActiveMap(pMap);
+        if(sequentialLocalMapping)
+        {
+            mpLocalMapper->QueueResetActiveMap(pMap);
+            mpLocalMapper->ServicePendingResetRequests();
+        }
+        else
+        {
+            mpLocalMapper->RequestResetActiveMap(pMap);
+        }
         Verbose::PrintMess("done", Verbose::VERBOSITY_VERY_VERBOSE);
     }
 
     // Reset Loop Closing
     Verbose::PrintMess("Reseting Loop Closing...", Verbose::VERBOSITY_NORMAL);
-    mpLoopClosing->RequestResetActiveMap(pMap);
+    if(sequentialLoopClosing)
+    {
+        mpLoopClosing->QueueResetActiveMap(pMap);
+        mpLoopClosing->ServicePendingResetRequests();
+    }
+    else
+    {
+        mpLoopClosing->RequestResetActiveMap(pMap);
+    }
     Verbose::PrintMess("done", Verbose::VERBOSITY_NORMAL);
 
     // Clear BoW Database

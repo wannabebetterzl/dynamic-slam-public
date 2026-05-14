@@ -422,6 +422,7 @@ protected:
 
     bool TrackLocalMap();
     void SearchLocalPoints();
+    void AppendObservabilityFrameStats();
 
     bool NeedNewKeyFrame();
     void CreateNewKeyFrame();
@@ -547,6 +548,13 @@ protected:
 
     ofstream f_track_stats;
     ofstream f_observability_stats;
+    int mnObservabilityLocalMapMatchesBeforePose;
+    int mnObservabilityMatchesInliersAfterPose;
+    bool mbObservabilityHasLastPose;
+    bool mbObservabilityHasLastTimestamp;
+    Eigen::Vector3f mObservabilityLastCameraCenter;
+    double mdObservabilityAccumEstimatedPath;
+    double mdObservabilityLastTimestamp;
 
     ofstream f_track_times;
     double mTime_PreIntIMU;

@@ -96,6 +96,19 @@ def parse_stdout_events(run_dir: Path) -> Tuple[Dict[str, int], Dict[int, Dict[s
         elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_VETO" and stage == "create_new_keyframe":
             add_event(totals, per_frame, values, "ckf_boundary_skipped_new_candidates", "skipped_new_candidates")
             add_event(totals, per_frame, values, "ckf_boundary_existing_supported_candidates", "existing_supported_candidates")
+        elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY" and stage == "create_new_keyframe":
+            add_event(totals, per_frame, values, "ckf_delayed_rejected_new_candidates", "delayed_rejected_new_candidates")
+            add_event(totals, per_frame, values, "ckf_support_promoted_new_candidates", "support_promoted_new_candidates")
+            add_event(totals, per_frame, values, "ckf_delayed_existing_supported_candidates", "existing_supported_candidates")
+            add_event(totals, per_frame, values, "ckf_delayed_support_sum", "support_sum")
+            add_event(totals, per_frame, values, "ckf_quality_rejected_new_candidates", "quality_rejected_new_candidates")
+            add_event(totals, per_frame, values, "ckf_quality_raw_support_sum", "quality_raw_support_sum")
+            add_event(totals, per_frame, values, "ckf_quality_found_support_sum", "quality_found_support_sum")
+            add_event(totals, per_frame, values, "ckf_quality_frame_support_sum", "quality_frame_support_sum")
+            add_event(totals, per_frame, values, "ckf_quality_raw_depth_support_sum", "quality_raw_depth_support_sum")
+            add_event(totals, per_frame, values, "ckf_quality_reliable_support_sum", "quality_reliable_support_sum")
+            add_event(totals, per_frame, values, "ckf_quality_residual_support_sum", "quality_residual_support_sum")
+            add_event(totals, per_frame, values, "ckf_quality_depth_support_sum", "quality_depth_support_sum")
         elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_CONTROL" and stage == "create_new_keyframe":
             add_event(totals, per_frame, values, "ckf_boundary_budget", "boundary_budget")
             add_event(
@@ -105,16 +118,151 @@ def parse_stdout_events(run_dir: Path) -> Tuple[Dict[str, int], Dict[int, Dict[s
                 "ckf_control_skipped_nonboundary_new_candidates",
                 "skipped_nonboundary_new_candidates",
             )
+        elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_MATCHED_CONTROL" and stage == "create_new_keyframe":
+            add_event(totals, per_frame, values, "ckf_matched_boundary_budget", "boundary_budget")
+            add_event(
+                totals,
+                per_frame,
+                values,
+                "ckf_matched_skipped_nonboundary_new_candidates",
+                "skipped_matched_nonboundary_new_candidates",
+            )
+            add_event(
+                totals,
+                per_frame,
+                values,
+                "ckf_matched_exact_skipped_new_candidates",
+                "exact_skipped_new_candidates",
+            )
+            add_event(
+                totals,
+                per_frame,
+                values,
+                "ckf_matched_fallback_skipped_new_candidates",
+                "fallback_skipped_new_candidates",
+            )
         elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_VETO" and stage == "create_new_map_points":
             add_event(totals, per_frame, values, "lm_skipped_instance_pairs", "skipped_instance_pairs")
             add_event(totals, per_frame, values, "lm_kept_static_pairs_after_instance", "kept_static_pairs")
         elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_VETO" and stage == "create_new_map_points":
             add_event(totals, per_frame, values, "lm_skipped_boundary_pairs", "skipped_boundary_pairs")
             add_event(totals, per_frame, values, "lm_kept_pairs_after_boundary", "kept_pairs")
+        elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_DELAYED_BOUNDARY" and stage == "create_new_map_points":
+            add_event(totals, per_frame, values, "lm_delayed_rejected_boundary_pairs", "delayed_rejected_boundary_pairs")
+            add_event(totals, per_frame, values, "lm_support_promoted_boundary_pairs", "support_promoted_boundary_pairs")
+            add_event(totals, per_frame, values, "lm_delayed_support_sum", "support_sum")
+            add_event(totals, per_frame, values, "lm_quality_rejected_boundary_pairs", "quality_rejected_boundary_pairs")
+            add_event(totals, per_frame, values, "lm_quality_raw_support_sum", "quality_raw_support_sum")
+            add_event(totals, per_frame, values, "lm_quality_found_support_sum", "quality_found_support_sum")
+            add_event(totals, per_frame, values, "lm_quality_frame_support_sum", "quality_frame_support_sum")
+            add_event(totals, per_frame, values, "lm_quality_raw_depth_support_sum", "quality_raw_depth_support_sum")
+            add_event(totals, per_frame, values, "lm_quality_reliable_support_sum", "quality_reliable_support_sum")
+            add_event(totals, per_frame, values, "lm_quality_residual_support_sum", "quality_residual_support_sum")
+            add_event(totals, per_frame, values, "lm_quality_depth_support_sum", "quality_depth_support_sum")
+            add_event(totals, per_frame, values, "lm_promoted_geom_enter", "promoted_geom_enter")
+            add_event(totals, per_frame, values, "lm_promoted_geom_parallax", "promoted_geom_parallax")
+            add_event(totals, per_frame, values, "lm_promoted_geom_triangulated", "promoted_geom_triangulated")
+            add_event(totals, per_frame, values, "lm_promoted_geom_depth", "promoted_geom_depth")
+            add_event(totals, per_frame, values, "lm_promoted_geom_reproj1", "promoted_geom_reproj1")
+            add_event(totals, per_frame, values, "lm_promoted_geom_reproj2", "promoted_geom_reproj2")
+            add_event(totals, per_frame, values, "lm_promoted_geom_scale", "promoted_geom_scale")
+            add_event(totals, per_frame, values, "lm_promoted_geom_created", "promoted_geom_created")
+            add_event(totals, per_frame, values, "lm_kept_pairs_after_delayed_boundary", "kept_pairs")
+        elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_PROMOTED_GEOM" and stage == "create_new_map_points":
+            add_event(totals, per_frame, values, "lm_promoted_geom_enter", "promoted_geom_enter")
+            add_event(totals, per_frame, values, "lm_promoted_geom_parallax", "promoted_geom_parallax")
+            add_event(totals, per_frame, values, "lm_promoted_geom_triangulated", "promoted_geom_triangulated")
+            add_event(totals, per_frame, values, "lm_promoted_geom_depth", "promoted_geom_depth")
+            add_event(totals, per_frame, values, "lm_promoted_geom_reproj1", "promoted_geom_reproj1")
+            add_event(totals, per_frame, values, "lm_promoted_geom_reproj2", "promoted_geom_reproj2")
+            add_event(totals, per_frame, values, "lm_promoted_geom_scale", "promoted_geom_scale")
+            add_event(totals, per_frame, values, "lm_promoted_geom_created", "promoted_geom_created")
+        elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_SCORE_BASED" and stage == "create_new_map_points":
+            add_event(totals, per_frame, values, "lm_score_support_candidates", "support_candidates")
+            add_event(totals, per_frame, values, "lm_score_support_accepted", "support_accepted")
+            add_event(totals, per_frame, values, "lm_score_support_rejected", "support_rejected")
+            add_event(totals, per_frame, values, "lm_score_geom_evaluated", "geom_evaluated")
+            add_event(totals, per_frame, values, "lm_score_post_geom_rejected", "post_geom_rejected")
+            add_event(totals, per_frame, values, "lm_score_created", "score_created")
+        elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_STATE_AWARE" and stage == "create_new_map_points":
+            add_event(totals, per_frame, values, "lm_state_candidates", "state_candidates")
+            add_event(totals, per_frame, values, "lm_state_allowed", "state_allowed")
+            add_event(totals, per_frame, values, "lm_state_rejected", "state_rejected")
+            add_event(totals, per_frame, values, "lm_state_tracking_pressure", "tracking_pressure")
+            add_event(totals, per_frame, values, "lm_state_keyframe_pressure", "keyframe_pressure")
+            add_event(totals, per_frame, values, "lm_state_scale_pressure", "scale_pressure")
+            add_event(totals, per_frame, values, "lm_state_lba_pressure", "lba_pressure")
+        elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_V5_CANDIDATE":
+            add_event(totals, per_frame, values, "lm_v5_support_candidates", "support_candidate")
+            add_event(totals, per_frame, values, "lm_v5_support_accepted", "support_accepted")
+            add_event(totals, per_frame, values, "lm_v5_reject_support", "reject_support")
+            add_event(totals, per_frame, values, "lm_v5_geom_candidates", "geom_candidate")
+            add_event(totals, per_frame, values, "lm_v5_reject_parallax", "reject_parallax")
+            add_event(totals, per_frame, values, "lm_v5_reject_triangulate", "reject_triangulate")
+            add_event(totals, per_frame, values, "lm_v5_reject_depth", "reject_depth")
+            add_event(totals, per_frame, values, "lm_v5_reject_reproj1", "reject_reproj1")
+            add_event(totals, per_frame, values, "lm_v5_reject_reproj2", "reject_reproj2")
+            add_event(totals, per_frame, values, "lm_v5_reject_scale", "reject_scale")
+            add_event(totals, per_frame, values, "lm_v5_reject_score", "reject_score")
+            add_event(totals, per_frame, values, "lm_v5_created", "created")
+        elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_V5_LIFECYCLE":
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_score_recent", "score_recent")
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_score_prebad", "score_prebad")
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_score_culled_found_ratio", "score_culled_found_ratio")
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_score_culled_low_obs", "score_culled_low_obs")
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_score_survived", "score_survived")
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_score_matured", "score_matured")
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_pose_use_edges", "score_pose_use_edges")
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_pose_use_inliers", "score_pose_use_inliers")
+        elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_V5_SUMMARY":
+            add_event(totals, per_frame, values, "lm_v5_support_candidates", "support_candidates")
+            add_event(totals, per_frame, values, "lm_v5_support_accepted", "support_accepted")
+            add_event(totals, per_frame, values, "lm_v5_reject_support", "reject_support")
+            add_event(totals, per_frame, values, "lm_v5_geom_candidates", "geom_events")
+            add_event(totals, per_frame, values, "lm_v5_reject_parallax", "reject_parallax")
+            add_event(totals, per_frame, values, "lm_v5_reject_triangulate", "reject_triangulate")
+            add_event(totals, per_frame, values, "lm_v5_reject_depth", "reject_depth")
+            add_event(totals, per_frame, values, "lm_v5_reject_reproj1", "reject_reproj1")
+            add_event(totals, per_frame, values, "lm_v5_reject_reproj2", "reject_reproj2")
+            add_event(totals, per_frame, values, "lm_v5_reject_scale", "reject_scale")
+            add_event(totals, per_frame, values, "lm_v5_reject_score", "reject_score")
+            add_event(totals, per_frame, values, "lm_v5_created", "created")
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_score_recent", "lifecycle_score_recent_sum")
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_score_prebad", "lifecycle_score_prebad_sum")
+            add_event(
+                totals,
+                per_frame,
+                values,
+                "lm_v5_lifecycle_score_culled_found_ratio",
+                "lifecycle_score_culled_found_ratio_sum",
+            )
+            add_event(
+                totals,
+                per_frame,
+                values,
+                "lm_v5_lifecycle_score_culled_low_obs",
+                "lifecycle_score_culled_low_obs_sum",
+            )
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_score_survived", "lifecycle_score_survived_sum")
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_score_matured", "lifecycle_score_matured_sum")
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_pose_use_edges", "lifecycle_pose_use_edges_sum")
+            add_event(totals, per_frame, values, "lm_v5_lifecycle_pose_use_inliers", "lifecycle_pose_use_inliers_sum")
         elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_CONTROL" and stage == "create_new_map_points":
             add_event(totals, per_frame, values, "lm_boundary_budget", "boundary_budget")
             add_event(totals, per_frame, values, "lm_control_skipped_nonboundary_pairs", "skipped_nonboundary_pairs")
             add_event(totals, per_frame, values, "lm_kept_pairs_after_control", "kept_pairs")
+        elif tag == "STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_MATCHED_CONTROL" and stage == "create_new_map_points":
+            add_event(totals, per_frame, values, "lm_matched_boundary_budget", "boundary_budget")
+            add_event(
+                totals,
+                per_frame,
+                values,
+                "lm_matched_skipped_nonboundary_pairs",
+                "skipped_matched_nonboundary_pairs",
+            )
+            add_event(totals, per_frame, values, "lm_matched_exact_skipped_pairs", "exact_skipped_pairs")
+            add_event(totals, per_frame, values, "lm_matched_fallback_skipped_pairs", "fallback_skipped_pairs")
+            add_event(totals, per_frame, values, "lm_kept_pairs_after_matched_control", "kept_pairs")
 
     return totals, per_frame
 
@@ -147,11 +295,84 @@ def collect_case(name: str, run_dir: Path) -> Tuple[Dict[str, object], List[Dict
         "ckf_boundary_skipped_new_candidates",
         "ckf_boundary_existing_supported_candidates",
         "ckf_boundary_budget",
+        "ckf_delayed_rejected_new_candidates",
+        "ckf_support_promoted_new_candidates",
+        "ckf_delayed_existing_supported_candidates",
+        "ckf_delayed_support_sum",
+        "ckf_quality_rejected_new_candidates",
+        "ckf_quality_raw_support_sum",
+        "ckf_quality_found_support_sum",
+        "ckf_quality_frame_support_sum",
+        "ckf_quality_raw_depth_support_sum",
+        "ckf_quality_reliable_support_sum",
+        "ckf_quality_residual_support_sum",
+        "ckf_quality_depth_support_sum",
         "ckf_control_skipped_nonboundary_new_candidates",
+        "ckf_matched_boundary_budget",
+        "ckf_matched_skipped_nonboundary_new_candidates",
+        "ckf_matched_exact_skipped_new_candidates",
+        "ckf_matched_fallback_skipped_new_candidates",
         "lm_skipped_instance_pairs",
         "lm_skipped_boundary_pairs",
         "lm_boundary_budget",
+        "lm_delayed_rejected_boundary_pairs",
+        "lm_support_promoted_boundary_pairs",
+        "lm_delayed_support_sum",
+        "lm_quality_rejected_boundary_pairs",
+        "lm_quality_raw_support_sum",
+        "lm_quality_found_support_sum",
+        "lm_quality_frame_support_sum",
+        "lm_quality_raw_depth_support_sum",
+        "lm_quality_reliable_support_sum",
+        "lm_quality_residual_support_sum",
+        "lm_quality_depth_support_sum",
+        "lm_promoted_geom_enter",
+        "lm_promoted_geom_parallax",
+        "lm_promoted_geom_triangulated",
+        "lm_promoted_geom_depth",
+        "lm_promoted_geom_reproj1",
+        "lm_promoted_geom_reproj2",
+        "lm_promoted_geom_scale",
+        "lm_promoted_geom_created",
+        "lm_score_support_candidates",
+        "lm_score_support_accepted",
+        "lm_score_support_rejected",
+        "lm_score_geom_evaluated",
+        "lm_score_post_geom_rejected",
+        "lm_score_created",
+        "lm_state_candidates",
+        "lm_state_allowed",
+        "lm_state_rejected",
+        "lm_state_tracking_pressure",
+        "lm_state_keyframe_pressure",
+        "lm_state_scale_pressure",
+        "lm_state_lba_pressure",
+        "lm_v5_support_candidates",
+        "lm_v5_support_accepted",
+        "lm_v5_reject_support",
+        "lm_v5_geom_candidates",
+        "lm_v5_reject_parallax",
+        "lm_v5_reject_triangulate",
+        "lm_v5_reject_depth",
+        "lm_v5_reject_reproj1",
+        "lm_v5_reject_reproj2",
+        "lm_v5_reject_scale",
+        "lm_v5_reject_score",
+        "lm_v5_created",
+        "lm_v5_lifecycle_score_recent",
+        "lm_v5_lifecycle_score_prebad",
+        "lm_v5_lifecycle_score_culled_found_ratio",
+        "lm_v5_lifecycle_score_culled_low_obs",
+        "lm_v5_lifecycle_score_survived",
+        "lm_v5_lifecycle_score_matured",
+        "lm_v5_lifecycle_pose_use_edges",
+        "lm_v5_lifecycle_pose_use_inliers",
+        "lm_kept_pairs_after_delayed_boundary",
         "lm_control_skipped_nonboundary_pairs",
+        "lm_matched_boundary_budget",
+        "lm_matched_skipped_nonboundary_pairs",
+        "lm_matched_exact_skipped_pairs",
+        "lm_matched_fallback_skipped_pairs",
     ]
     for key in event_keys:
         summary[key] = totals.get(key, 0)

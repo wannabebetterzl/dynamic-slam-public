@@ -19,12 +19,99 @@
 #include "KeyFrame.h"
 #include "Converter.h"
 #include "ImuTypes.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
 #include<mutex>
 
 namespace ORB_SLAM3
 {
 
 long unsigned int KeyFrame::nNextId=0;
+
+namespace
+{
+
+int GetEnvIntOrDefault(const char* name, const int defaultValue, const int minValue)
+{
+    const char* envValue = std::getenv(name);
+    return envValue ? std::max(minValue, std::atoi(envValue)) : defaultValue;
+}
+
+int GetDynamicMapAdmissionBoundaryRadiusPx()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_BOUNDARY_RADIUS_PX", 5, 0);
+    return value;
+}
+
+int ReadPanopticIdAt(const cv::Mat& panopticMask, const int x, const int y)
+{
+    if(panopticMask.type() == CV_16UC1)
+        return static_cast<int>(panopticMask.at<unsigned short>(y, x));
+    return panopticMask.at<int>(y, x);
+}
+
+bool HasDynamicMaskSupportNearKeypoint(const cv::Mat& panopticMask,
+                                       const cv::KeyPoint& keypoint,
+                                       const int radiusPx)
+{
+    if(panopticMask.empty() || panopticMask.channels() != 1 ||
+       (panopticMask.type() != CV_16UC1 && panopticMask.type() != CV_32SC1))
+        return false;
+
+    const int x0 = static_cast<int>(std::round(keypoint.pt.x));
+    const int y0 = static_cast<int>(std::round(keypoint.pt.y));
+    const int radius = std::max(0, radiusPx);
+    const int minX = std::max(0, x0 - radius);
+    const int maxX = std::min(panopticMask.cols - 1, x0 + radius);
+    const int minY = std::max(0, y0 - radius);
+    const int maxY = std::min(panopticMask.rows - 1, y0 + radius);
+
+    for(int y = minY; y <= maxY; ++y)
+    {
+        for(int x = minX; x <= maxX; ++x)
+        {
+            if(ReadPanopticIdAt(panopticMask, x, y) > 0)
+                return true;
+        }
+    }
+
+    return false;
+}
+
+std::vector<unsigned char> BuildStaticNearDynamicMaskFlags(const Frame& frame)
+{
+    std::vector<unsigned char> flags(static_cast<size_t>(std::max(frame.N, 0)), 0);
+    if(frame.N <= 0 || !frame.HasPanopticObservation())
+        return flags;
+
+    const cv::Mat& panopticMask = frame.mPanopticObservation.rawPanopticMask;
+    if(panopticMask.empty())
+        return flags;
+
+    const int radiusPx = GetDynamicMapAdmissionBoundaryRadiusPx();
+    const int nFeatures =
+        std::min(frame.N,
+                 std::min(static_cast<int>(frame.mvKeys.size()),
+                          static_cast<int>(flags.size())));
+    for(int idx = 0; idx < nFeatures; ++idx)
+    {
+        const bool directDynamic =
+            frame.GetFeaturePanopticId(static_cast<size_t>(idx)) > 0 ||
+            frame.GetFeatureInstanceId(static_cast<size_t>(idx)) > 0;
+        if(directDynamic)
+            continue;
+
+        if(HasDynamicMaskSupportNearKeypoint(panopticMask, frame.mvKeys[idx], radiusPx))
+            flags[static_cast<size_t>(idx)] = 1;
+    }
+
+    return flags;
+}
+
+} // namespace
 
 KeyFrame::KeyFrame():
         mnFrameId(0),  mTimeStamp(0), mnGridCols(FRAME_GRID_COLS), mnGridRows(FRAME_GRID_ROWS),
@@ -51,6 +138,7 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
     mbf(F.mbf), mb(F.mb), mThDepth(F.mThDepth), N(F.N), mvKeys(F.mvKeys), mvKeysUn(F.mvKeysUn),
     mvuRight(F.mvuRight), mvDepth(F.mvDepth), mDescriptors(F.mDescriptors.clone()),
     mvInstanceIds(F.mvInstanceIds), mvSemanticLabels(F.mvSemanticLabels),
+    mvStaticNearDynamicMask(BuildStaticNearDynamicMaskFlags(F)),
     mmPredictedInstanceMotions(F.mmPredictedInstanceMotions),
     mvDynamicInstancePointObservations(F.mvDynamicInstancePointObservations),
     mBowVec(F.mBowVec), mFeatVec(F.mFeatVec), mnScaleLevels(F.mnScaleLevels), mfScaleFactor(F.mfScaleFactor),

@@ -178,6 +178,34 @@ public:
     bool IsDynamicInstanceObservationPoint();
     bool IsInstanceStructurePoint();
     void UpdateObservationStats(int frameId);
+    void SetAdmissionDiagnostics(bool directDynamic,
+                                 bool staticNearDynamicBoundary,
+                                 long frameId,
+                                 long keyFrameId,
+                                 int featureIdx,
+                                 int boundaryRadiusPx);
+    bool WasCreatedFromDirectDynamicAdmission();
+    bool WasCreatedFromStaticNearDynamicBoundary();
+    long GetAdmissionFrameId();
+    long GetAdmissionKeyFrameId();
+    int GetAdmissionFeatureIdx();
+    int GetAdmissionBoundaryRadiusPx();
+    void SetScoreAdmissionDiagnostics(double supportScore,
+                                      double candidateScore,
+                                      double totalScore,
+                                      int rawSupport,
+                                      int reliableSupport,
+                                      int residualSupport,
+                                      int depthSupport);
+    bool WasCreatedFromScoreAdmission();
+    double GetScoreAdmissionSupportScore();
+    double GetScoreAdmissionCandidateScore();
+    double GetScoreAdmissionTotalScore();
+    void UpdateSupportQualityPoseUse(double chi2, bool inlier);
+    int GetSupportQualityPoseUseCount();
+    int GetSupportQualityPoseUseInliers();
+    double GetSupportQualityPoseUseInlierRate();
+    double GetSupportQualityPoseUseMeanChi2();
 
     void PreSave(set<KeyFrame*>& spKF,set<MapPoint*>& spMP);
     void PostLoad(map<long unsigned int, KeyFrame*>& mpKFid, map<long unsigned int, MapPoint*>& mpMPid);

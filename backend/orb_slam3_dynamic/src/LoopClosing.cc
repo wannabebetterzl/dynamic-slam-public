@@ -2199,10 +2199,7 @@ void LoopClosing::SearchAndFuse(const vector<KeyFrame*> &vConectedKFs, vector<Ma
 
 void LoopClosing::RequestReset()
 {
-    {
-        unique_lock<mutex> lock(mMutexReset);
-        mbResetRequested = true;
-    }
+    QueueReset();
 
     while(1)
     {
@@ -2215,13 +2212,17 @@ void LoopClosing::RequestReset()
     }
 }
 
-void LoopClosing::RequestResetActiveMap(Map *pMap)
+void LoopClosing::QueueReset()
 {
     {
         unique_lock<mutex> lock(mMutexReset);
-        mbResetActiveMapRequested = true;
-        mpMapToReset = pMap;
+        mbResetRequested = true;
     }
+}
+
+void LoopClosing::RequestResetActiveMap(Map *pMap)
+{
+    QueueResetActiveMap(pMap);
 
     while(1)
     {
@@ -2232,6 +2233,20 @@ void LoopClosing::RequestResetActiveMap(Map *pMap)
         }
         usleep(3000);
     }
+}
+
+void LoopClosing::QueueResetActiveMap(Map *pMap)
+{
+    {
+        unique_lock<mutex> lock(mMutexReset);
+        mbResetActiveMapRequested = true;
+        mpMapToReset = pMap;
+    }
+}
+
+void LoopClosing::ServicePendingResetRequests()
+{
+    ResetIfRequested();
 }
 
 void LoopClosing::ResetIfRequested()

@@ -36,12 +36,35 @@
 namespace ORB_SLAM3
 {
 
+namespace
+{
+
+bool EnvFlagOrDefault(const char* name, const bool defaultValue)
+{
+    const char* envValue = std::getenv(name);
+    if(!envValue)
+        return defaultValue;
+
+    const string value(envValue);
+    if(value == "0" || value == "false" || value == "FALSE" ||
+       value == "off" || value == "OFF" || value == "no" || value == "NO")
+    {
+        return false;
+    }
+    return true;
+}
+
+} // namespace
+
 Verbose::eLevel Verbose::th = Verbose::VERBOSITY_NORMAL;
 
 System::System(const string &strVocFile, const string &strSettingsFile, const eSensor sensor,
                const bool bUseViewer, const int initFr, const string &strSequence):
-    mSensor(sensor), mpViewer(static_cast<Viewer*>(NULL)), mbReset(false), mbResetActiveMap(false),
-    mbActivateLocalizationMode(false), mbDeactivateLocalizationMode(false), mbShutDown(false)
+    mSensor(sensor), mpViewer(static_cast<Viewer*>(NULL)), mptLocalMapping(static_cast<std::thread*>(NULL)),
+    mptLoopClosing(static_cast<std::thread*>(NULL)), mptViewer(static_cast<std::thread*>(NULL)),
+    mbReset(false), mbResetActiveMap(false),
+    mbActivateLocalizationMode(false), mbDeactivateLocalizationMode(false), mbShutDown(false),
+    mbSequentialLocalMapping(false), mbSequentialLoopClosing(false)
 {
     // Output welcome message
     cout << endl <<
@@ -194,7 +217,15 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     //Initialize the Local Mapping thread and launch
     mpLocalMapper = new LocalMapping(this, mpAtlas, mSensor==MONOCULAR || mSensor==IMU_MONOCULAR,
                                      mSensor==IMU_MONOCULAR || mSensor==IMU_STEREO || mSensor==IMU_RGBD, strSequence);
-    mptLocalMapping = new thread(&ORB_SLAM3::LocalMapping::Run,mpLocalMapper);
+    mbSequentialLocalMapping = EnvFlagOrDefault("STSLAM_SEQUENTIAL_LOCAL_MAPPING", false);
+    if(mbSequentialLocalMapping)
+    {
+        cout << "STSLAM sequential LocalMapping: enabled" << endl;
+    }
+    else
+    {
+        mptLocalMapping = new thread(&ORB_SLAM3::LocalMapping::Run,mpLocalMapper);
+    }
     mpLocalMapper->mInitFr = initFr;
     if(settings_)
         mpLocalMapper->mThFarPoints = settings_->thFarPoints();
@@ -210,8 +241,18 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
 
     //Initialize the Loop Closing thread and launch
     // mSensor!=MONOCULAR && mSensor!=IMU_MONOCULAR
+    if(mbSequentialLocalMapping)
+        activeLC = false;
     mpLoopCloser = new LoopClosing(mpAtlas, mpKeyFrameDatabase, mpVocabulary, mSensor!=MONOCULAR, activeLC); // mSensor!=MONOCULAR);
-    mptLoopClosing = new thread(&ORB_SLAM3::LoopClosing::Run, mpLoopCloser);
+    mbSequentialLoopClosing = EnvFlagOrDefault("STSLAM_SEQUENTIAL_LOOP_CLOSING", mbSequentialLocalMapping);
+    if(mbSequentialLoopClosing)
+    {
+        cout << "STSLAM sequential LoopClosing thread: disabled" << endl;
+    }
+    else
+    {
+        mptLoopClosing = new thread(&ORB_SLAM3::LoopClosing::Run, mpLoopCloser);
+    }
 
     //Set pointers between threads
     mpTracker->SetLocalMapper(mpLocalMapper);
@@ -539,8 +580,18 @@ void System::Shutdown()
 
     cout << "Shutdown" << endl;
 
-    mpLocalMapper->RequestFinish();
-    mpLoopCloser->RequestFinish();
+    if(mbSequentialLocalMapping)
+    {
+        ProcessSequentialLocalMappingQueue(100000);
+        while(FlushSequentialLocalMappingMaintenance())
+        {
+        }
+    }
+
+    if(mpLocalMapper)
+        mpLocalMapper->RequestFinish();
+    if(mpLoopCloser)
+        mpLoopCloser->RequestFinish();
     /*if(mpViewer)
     {
         mpViewer->RequestFinish();
@@ -679,6 +730,45 @@ void System::SaveKeyFrameTrajectoryTUM(const string &filename)
         f << setprecision(6) << pKF->mTimeStamp << setprecision(7) << " " << t(0) << " " << t(1) << " " << t(2)
           << " " << q.x() << " " << q.y() << " " << q.z() << " " << q.w() << endl;
 
+    }
+
+    f.close();
+}
+
+void System::SaveKeyFrameTimeline(const string &filename)
+{
+    cout << endl << "Saving keyframe timeline to " << filename << " ..." << endl;
+
+    vector<KeyFrame*> vpKFs = mpAtlas->GetAllKeyFrames();
+    sort(vpKFs.begin(), vpKFs.end(), KeyFrame::lId);
+
+    ofstream f;
+    f.open(filename.c_str());
+    f << fixed;
+    f << "keyframe_id,frame_id,timestamp,map_id,x,y,z,qx,qy,qz,qw" << endl;
+
+    for(size_t i = 0; i < vpKFs.size(); ++i)
+    {
+        KeyFrame* pKF = vpKFs[i];
+        if(!pKF || pKF->isBad())
+            continue;
+
+        Sophus::SE3f Twc = pKF->GetPoseInverse();
+        Eigen::Quaternionf q = Twc.unit_quaternion();
+        Eigen::Vector3f t = Twc.translation();
+        const long mapId = pKF->GetMap() ? static_cast<long>(pKF->GetMap()->GetId()) : -1;
+
+        f << pKF->mnId << ","
+          << pKF->mnFrameId << ","
+          << setprecision(6) << pKF->mTimeStamp << ","
+          << mapId << ","
+          << setprecision(9) << t(0) << ","
+          << t(1) << ","
+          << t(2) << ","
+          << q.x() << ","
+          << q.y() << ","
+          << q.z() << ","
+          << q.w() << endl;
     }
 
     f.close();
@@ -1369,6 +1459,39 @@ bool System::LocalMappingAcceptKeyFrames()
 int System::LocalMappingKeyframesInQueue()
 {
     return mpLocalMapper ? mpLocalMapper->KeyframesInQueue() : 0;
+}
+
+bool System::SequentialLocalMappingEnabled()
+{
+    return mbSequentialLocalMapping;
+}
+
+bool System::SequentialLoopClosingEnabled()
+{
+    return mbSequentialLoopClosing;
+}
+
+int System::ProcessSequentialLocalMappingQueue(int maxSteps)
+{
+    if(!mbSequentialLocalMapping || !mpLocalMapper)
+        return 0;
+
+    int processed = 0;
+    while(mpLocalMapper->KeyframesInQueue() > 0 && processed < maxSteps)
+    {
+        if(mpLocalMapper->RunOneStep())
+            processed++;
+        else
+            break;
+    }
+    return processed;
+}
+
+bool System::FlushSequentialLocalMappingMaintenance()
+{
+    if(!mbSequentialLocalMapping || !mpLocalMapper)
+        return false;
+    return mpLocalMapper->RunMaintenanceStep(true);
 }
 
 double System::GetTimeFromIMUInit()

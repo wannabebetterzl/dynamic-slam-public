@@ -29,6 +29,7 @@
 
 #include "optimization_algorithm_levenberg.h"
 
+#include <cstdlib>
 #include <iostream>
 
 #include "../stuff/timeutil.h"
@@ -39,6 +40,13 @@
 using namespace std;
 
 namespace g2o {
+  namespace {
+    bool debugStslamLevenberg()
+    {
+      const char* envValue = std::getenv("STSLAM_DEBUG_G2O_LEVENBERG");
+      return envValue && !(envValue[0] == '0' && envValue[1] == '\0');
+    }
+  }
 
   OptimizationAlgorithmLevenberg::OptimizationAlgorithmLevenberg(Solver* solver) :
     OptimizationAlgorithmWithHessian(solver)
@@ -62,9 +70,21 @@ namespace g2o {
   {
     assert(_optimizer && "_optimizer not set");
     assert(_solver->optimizer() == _optimizer && "underlying linear solver operates on different graph");
+    const bool debugLevenberg = debugStslamLevenberg();
+    if (debugLevenberg) {
+      cerr << "[STSLAM_G2O_LM] iteration=" << iteration
+           << " enter online=" << online
+           << " active_edges=" << _optimizer->activeEdges().size()
+           << " active_vertices=" << _optimizer->activeVertices().size()
+           << endl;
+    }
 
     if (iteration == 0 && !online) { // built up the CCS structure, here due to easy time measure
+      if (debugLevenberg)
+        cerr << "[STSLAM_G2O_LM] iteration=" << iteration << " before_build_structure" << endl;
       bool ok = _solver->buildStructure();
+      if (debugLevenberg)
+        cerr << "[STSLAM_G2O_LM] iteration=" << iteration << " after_build_structure ok=" << ok << endl;
       if (! ok) {
         cerr << __PRETTY_FUNCTION__ << ": Failure while building CCS structure" << endl;
         return OptimizationAlgorithm::Fail;
@@ -72,7 +92,11 @@ namespace g2o {
     }
 
     double t=get_monotonic_time();
+    if (debugLevenberg)
+      cerr << "[STSLAM_G2O_LM] iteration=" << iteration << " before_compute_active_errors" << endl;
     _optimizer->computeActiveErrors();
+    if (debugLevenberg)
+      cerr << "[STSLAM_G2O_LM] iteration=" << iteration << " after_compute_active_errors chi2=" << _optimizer->activeRobustChi2() << endl;
     G2OBatchStatistics* globalStats = G2OBatchStatistics::globalStats();
     if (globalStats) {
       globalStats->timeResiduals = get_monotonic_time()-t;
@@ -84,7 +108,11 @@ namespace g2o {
 
     double iniChi = currentChi;
 
+    if (debugLevenberg)
+      cerr << "[STSLAM_G2O_LM] iteration=" << iteration << " before_build_system" << endl;
     _solver->buildSystem();
+    if (debugLevenberg)
+      cerr << "[STSLAM_G2O_LM] iteration=" << iteration << " after_build_system" << endl;
     if (globalStats) {
       globalStats->timeQuadraticForm = get_monotonic_time()-t;
     }
@@ -106,13 +134,38 @@ namespace g2o {
         t=get_monotonic_time();
       }
       // update the diagonal of the system matrix
+      if (debugLevenberg)
+        cerr << "[STSLAM_G2O_LM] iteration=" << iteration
+             << " trial=" << qmax
+             << " before_set_lambda lambda=" << _currentLambda
+             << endl;
       _solver->setLambda(_currentLambda, true);
+      if (debugLevenberg)
+        cerr << "[STSLAM_G2O_LM] iteration=" << iteration
+             << " trial=" << qmax
+             << " before_linear_solve"
+             << endl;
       bool ok2 = _solver->solve();
+      if (debugLevenberg)
+        cerr << "[STSLAM_G2O_LM] iteration=" << iteration
+             << " trial=" << qmax
+             << " after_linear_solve ok=" << ok2
+             << endl;
       if (globalStats) {
         globalStats->timeLinearSolution+=get_monotonic_time()-t;
         t=get_monotonic_time();
       }
+      if (debugLevenberg)
+        cerr << "[STSLAM_G2O_LM] iteration=" << iteration
+             << " trial=" << qmax
+             << " before_update"
+             << endl;
       _optimizer->update(_solver->x());
+      if (debugLevenberg)
+        cerr << "[STSLAM_G2O_LM] iteration=" << iteration
+             << " trial=" << qmax
+             << " after_update"
+             << endl;
       if (globalStats) {
         globalStats->timeUpdate = get_monotonic_time()-t;
       }
@@ -121,6 +174,11 @@ namespace g2o {
       _solver->restoreDiagonal();
 
       _optimizer->computeActiveErrors();
+      if (debugLevenberg)
+        cerr << "[STSLAM_G2O_LM] iteration=" << iteration
+             << " trial=" << qmax
+             << " after_trial_compute_active_errors chi2=" << _optimizer->activeRobustChi2()
+             << endl;
       tempChi = _optimizer->activeRobustChi2();
       // cout << "tempChi: " << tempChi << endl;
       if (! ok2)

@@ -154,6 +154,7 @@ public:
     // Call first Shutdown()
     // See format details at: http://vision.in.tum.de/data/datasets/rgbd-dataset
     void SaveKeyFrameTrajectoryTUM(const string &filename);
+    void SaveKeyFrameTimeline(const string &filename);
 
     void SaveTrajectoryEuRoC(const string &filename);
     void SaveKeyFrameTrajectoryEuRoC(const string &filename);
@@ -181,6 +182,10 @@ public:
     std::vector<cv::KeyPoint> GetTrackedKeyPointsUn();
     bool LocalMappingAcceptKeyFrames();
     int LocalMappingKeyframesInQueue();
+    bool SequentialLocalMappingEnabled();
+    bool SequentialLoopClosingEnabled();
+    int ProcessSequentialLocalMappingQueue(int maxSteps);
+    bool FlushSequentialLocalMappingMaintenance();
 
     // For debugging
     double GetTimeFromIMUInit();
@@ -253,6 +258,8 @@ private:
 
     // Shutdown flag
     bool mbShutDown;
+    bool mbSequentialLocalMapping;
+    bool mbSequentialLoopClosing;
 
     // Tracking state
     int mTrackingState;
