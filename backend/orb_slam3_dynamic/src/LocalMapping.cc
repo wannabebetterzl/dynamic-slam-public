@@ -699,11 +699,101 @@ int DynamicMapAdmissionV7ProbationLowUseAgeKFs()
     return value;
 }
 
+bool DynamicMapAdmissionLifecycleV8()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_LIFECYCLE_V8",
+                            false);
+    return value;
+}
+
+int DynamicMapAdmissionV8MinAgeKFs()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_V8_MIN_AGE_KFS",
+                           2,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionV8MaxProbationAgeKFs()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_V8_MAX_PROBATION_AGE_KFS",
+                           6,
+                           1);
+    return value;
+}
+
+int DynamicMapAdmissionV8MinPoseUse()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_V8_MIN_POSE_USE",
+                           1,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionV8MinLocalBAWindows()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_V8_MIN_LBA_WINDOWS",
+                           1,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionV8MinLocalBAEdges()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_V8_MIN_LBA_EDGES",
+                           2,
+                           0);
+    return value;
+}
+
+double DynamicMapAdmissionV8MinLocalBAInlierRate()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_V8_MIN_LBA_INLIER_RATE",
+                              0.60,
+                              0.0);
+    return std::min(1.0, value);
+}
+
+double DynamicMapAdmissionV8MaxLocalBAMeanChi2()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_V8_MAX_LBA_MEAN_CHI2",
+                              15.0,
+                              0.0);
+    return value;
+}
+
+int DynamicMapAdmissionV8MinObservationsForMaturity()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_V8_MIN_OBS_FOR_MATURITY",
+                           3,
+                           0);
+    return value;
+}
+
 bool DynamicMapAdmissionConstraintRoleLog()
 {
     static const bool value =
         GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_CONSTRAINT_ROLE_LOG",
                             false);
+    return value;
+}
+
+bool DynamicMapAdmissionConstraintRoleCollect()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_CONSTRAINT_ROLE_COLLECT",
+                            false) ||
+        DynamicMapAdmissionConstraintRoleLog() ||
+        DynamicMapAdmissionLifecycleV8();
     return value;
 }
 
@@ -2260,7 +2350,8 @@ void LocalMapping::MapPointCulling()
     const bool nearBoundaryDiagnostics = EnableNearBoundaryDiagnostics();
     const bool v5UsefulnessLog = DynamicMapAdmissionV5UsefulnessLog();
     const bool v7Probation = DynamicMapAdmissionV7Probation();
-    const bool constraintRoleLog = DynamicMapAdmissionConstraintRoleLog();
+    const bool lifecycleV8 = DynamicMapAdmissionLifecycleV8();
+    const bool constraintRoleCollect = DynamicMapAdmissionConstraintRoleCollect();
     int recentNearBoundaryPoints = 0;
     int recentCleanStaticPoints = 0;
     int recentDirectDynamicPoints = 0;
@@ -2307,7 +2398,7 @@ void LocalMapping::MapPointCulling()
             nearBoundaryDiagnostics && pMP &&
             pMP->WasCreatedFromDirectDynamicAdmission();
         const bool scoreAdmission =
-            (v5UsefulnessLog || v7Probation) && pMP &&
+            (v5UsefulnessLog || v7Probation || lifecycleV8) && pMP &&
             pMP->WasCreatedFromScoreAdmission();
         if(nearBoundaryDiagnostics && pMP)
         {
@@ -2327,7 +2418,7 @@ void LocalMapping::MapPointCulling()
             scoreAdmissionPoseUseChi2Sum +=
                 pMP->GetSupportQualityPoseUseMeanChi2() *
                 static_cast<double>(poseUseCount);
-            if(constraintRoleLog)
+            if(constraintRoleCollect)
             {
                 const int lbaWindows = pMP->GetScoreAdmissionLocalBAWindowCount();
                 const int lbaEdges = pMP->GetScoreAdmissionLocalBAEdgeCount();
@@ -2366,6 +2457,10 @@ void LocalMapping::MapPointCulling()
 
         bool v7ResidualReject = false;
         bool v7LowUseReject = false;
+        bool v8QualityReject = false;
+        bool v8LowEvidenceReject = false;
+        bool v8Mature = false;
+        bool v8KeepProbation = false;
         if(v7Probation && scoreAdmission && pMP && !pMP->isBad())
         {
             const int ageKFs =
@@ -2388,24 +2483,117 @@ void LocalMapping::MapPointCulling()
                 v7LowUseReject = true;
             }
         }
+        if(lifecycleV8 && scoreAdmission && pMP && !pMP->isBad())
+        {
+            const int ageKFs =
+                static_cast<int>(nCurrentKFid) -
+                static_cast<int>(pMP->mnFirstKFid);
+            const int poseUseCount = pMP->GetSupportQualityPoseUseCount();
+            const int lbaWindows = pMP->GetScoreAdmissionLocalBAWindowCount();
+            const int lbaEdges = pMP->GetScoreAdmissionLocalBAEdgeCount();
+            const int lbaInliers = pMP->GetScoreAdmissionLocalBAInliers();
+            const double lbaInlierRate =
+                lbaEdges > 0 ?
+                static_cast<double>(lbaInliers) / static_cast<double>(lbaEdges) :
+                0.0;
+            const double lbaMeanChi2 = pMP->GetScoreAdmissionLocalBAMeanChi2();
+            const bool poseEvidence =
+                poseUseCount >= DynamicMapAdmissionV8MinPoseUse();
+            const bool lbaEvidence =
+                lbaWindows >= DynamicMapAdmissionV8MinLocalBAWindows() &&
+                lbaEdges >= DynamicMapAdmissionV8MinLocalBAEdges();
+            const bool poseGood =
+                !poseEvidence ||
+                (pMP->GetSupportQualityPoseUseInlierRate() >=
+                     DynamicMapAdmissionV7ProbationMinInlierRate() &&
+                 pMP->GetSupportQualityPoseUseMeanChi2() <=
+                     DynamicMapAdmissionV7ProbationMaxMeanChi2());
+            const bool lbaGood =
+                !lbaEvidence ||
+                (lbaInlierRate >= DynamicMapAdmissionV8MinLocalBAInlierRate() &&
+                 lbaMeanChi2 <= DynamicMapAdmissionV8MaxLocalBAMeanChi2());
+
+            if(ageKFs >= DynamicMapAdmissionV8MinAgeKFs() &&
+               ((poseEvidence && !poseGood) || (lbaEvidence && !lbaGood)))
+            {
+                v8QualityReject = true;
+            }
+            else
+            {
+                const bool matureEnough =
+                    ageKFs >= DynamicMapAdmissionV8MinAgeKFs() &&
+                    poseEvidence &&
+                    lbaEvidence &&
+                    poseGood &&
+                    lbaGood &&
+                    pMP->Observations() >=
+                        DynamicMapAdmissionV8MinObservationsForMaturity();
+                if(matureEnough)
+                {
+                    v8Mature = true;
+                }
+                else if(ageKFs >= DynamicMapAdmissionV8MaxProbationAgeKFs())
+                {
+                    v8LowEvidenceReject = true;
+                }
+                else
+                {
+                    v8KeepProbation = true;
+                }
+            }
+        }
 
         if(pMP->isBad())
         {
             if(admissionNearBoundary)
                 ++culledNearBoundaryPreBad;
             if(scoreAdmission)
+            {
                 ++culledScoreAdmissionPreBad;
+                pMP->MarkScoreAdmissionLifecycleEvent(
+                    MapPoint::kScoreAdmissionLifecyclePrebad,
+                    static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                    static_cast<long>(mpCurrentKeyFrame->mnId));
+            }
             lit = mlpRecentAddedMapPoints.erase(lit);
         }
         else if(v7ResidualReject)
         {
             ++culledScoreAdmissionV7Residual;
+            pMP->MarkScoreAdmissionLifecycleEvent(
+                MapPoint::kScoreAdmissionLifecycleV7ResidualCull,
+                static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                static_cast<long>(mpCurrentKeyFrame->mnId));
             pMP->SetBadFlag();
             lit = mlpRecentAddedMapPoints.erase(lit);
         }
         else if(v7LowUseReject)
         {
             ++culledScoreAdmissionV7LowUse;
+            pMP->MarkScoreAdmissionLifecycleEvent(
+                MapPoint::kScoreAdmissionLifecycleV7LowUseCull,
+                static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                static_cast<long>(mpCurrentKeyFrame->mnId));
+            pMP->SetBadFlag();
+            lit = mlpRecentAddedMapPoints.erase(lit);
+        }
+        else if(v8QualityReject)
+        {
+            ++culledScoreAdmissionV7Residual;
+            pMP->MarkScoreAdmissionLifecycleEvent(
+                MapPoint::kScoreAdmissionLifecycleV7ResidualCull,
+                static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                static_cast<long>(mpCurrentKeyFrame->mnId));
+            pMP->SetBadFlag();
+            lit = mlpRecentAddedMapPoints.erase(lit);
+        }
+        else if(v8LowEvidenceReject)
+        {
+            ++culledScoreAdmissionV7LowUse;
+            pMP->MarkScoreAdmissionLifecycleEvent(
+                MapPoint::kScoreAdmissionLifecycleV7LowUseCull,
+                static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                static_cast<long>(mpCurrentKeyFrame->mnId));
             pMP->SetBadFlag();
             lit = mlpRecentAddedMapPoints.erase(lit);
         }
@@ -2416,7 +2604,13 @@ void LocalMapping::MapPointCulling()
             else if(nearBoundaryDiagnostics && !admissionDirectDynamic)
                 ++culledCleanFoundRatio;
             if(scoreAdmission)
+            {
                 ++culledScoreAdmissionFoundRatio;
+                pMP->MarkScoreAdmissionLifecycleEvent(
+                    MapPoint::kScoreAdmissionLifecycleFoundRatioCull,
+                    static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                    static_cast<long>(mpCurrentKeyFrame->mnId));
+            }
             pMP->SetBadFlag();
             lit = mlpRecentAddedMapPoints.erase(lit);
         }
@@ -2427,18 +2621,43 @@ void LocalMapping::MapPointCulling()
             else if(nearBoundaryDiagnostics && !admissionDirectDynamic)
                 ++culledCleanLowObs;
             if(scoreAdmission)
+            {
                 ++culledScoreAdmissionLowObs;
+                pMP->MarkScoreAdmissionLifecycleEvent(
+                    MapPoint::kScoreAdmissionLifecycleLowObsCull,
+                    static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                    static_cast<long>(mpCurrentKeyFrame->mnId));
+            }
             pMP->SetBadFlag();
             lit = mlpRecentAddedMapPoints.erase(lit);
         }
-        else if(((int)nCurrentKFid-(int)pMP->mnFirstKFid)>=3)
+        else if(v8KeepProbation)
+        {
+            if(scoreAdmission)
+            {
+                ++survivedScoreAdmissionPoints;
+                pMP->MarkScoreAdmissionLifecycleEvent(
+                    MapPoint::kScoreAdmissionLifecycleSurvived,
+                    static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                    static_cast<long>(mpCurrentKeyFrame->mnId));
+            }
+            lit++;
+            borrar--;
+        }
+        else if(v8Mature || ((int)nCurrentKFid-(int)pMP->mnFirstKFid)>=3)
         {
             if(admissionNearBoundary)
                 ++maturedNearBoundaryPoints;
             else if(nearBoundaryDiagnostics && !admissionDirectDynamic)
                 ++maturedCleanStaticPoints;
             if(scoreAdmission)
+            {
                 ++maturedScoreAdmissionPoints;
+                pMP->MarkScoreAdmissionLifecycleEvent(
+                    MapPoint::kScoreAdmissionLifecycleMatured,
+                    static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                    static_cast<long>(mpCurrentKeyFrame->mnId));
+            }
             lit = mlpRecentAddedMapPoints.erase(lit);
         }
         else
@@ -2448,7 +2667,13 @@ void LocalMapping::MapPointCulling()
             else if(nearBoundaryDiagnostics && !admissionDirectDynamic)
                 ++survivedCleanStaticPoints;
             if(scoreAdmission)
+            {
                 ++survivedScoreAdmissionPoints;
+                pMP->MarkScoreAdmissionLifecycleEvent(
+                    MapPoint::kScoreAdmissionLifecycleSurvived,
+                    static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                    static_cast<long>(mpCurrentKeyFrame->mnId));
+            }
             lit++;
             borrar--;
         }
@@ -2605,6 +2830,8 @@ void LocalMapping::CreateNewMapPoints()
         MakeAdmissionCoverageContext(mpCurrentKeyFrame);
     const bool dynamicMapAdmissionCoverageAwareV7 =
         DynamicMapAdmissionCoverageAwareV7();
+    const bool dynamicMapAdmissionLifecycleV8 =
+        DynamicMapAdmissionLifecycleV8();
     int v7PromotedThisKeyFrame = 0;
     if(admissionStateContext.keyframeStep >= 0.0)
     {
@@ -3969,7 +4196,8 @@ void LocalMapping::CreateNewMapPoints()
                     DynamicMapAdmissionBoundaryRadiusPx());
             }
             if((dynamicMapAdmissionV5UsefulnessLog ||
-                dynamicMapAdmissionCoverageAwareV7) &&
+                dynamicMapAdmissionCoverageAwareV7 ||
+                dynamicMapAdmissionLifecycleV8) &&
                scoreBasedBoundaryCandidate)
             {
                 pMP->SetScoreAdmissionDiagnostics(
@@ -3980,6 +4208,24 @@ void LocalMapping::CreateNewMapPoints()
                     scoreInfoIt->second.reliableSupport,
                     scoreInfoIt->second.residualReliableSupport,
                     scoreInfoIt->second.depthConsistentSupport);
+                pMP->SetScoreAdmissionGeometryDiagnostics(
+                    static_cast<long>(pKF2->mnId),
+                    idx2,
+                    static_cast<double>(baseline),
+                    static_cast<double>(cosParallaxRays),
+                    parallaxScore,
+                    reprojRatio1,
+                    reprojRatio2,
+                    scaleScore,
+                    finalCandidateScore,
+                    finalTotalScore,
+                    static_cast<double>(dist1),
+                    static_cast<double>(dist2),
+                    static_cast<double>(ratioDist),
+                    static_cast<double>(ratioOctave),
+                    bPointStereo,
+                    mpCurrentKeyFrame->IsFeatureStaticNearDynamicMask(idx1),
+                    pKF2->IsFeatureStaticNearDynamicMask(idx2));
             }
             if(nearBoundaryDiagnostics)
             {

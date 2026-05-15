@@ -23,6 +23,9 @@
 #include<mutex>
 #include<map>
 #include<cmath>
+#include<fstream>
+#include<iomanip>
+#include<vector>
 
 namespace ORB_SLAM3
 {
@@ -46,6 +49,33 @@ struct AdmissionDiagnosticsRecord
     double supportScore = 0.0;
     double candidateScore = 0.0;
     double totalScore = 0.0;
+    long neighborKeyFrameId = -1;
+    int neighborFeatureIdx = -1;
+    double baseline = 0.0;
+    double cosParallaxRays = 0.0;
+    double parallaxScore = 0.0;
+    double reprojRatio1 = 0.0;
+    double reprojRatio2 = 0.0;
+    double scaleScore = 0.0;
+    double finalCandidateScore = 0.0;
+    double finalTotalScore = 0.0;
+    double dist1 = 0.0;
+    double dist2 = 0.0;
+    double ratioDist = 0.0;
+    double ratioOctave = 0.0;
+    bool stereoPoint = false;
+    bool boundaryCurrent = false;
+    bool boundaryNeighbor = false;
+    int lifecyclePrebad = 0;
+    int lifecycleFoundRatioCull = 0;
+    int lifecycleLowObsCull = 0;
+    int lifecycleV7ResidualCull = 0;
+    int lifecycleV7LowUseCull = 0;
+    int lifecycleMatured = 0;
+    int lifecycleSurvived = 0;
+    long firstMaturedFrameId = -1;
+    long lastLifecycleFrameId = -1;
+    long lastLifecycleKeyFrameId = -1;
 };
 
 struct SupportQualityPoseUseRecord
@@ -373,6 +403,88 @@ void MapPoint::SetScoreAdmissionDiagnostics(double supportScore,
     record.scoreDepthSupport = depthSupport;
 }
 
+void MapPoint::SetScoreAdmissionGeometryDiagnostics(long neighborKeyFrameId,
+                                                    int neighborFeatureIdx,
+                                                    double baseline,
+                                                    double cosParallaxRays,
+                                                    double parallaxScore,
+                                                    double reprojRatio1,
+                                                    double reprojRatio2,
+                                                    double scaleScore,
+                                                    double finalCandidateScore,
+                                                    double finalTotalScore,
+                                                    double dist1,
+                                                    double dist2,
+                                                    double ratioDist,
+                                                    double ratioOctave,
+                                                    bool stereoPoint,
+                                                    bool boundaryCurrent,
+                                                    bool boundaryNeighbor)
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    AdmissionDiagnosticsRecord& record = gAdmissionDiagnostics[this];
+    record.scoreAdmission = true;
+    record.neighborKeyFrameId = neighborKeyFrameId;
+    record.neighborFeatureIdx = neighborFeatureIdx;
+    record.baseline = baseline;
+    record.cosParallaxRays = cosParallaxRays;
+    record.parallaxScore = parallaxScore;
+    record.reprojRatio1 = reprojRatio1;
+    record.reprojRatio2 = reprojRatio2;
+    record.scaleScore = scaleScore;
+    record.finalCandidateScore = finalCandidateScore;
+    record.finalTotalScore = finalTotalScore;
+    record.dist1 = dist1;
+    record.dist2 = dist2;
+    record.ratioDist = ratioDist;
+    record.ratioOctave = ratioOctave;
+    record.stereoPoint = stereoPoint;
+    record.boundaryCurrent = boundaryCurrent;
+    record.boundaryNeighbor = boundaryNeighbor;
+}
+
+void MapPoint::MarkScoreAdmissionLifecycleEvent(int eventType,
+                                                long frameId,
+                                                long keyFrameId)
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    AdmissionDiagnosticsRecord& record = gAdmissionDiagnostics[this];
+    if(!record.scoreAdmission)
+        return;
+
+    switch(eventType)
+    {
+        case kScoreAdmissionLifecyclePrebad:
+            ++record.lifecyclePrebad;
+            break;
+        case kScoreAdmissionLifecycleFoundRatioCull:
+            ++record.lifecycleFoundRatioCull;
+            break;
+        case kScoreAdmissionLifecycleLowObsCull:
+            ++record.lifecycleLowObsCull;
+            break;
+        case kScoreAdmissionLifecycleV7ResidualCull:
+            ++record.lifecycleV7ResidualCull;
+            break;
+        case kScoreAdmissionLifecycleV7LowUseCull:
+            ++record.lifecycleV7LowUseCull;
+            break;
+        case kScoreAdmissionLifecycleMatured:
+            ++record.lifecycleMatured;
+            if(record.firstMaturedFrameId < 0)
+                record.firstMaturedFrameId = frameId;
+            break;
+        case kScoreAdmissionLifecycleSurvived:
+            ++record.lifecycleSurvived;
+            break;
+        default:
+            return;
+    }
+
+    record.lastLifecycleFrameId = frameId;
+    record.lastLifecycleKeyFrameId = keyFrameId;
+}
+
 bool MapPoint::WasCreatedFromScoreAdmission()
 {
     unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
@@ -527,6 +639,190 @@ double MapPoint::GetScoreAdmissionLocalBAMeanChi2()
         return 0.0;
     return it->second.localBAChi2Sum /
            static_cast<double>(it->second.localBAEdges);
+}
+
+void MapPoint::DumpScoreAdmissionLifecycleCsv(const string& filename)
+{
+    std::vector<std::pair<const MapPoint*, AdmissionDiagnosticsRecord> > records;
+    {
+        unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+        records.reserve(gAdmissionDiagnostics.size());
+        for(std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+                gAdmissionDiagnostics.begin();
+            it != gAdmissionDiagnostics.end();
+            ++it)
+        {
+            if(it->second.scoreAdmission)
+                records.push_back(*it);
+        }
+    }
+
+    std::map<const MapPoint*, SupportQualityPoseUseRecord> poseUseRecords;
+    {
+        unique_lock<mutex> lock(gSupportQualityPoseUseMutex);
+        poseUseRecords = gSupportQualityPoseUse;
+    }
+
+    std::map<const MapPoint*, ScoreAdmissionConstraintRoleRecord> roleRecords;
+    {
+        unique_lock<mutex> lock(gScoreAdmissionConstraintRoleMutex);
+        roleRecords = gScoreAdmissionConstraintRole;
+    }
+
+    std::ofstream f(filename.c_str());
+    if(!f.is_open())
+        return;
+
+    f << std::fixed << std::setprecision(6);
+    f << "mp_id,is_bad,first_kf_id,first_frame,admission_frame,admission_kf,"
+      << "admission_feature,neighbor_kf,neighbor_feature,boundary_radius_px,"
+      << "support_score,candidate_score,total_score,raw_support,reliable_support,"
+      << "residual_support,depth_support,geom_baseline,geom_cos_parallax,"
+      << "geom_parallax_score,geom_reproj_ratio1,geom_reproj_ratio2,"
+      << "geom_scale_score,geom_final_candidate_score,geom_final_total_score,"
+      << "geom_dist1,geom_dist2,geom_ratio_dist,geom_ratio_octave,geom_stereo,"
+      << "geom_boundary_current,geom_boundary_neighbor,observations,found,visible,"
+      << "found_ratio,pose_use_edges,pose_use_inliers,pose_use_inlier_rate,"
+      << "pose_use_chi2_mean,lba_windows,lba_edges,lba_inliers,lba_inlier_rate,"
+      << "lba_local_edges,lba_fixed_edges,lba_local_edge_rate,lba_fixed_edge_rate,"
+      << "lba_chi2_mean,lifecycle_prebad,lifecycle_found_ratio_cull,"
+      << "lifecycle_low_obs_cull,lifecycle_v7_residual_cull,"
+      << "lifecycle_v7_low_use_cull,lifecycle_matured,lifecycle_survived,"
+      << "first_matured_frame,last_lifecycle_frame,last_lifecycle_kf,"
+      << "ref_distance\n";
+
+    for(size_t i = 0; i < records.size(); ++i)
+    {
+        const MapPoint* pMP = records[i].first;
+        const AdmissionDiagnosticsRecord& record = records[i].second;
+        if(!pMP)
+            continue;
+        MapPoint* pMutableMP = const_cast<MapPoint*>(pMP);
+
+        bool isBad = false;
+        int found = 0;
+        int visible = 0;
+        {
+            unique_lock<mutex> lock(pMutableMP->mMutexFeatures);
+            isBad = pMutableMP->mbBad;
+            found = pMutableMP->mnFound;
+            visible = pMutableMP->mnVisible;
+        }
+
+        const int observations = pMutableMP->Observations();
+        const double foundRatio =
+            visible > 0 ? static_cast<double>(found) / static_cast<double>(visible) : 0.0;
+
+        SupportQualityPoseUseRecord poseUse;
+        std::map<const MapPoint*, SupportQualityPoseUseRecord>::const_iterator poseIt =
+            poseUseRecords.find(pMP);
+        if(poseIt != poseUseRecords.end())
+            poseUse = poseIt->second;
+        const double poseUseInlierRate =
+            poseUse.observations > 0 ?
+                static_cast<double>(poseUse.inliers) /
+                    static_cast<double>(poseUse.observations) :
+                0.0;
+        const double poseUseMeanChi2 =
+            poseUse.observations > 0 ?
+                poseUse.chi2Sum / static_cast<double>(poseUse.observations) :
+                0.0;
+
+        ScoreAdmissionConstraintRoleRecord role;
+        std::map<const MapPoint*, ScoreAdmissionConstraintRoleRecord>::const_iterator roleIt =
+            roleRecords.find(pMP);
+        if(roleIt != roleRecords.end())
+            role = roleIt->second;
+        const double lbaInlierRate =
+            role.localBAEdges > 0 ?
+                static_cast<double>(role.localBAInliers) /
+                    static_cast<double>(role.localBAEdges) :
+                0.0;
+        const double lbaLocalEdgeRate =
+            role.localBAEdges > 0 ?
+                static_cast<double>(role.localBALocalEdges) /
+                    static_cast<double>(role.localBAEdges) :
+                0.0;
+        const double lbaFixedEdgeRate =
+            role.localBAEdges > 0 ?
+                static_cast<double>(role.localBAFixedEdges) /
+                    static_cast<double>(role.localBAEdges) :
+                0.0;
+        const double lbaMeanChi2 =
+            role.localBAEdges > 0 ?
+                role.localBAChi2Sum / static_cast<double>(role.localBAEdges) :
+                0.0;
+
+        double refDistance = 0.0;
+        KeyFrame* pRefKF = pMutableMP->GetReferenceKeyFrame();
+        if(pRefKF && !pRefKF->isBad())
+        {
+            refDistance =
+                static_cast<double>((pMutableMP->GetWorldPos() -
+                                     pRefKF->GetCameraCenter()).norm());
+        }
+
+        f << pMutableMP->mnId << ','
+          << (isBad ? 1 : 0) << ','
+          << pMutableMP->mnFirstKFid << ','
+          << pMutableMP->mnFirstFrame << ','
+          << record.frameId << ','
+          << record.keyFrameId << ','
+          << record.featureIdx << ','
+          << record.neighborKeyFrameId << ','
+          << record.neighborFeatureIdx << ','
+          << record.boundaryRadiusPx << ','
+          << record.supportScore << ','
+          << record.candidateScore << ','
+          << record.totalScore << ','
+          << record.scoreRawSupport << ','
+          << record.scoreReliableSupport << ','
+          << record.scoreResidualSupport << ','
+          << record.scoreDepthSupport << ','
+          << record.baseline << ','
+          << record.cosParallaxRays << ','
+          << record.parallaxScore << ','
+          << record.reprojRatio1 << ','
+          << record.reprojRatio2 << ','
+          << record.scaleScore << ','
+          << record.finalCandidateScore << ','
+          << record.finalTotalScore << ','
+          << record.dist1 << ','
+          << record.dist2 << ','
+          << record.ratioDist << ','
+          << record.ratioOctave << ','
+          << (record.stereoPoint ? 1 : 0) << ','
+          << (record.boundaryCurrent ? 1 : 0) << ','
+          << (record.boundaryNeighbor ? 1 : 0) << ','
+          << observations << ','
+          << found << ','
+          << visible << ','
+          << foundRatio << ','
+          << poseUse.observations << ','
+          << poseUse.inliers << ','
+          << poseUseInlierRate << ','
+          << poseUseMeanChi2 << ','
+          << role.localBAWindows << ','
+          << role.localBAEdges << ','
+          << role.localBAInliers << ','
+          << lbaInlierRate << ','
+          << role.localBALocalEdges << ','
+          << role.localBAFixedEdges << ','
+          << lbaLocalEdgeRate << ','
+          << lbaFixedEdgeRate << ','
+          << lbaMeanChi2 << ','
+          << record.lifecyclePrebad << ','
+          << record.lifecycleFoundRatioCull << ','
+          << record.lifecycleLowObsCull << ','
+          << record.lifecycleV7ResidualCull << ','
+          << record.lifecycleV7LowUseCull << ','
+          << record.lifecycleMatured << ','
+          << record.lifecycleSurvived << ','
+          << record.firstMaturedFrameId << ','
+          << record.lastLifecycleFrameId << ','
+          << record.lastLifecycleKeyFrameId << ','
+          << refDistance << '\n';
+    }
 }
 
 

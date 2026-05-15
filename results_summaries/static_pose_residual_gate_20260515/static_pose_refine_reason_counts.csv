@@ -1,0 +1,9 @@
+run_root,case,log_lines,accepted,low_initial_residual,insufficient_static_matches,unsafe_pose_delta,insufficient_residual_gain,below_min_pose_delta,insufficient_refined_inliers
+static_pose_residual_gate_20260515_143355,smoke30_wxyz_residual_gate,29,0,0,0,5,24,0,0
+static_pose_residual_gate_20260515_143355,smoke30_wxyz_residual_gate_v2,29,0,0,0,5,14,10,0
+static_pose_residual_gate_20260515_143355,wrpy_residual_gate_r1,908,0,0,293,172,219,218,6
+static_pose_residual_gate_20260515_143355,wxyz_residual_gate_r1,858,0,0,43,118,295,401,1
+static_pose_residual_pregate_20260515_145257,smoke30_wxyz_residual_pregate,29,0,29,0,0,0,0,0
+static_pose_residual_pregate_20260515_145257,wrpy_residual_pregate_noopt_r1,908,0,572,336,0,0,0,0
+static_pose_residual_pregate_20260515_145257,wrpy_residual_pregate_r1,908,0,582,321,2,2,1,0
+static_pose_residual_pregate_20260515_145257,wxyz_residual_pregate_noopt_r1,858,0,810,48,0,0,0,0

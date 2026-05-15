@@ -197,6 +197,36 @@ public:
                                       int reliableSupport,
                                       int residualSupport,
                                       int depthSupport);
+    enum ScoreAdmissionLifecycleEvent
+    {
+        kScoreAdmissionLifecyclePrebad = 1,
+        kScoreAdmissionLifecycleFoundRatioCull = 2,
+        kScoreAdmissionLifecycleLowObsCull = 3,
+        kScoreAdmissionLifecycleV7ResidualCull = 4,
+        kScoreAdmissionLifecycleV7LowUseCull = 5,
+        kScoreAdmissionLifecycleMatured = 6,
+        kScoreAdmissionLifecycleSurvived = 7
+    };
+    void SetScoreAdmissionGeometryDiagnostics(long neighborKeyFrameId,
+                                              int neighborFeatureIdx,
+                                              double baseline,
+                                              double cosParallaxRays,
+                                              double parallaxScore,
+                                              double reprojRatio1,
+                                              double reprojRatio2,
+                                              double scaleScore,
+                                              double finalCandidateScore,
+                                              double finalTotalScore,
+                                              double dist1,
+                                              double dist2,
+                                              double ratioDist,
+                                              double ratioOctave,
+                                              bool stereoPoint,
+                                              bool boundaryCurrent,
+                                              bool boundaryNeighbor);
+    void MarkScoreAdmissionLifecycleEvent(int eventType,
+                                          long frameId,
+                                          long keyFrameId);
     bool WasCreatedFromScoreAdmission();
     double GetScoreAdmissionSupportScore();
     double GetScoreAdmissionCandidateScore();
@@ -214,6 +244,7 @@ public:
     int GetScoreAdmissionLocalBAFixedEdges();
     int GetScoreAdmissionLocalBALocalEdges();
     double GetScoreAdmissionLocalBAMeanChi2();
+    static void DumpScoreAdmissionLifecycleCsv(const string& filename);
 
     void PreSave(set<KeyFrame*>& spKF,set<MapPoint*>& spMP);
     void PostLoad(map<long unsigned int, KeyFrame*>& mpKFid, map<long unsigned int, MapPoint*>& mpMPid);

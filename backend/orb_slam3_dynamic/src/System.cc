@@ -20,6 +20,7 @@
 
 #include "System.h"
 #include "Converter.h"
+#include "MapPoint.h"
 #include <thread>
 #include <pangolin/pangolin.h>
 #include <iomanip>
@@ -613,6 +614,9 @@ void System::Shutdown()
         }*/
         /*usleep(5000);
     }*/
+
+    if(EnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_LIFECYCLE_DUMP", false))
+        MapPoint::DumpScoreAdmissionLifecycleCsv("score_admission_lifecycle.csv");
 
     if(!mStrSaveAtlasToFile.empty())
     {

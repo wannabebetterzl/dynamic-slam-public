@@ -7,6 +7,7 @@ import argparse
 import csv
 import hashlib
 import json
+import re
 import statistics
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence
@@ -87,6 +88,9 @@ def case_repeat_for(run_root: Path, run_dir: Path) -> Dict[str, str]:
     parts = rel.parts
     if len(parts) >= 2 and parts[-1].startswith("r"):
         return {"case": parts[-2], "repeat": parts[-1]}
+    match = re.match(r"^(?P<case>.+)_(?P<repeat>r\d+)$", parts[-1])
+    if match:
+        return {"case": match.group("case"), "repeat": match.group("repeat")}
     return {"case": parts[-1], "repeat": ""}
 
 
@@ -224,7 +228,11 @@ def main() -> None:
     print("|---|---:|---:|---:|---:|---:|---:|")
     for row in summary_rows:
         def pair(metric: str) -> str:
-            return f"{row[f'{metric}_mean']:.6f}±{row[f'{metric}_std']:.6f}"
+            mean_key = f"{metric}_mean"
+            std_key = f"{metric}_std"
+            if mean_key not in row or std_key not in row:
+                return "NA"
+            return f"{row[mean_key]:.6f}±{row[std_key]:.6f}"
 
         print(
             f"| {row['case']} | {row['n']} | {row['protocol_valid_all']} | "

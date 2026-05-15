@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <set>
 #include <sstream>
 #include <string>
 
@@ -2362,6 +2363,46 @@ bool EnableDynamicMapAdmissionConstraintRoleLog()
     return GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_CONSTRAINT_ROLE_LOG", false);
 }
 
+bool EnableDynamicMapAdmissionConstraintRoleCollect()
+{
+    return GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_CONSTRAINT_ROLE_COLLECT", false) ||
+           EnableDynamicMapAdmissionConstraintRoleLog();
+}
+
+bool EnableDynamicMapAdmissionLocalBADelayV9()
+{
+    return GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_LBA_DELAY_V9", false);
+}
+
+int DynamicMapAdmissionLocalBADelayV9MinAgeKFs()
+{
+    return GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_LBA_DELAY_V9_MIN_AGE_KFS",
+                              2,
+                              0);
+}
+
+int DynamicMapAdmissionLocalBADelayV9MinPoseUse()
+{
+    return GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_LBA_DELAY_V9_MIN_POSE_USE",
+                              2,
+                              0);
+}
+
+bool ShouldDelayScoreAdmissionLocalBA(MapPoint* pMP, KeyFrame* pCurrentKF)
+{
+    if(!EnableDynamicMapAdmissionLocalBADelayV9() || !pMP ||
+       !pMP->WasCreatedFromScoreAdmission())
+        return false;
+
+    const int ageKFs =
+        pCurrentKF ?
+        static_cast<int>(pCurrentKF->mnId) - static_cast<int>(pMP->mnFirstKFid) :
+        0;
+    return ageKFs < DynamicMapAdmissionLocalBADelayV9MinAgeKFs() ||
+           pMP->GetSupportQualityPoseUseCount() <
+               DynamicMapAdmissionLocalBADelayV9MinPoseUse();
+}
+
 int GetNearBoundaryDiagnosticRadiusPx()
 {
     return GetEnvIntOrDefault("STSLAM_NEAR_BOUNDARY_DIAGNOSTIC_RADIUS_PX", 5, 0);
@@ -4538,20 +4579,34 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
 
     // Set MapPoint vertices
     const int nExpectedSize = (lLocalKeyFrames.size()+lFixedCameras.size())*lLocalMapPoints.size();
+    const bool constraintRoleCollect = EnableDynamicMapAdmissionConstraintRoleCollect();
     const bool constraintRoleLog = EnableDynamicMapAdmissionConstraintRoleLog();
+    std::set<MapPoint*> delayedScoreAdmissionLocalBAPoints;
+    int delayedScoreAdmissionLocalBAPointCount = 0;
+    auto markDelayedScoreAdmissionLocalBAPoint =
+        [&](MapPoint* pMP)
+    {
+        if(pMP && delayedScoreAdmissionLocalBAPoints.insert(pMP).second)
+            ++delayedScoreAdmissionLocalBAPointCount;
+    };
     int scoreAdmissionWindowPoints = 0;
     int scoreAdmissionWindowObsGe2 = 0;
     int scoreAdmissionWindowObsGe3 = 0;
     int scoreAdmissionWindowObsSum = 0;
     double scoreAdmissionRefDistanceSum = 0.0;
     int scoreAdmissionRefDistanceCount = 0;
-    if(constraintRoleLog)
+    if(constraintRoleCollect)
     {
         for(list<MapPoint*>::iterator lit = lLocalMapPoints.begin(), lend = lLocalMapPoints.end(); lit != lend; ++lit)
         {
             MapPoint* pMP = *lit;
             if(!pMP || !pMP->WasCreatedFromScoreAdmission())
                 continue;
+            if(ShouldDelayScoreAdmissionLocalBA(pMP, pKF))
+            {
+                markDelayedScoreAdmissionLocalBAPoint(pMP);
+                continue;
+            }
 
             pMP->MarkScoreAdmissionLocalBAWindow();
             ++scoreAdmissionWindowPoints;
@@ -4610,6 +4665,12 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
     for(list<MapPoint*>::iterator lit=lLocalMapPoints.begin(), lend=lLocalMapPoints.end(); lit!=lend; lit++)
     {
         MapPoint* pMP = *lit;
+        if(ShouldDelayScoreAdmissionLocalBA(pMP, pKF))
+        {
+            markDelayedScoreAdmissionLocalBAPoint(pMP);
+            continue;
+        }
+
         g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
         vPoint->setEstimate(pMP->GetWorldPos().cast<double>());
         int id = pMP->mnId+maxKFid+1;
@@ -4731,12 +4792,53 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
     }
     num_edges = nEdges;
 
+    if(EnableDynamicMapAdmissionLocalBADelayV9())
+    {
+        std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_LBA_DELAY_V9]"
+                  << " frame=" << pKF->mnFrameId
+                  << " stage=before_optimize"
+                  << " current_kf=" << pKF->mnId
+                  << " local_kf=" << lLocalKeyFrames.size()
+                  << " fixed_kf=" << lFixedCameras.size()
+                  << " local_mp=" << lLocalMapPoints.size()
+                  << " delayed_mp=" << delayedScoreAdmissionLocalBAPointCount
+                  << " optimizer_points=" << nPoints
+                  << " optimizer_edges=" << nEdges
+                  << std::endl;
+    }
+
+    if(nPoints <= 0 || nEdges <= 0)
+    {
+        if(EnableDynamicMapAdmissionLocalBADelayV9())
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_LBA_DELAY_V9]"
+                      << " frame=" << pKF->mnFrameId
+                      << " stage=skip_empty_graph"
+                      << " current_kf=" << pKF->mnId
+                      << " optimizer_points=" << nPoints
+                      << " optimizer_edges=" << nEdges
+                      << std::endl;
+        }
+        return;
+    }
+
     if(pbStopFlag)
         if(*pbStopFlag)
             return;
 
     optimizer.initializeOptimization();
     optimizer.optimize(10);
+
+    if(EnableDynamicMapAdmissionLocalBADelayV9())
+    {
+        std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_LBA_DELAY_V9]"
+                  << " frame=" << pKF->mnFrameId
+                  << " stage=after_optimize"
+                  << " current_kf=" << pKF->mnId
+                  << " optimizer_points=" << nPoints
+                  << " optimizer_edges=" << nEdges
+                  << std::endl;
+    }
 
     vector<pair<KeyFrame*,MapPoint*> > vToErase;
     vToErase.reserve(vpEdgesMono.size()+vpEdgesBody.size()+vpEdgesStereo.size());
@@ -4753,7 +4855,7 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
             const double chi2Threshold,
             const bool depthPositive)
     {
-        if(!constraintRoleLog || !pMP || !pMP->WasCreatedFromScoreAdmission())
+        if(!constraintRoleCollect || !pMP || !pMP->WasCreatedFromScoreAdmission())
             return;
 
         const bool inlier = chi2 <= chi2Threshold && depthPositive;
@@ -4891,7 +4993,14 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
     for(list<MapPoint*>::iterator lit=lLocalMapPoints.begin(), lend=lLocalMapPoints.end(); lit!=lend; lit++)
     {
         MapPoint* pMP = *lit;
+        if(delayedScoreAdmissionLocalBAPoints.find(pMP) !=
+           delayedScoreAdmissionLocalBAPoints.end())
+            continue;
+
         g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(pMP->mnId+maxKFid+1));
+        if(!vPoint)
+            continue;
+
         pMP->SetWorldPos(vPoint->estimate().cast<float>());
         pMP->UpdateNormalAndDepth();
     }

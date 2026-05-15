@@ -1,0 +1,22 @@
+Offline trajectory residual comparison
+baseline=mainline
+probe=v8
+
+Global:
+baseline_se3_rmse=0.285882133 probe_se3_rmse=0.287087718 delta=0.001205586
+baseline_sim3_rmse=0.128593236 probe_sim3_rmse=0.126260043 delta=-0.002333194
+baseline_scale=0.336464571 probe_scale=0.338178309 delta=0.001713738
+
+Worst SE3 bins for probe:
+matches=100-149 se3_delta=0.059111419 sim3_delta=0.000698342 path_ratio_delta=-0.006604953
+matches=200-249 se3_delta=0.056821486 sim3_delta=0.010668882 path_ratio_delta=0.127832407
+matches=150-199 se3_delta=0.056397613 sim3_delta=-0.022692279 path_ratio_delta=-0.032844888
+matches=700-749 se3_delta=0.013991059 sim3_delta=0.003428109 path_ratio_delta=-0.433523171
+matches=50-99 se3_delta=0.011657770 sim3_delta=0.012351080 path_ratio_delta=0.100603245
+
+Best Sim3 bins for probe:
+matches=150-199 sim3_delta=-0.022692279 se3_delta=0.056397613 path_ratio_delta=-0.032844888
+matches=900-905 sim3_delta=-0.018817678 se3_delta=-0.048857112 path_ratio_delta=1.709367026
+matches=300-349 sim3_delta=-0.018489898 se3_delta=-0.095349860 path_ratio_delta=-9.671318601
+matches=850-899 sim3_delta=-0.017826577 se3_delta=-0.042895176 path_ratio_delta=-0.011040201
+matches=500-549 sim3_delta=-0.017297763 se3_delta=-0.048204088 path_ratio_delta=-4.199205114

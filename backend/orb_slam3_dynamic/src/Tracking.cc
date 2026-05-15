@@ -1259,6 +1259,479 @@ int CountStaticMapPointMatches(const Frame& frame)
     return count;
 }
 
+bool EnableStaticBackgroundPoseRefinement()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_STATIC_BACKGROUND_POSE_REFINE", false);
+    return value;
+}
+
+bool EnableStaticBackgroundPoseRefinementLog()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_STATIC_BACKGROUND_POSE_REFINE_LOG", false);
+    return value;
+}
+
+int GetStaticBackgroundPoseRefinementMinMatches()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_STATIC_BACKGROUND_POSE_REFINE_MIN_MATCHES",
+                           80,
+                           3);
+    return value;
+}
+
+int GetStaticBackgroundPoseRefinementNearRadiusPx()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_STATIC_BACKGROUND_POSE_REFINE_NEAR_RADIUS_PX",
+                           5,
+                           0);
+    return value;
+}
+
+double GetStaticBackgroundPoseRefinementMaxTranslationM()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_STATIC_BACKGROUND_POSE_REFINE_MAX_TRANSLATION_M",
+                            0.05,
+                            0.0,
+                            10.0);
+    return value;
+}
+
+double GetStaticBackgroundPoseRefinementMaxRotationDeg()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_STATIC_BACKGROUND_POSE_REFINE_MAX_ROTATION_DEG",
+                            5.0,
+                            0.0,
+                            180.0);
+    return value;
+}
+
+double GetStaticBackgroundPoseRefinementMinTranslationM()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_STATIC_BACKGROUND_POSE_REFINE_MIN_TRANSLATION_M",
+                            0.0,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+double GetStaticBackgroundPoseRefinementMinRotationDeg()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_STATIC_BACKGROUND_POSE_REFINE_MIN_ROTATION_DEG",
+                            0.0,
+                            0.0,
+                            180.0);
+    return value;
+}
+
+bool RequireStaticBackgroundPoseRefinementResidualGain()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_STATIC_BACKGROUND_POSE_REFINE_REQUIRE_RESIDUAL_GAIN",
+                            false);
+    return value;
+}
+
+double GetStaticBackgroundPoseRefinementMinChi2GainRatio()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_STATIC_BACKGROUND_POSE_REFINE_MIN_CHI2_GAIN_RATIO",
+                            0.02,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+double GetStaticBackgroundPoseRefinementMinChi2GainAbs()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_STATIC_BACKGROUND_POSE_REFINE_MIN_CHI2_GAIN_ABS",
+                            0.0,
+                            0.0,
+                            1e6);
+    return value;
+}
+
+double GetStaticBackgroundPoseRefinementMinInlierRatioGain()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_STATIC_BACKGROUND_POSE_REFINE_MIN_INLIER_RATIO_GAIN",
+                            0.0,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+double GetStaticBackgroundPoseRefinementMaxMeanChi2After()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_STATIC_BACKGROUND_POSE_REFINE_MAX_MEAN_CHI2_AFTER",
+                            5.991,
+                            0.0,
+                            1e6);
+    return value;
+}
+
+double GetStaticBackgroundPoseRefinementMinMeanChi2Before()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_STATIC_BACKGROUND_POSE_REFINE_MIN_MEAN_CHI2_BEFORE",
+                            0.0,
+                            0.0,
+                            1e6);
+    return value;
+}
+
+bool IsStaticBackgroundRefinementFeature(const Frame& frame,
+                                         const int idx,
+                                         const int nearRadiusPx)
+{
+    if(idx < 0 ||
+       idx >= frame.N ||
+       idx >= static_cast<int>(frame.mvpMapPoints.size()) ||
+       idx >= static_cast<int>(frame.mvbOutlier.size()))
+        return false;
+
+    MapPoint* pMP = frame.mvpMapPoints[idx];
+    if(!pMP || pMP->isBad() || frame.mvbOutlier[idx])
+        return false;
+
+    if(frame.GetFeatureInstanceId(static_cast<size_t>(idx)) > 0)
+        return false;
+
+    if(nearRadiusPx > 0 &&
+       HasDynamicMaskSupportNearFeature(frame, idx, nearRadiusPx))
+        return false;
+
+    return pMP->Observations() > 0;
+}
+
+std::vector<int> CollectStaticBackgroundRefinementFeatureIndices(
+    const Frame& frame,
+    const int nearRadiusPx)
+{
+    const int nFeatures = std::min(frame.N, static_cast<int>(frame.mvpMapPoints.size()));
+    std::vector<int> indices;
+    indices.reserve(nFeatures);
+    for(int idx = 0; idx < nFeatures; ++idx)
+    {
+        if(IsStaticBackgroundRefinementFeature(frame, idx, nearRadiusPx))
+            indices.push_back(idx);
+    }
+    return indices;
+}
+
+struct StaticBackgroundPoseResidualStats
+{
+    int observations = 0;
+    int inliers = 0;
+    double chi2Sum = 0.0;
+    double chi2Mean = std::numeric_limits<double>::infinity();
+    double inlierRatio = 0.0;
+};
+
+bool ComputeStaticBackgroundObservationChi2(const Frame& frame,
+                                            const int idx,
+                                            double& chi2,
+                                            double& chi2Threshold)
+{
+    if(idx < 0 ||
+       idx >= frame.N ||
+       idx >= static_cast<int>(frame.mvpMapPoints.size()) ||
+       idx >= static_cast<int>(frame.mvKeysUn.size()) ||
+       idx >= static_cast<int>(frame.mvuRight.size()))
+        return false;
+    if(frame.mpCamera2)
+        return false;
+    if(!frame.mpCamera)
+        return false;
+
+    MapPoint* pMP = frame.mvpMapPoints[idx];
+    if(!pMP || pMP->isBad())
+        return false;
+
+    const Eigen::Vector3f pointWorld = pMP->GetWorldPos();
+    if(!pointWorld.allFinite())
+        return false;
+
+    const Eigen::Vector3f pointCamera = frame.GetPose() * pointWorld;
+    if(!pointCamera.allFinite() || pointCamera(2) <= 0.0f)
+        return false;
+
+    const Eigen::Vector2f uv = frame.mpCamera->project(pointCamera);
+    if(!uv.allFinite())
+        return false;
+    if(uv(0) < Frame::mnMinX || uv(0) > Frame::mnMaxX ||
+       uv(1) < Frame::mnMinY || uv(1) > Frame::mnMaxY)
+        return false;
+
+    const cv::KeyPoint& keypoint = frame.mvKeysUn[idx];
+    if(keypoint.octave < 0 ||
+       keypoint.octave >= static_cast<int>(frame.mvInvLevelSigma2.size()))
+        return false;
+
+    const double invSigma2 =
+        static_cast<double>(frame.mvInvLevelSigma2[keypoint.octave]);
+    if(!std::isfinite(invSigma2) || invSigma2 <= 0.0)
+        return false;
+
+    const double du = static_cast<double>(uv(0) - keypoint.pt.x);
+    const double dv = static_cast<double>(uv(1) - keypoint.pt.y);
+    if(frame.mvuRight[idx] >= 0.0f)
+    {
+        const double projectedRight =
+            static_cast<double>(uv(0)) -
+            static_cast<double>(frame.mbf) / static_cast<double>(pointCamera(2));
+        const double dur =
+            projectedRight - static_cast<double>(frame.mvuRight[idx]);
+        chi2 = (du * du + dv * dv + dur * dur) * invSigma2;
+        chi2Threshold = 7.815;
+    }
+    else
+    {
+        chi2 = (du * du + dv * dv) * invSigma2;
+        chi2Threshold = 5.991;
+    }
+
+    return std::isfinite(chi2);
+}
+
+StaticBackgroundPoseResidualStats EvaluateStaticBackgroundPoseResiduals(
+    const Frame& frame,
+    const std::vector<int>& featureIndices)
+{
+    StaticBackgroundPoseResidualStats stats;
+    for(const int idx : featureIndices)
+    {
+        double chi2 = 0.0;
+        double chi2Threshold = 0.0;
+        if(!ComputeStaticBackgroundObservationChi2(frame, idx, chi2, chi2Threshold))
+            continue;
+        ++stats.observations;
+        stats.chi2Sum += chi2;
+        if(chi2 <= chi2Threshold)
+            ++stats.inliers;
+    }
+
+    if(stats.observations > 0)
+    {
+        stats.chi2Mean =
+            stats.chi2Sum / static_cast<double>(stats.observations);
+        stats.inlierRatio =
+            static_cast<double>(stats.inliers) /
+            static_cast<double>(stats.observations);
+    }
+    return stats;
+}
+
+bool RefinePoseWithStaticBackground(Frame& frame, const std::string& stage)
+{
+    if(!EnableStaticBackgroundPoseRefinement())
+        return false;
+    if(!frame.HasPanopticObservation() || !frame.HasPose())
+        return false;
+
+    const int nearRadiusPx = GetStaticBackgroundPoseRefinementNearRadiusPx();
+    const int minMatches = GetStaticBackgroundPoseRefinementMinMatches();
+    const std::vector<int> staticFeatureIndices =
+        CollectStaticBackgroundRefinementFeatureIndices(frame, nearRadiusPx);
+    const int staticMatches = static_cast<int>(staticFeatureIndices.size());
+    if(staticMatches < minMatches)
+    {
+        if(EnableStaticBackgroundPoseRefinementLog())
+        {
+            std::cout << "[STSLAM_STATIC_BG_POSE_REFINE]"
+                      << " frame=" << frame.mnId
+                      << " stage=" << stage
+                      << " accepted=0"
+                      << " reason=insufficient_static_matches"
+                      << " static_matches=" << staticMatches
+                      << " min_matches=" << minMatches
+                      << std::endl;
+        }
+        return false;
+    }
+
+    const Sophus::SE3f originalPose = frame.GetPose();
+    const std::vector<MapPoint*> originalMapPoints = frame.mvpMapPoints;
+    const std::vector<bool> originalOutliers = frame.mvbOutlier;
+    const StaticBackgroundPoseResidualStats residualBefore =
+        EvaluateStaticBackgroundPoseResiduals(frame, staticFeatureIndices);
+    const bool residualGateEnabled =
+        RequireStaticBackgroundPoseRefinementResidualGain();
+    const double minMeanChi2Before =
+        GetStaticBackgroundPoseRefinementMinMeanChi2Before();
+    if(residualGateEnabled && minMeanChi2Before > 0.0 &&
+       (!std::isfinite(residualBefore.chi2Mean) ||
+        residualBefore.chi2Mean < minMeanChi2Before))
+    {
+        if(EnableStaticBackgroundPoseRefinementLog())
+        {
+            std::cout << "[STSLAM_STATIC_BG_POSE_REFINE]"
+                      << " frame=" << frame.mnId
+                      << " stage=" << stage
+                      << " accepted=0"
+                      << " reason=low_initial_residual"
+                      << " static_matches=" << staticMatches
+                      << " kept_static_matches=0"
+                      << " refined_inliers=0"
+                      << " min_matches=" << minMatches
+                      << " residual_gate=1"
+                      << " residual_before_obs=" << residualBefore.observations
+                      << " residual_after_obs=0"
+                      << " residual_before_chi2_mean="
+                      << residualBefore.chi2Mean
+                      << " residual_after_chi2_mean=inf"
+                      << " residual_gain_abs=0"
+                      << " residual_gain_ratio=0"
+                      << " residual_before_inlier_ratio="
+                      << residualBefore.inlierRatio
+                      << " residual_after_inlier_ratio=0"
+                      << " delta_translation_m=0"
+                      << " delta_rotation_deg=0"
+                      << " min_translation_m="
+                      << GetStaticBackgroundPoseRefinementMinTranslationM()
+                      << " min_rotation_deg="
+                      << GetStaticBackgroundPoseRefinementMinRotationDeg()
+                      << " max_translation_m="
+                      << GetStaticBackgroundPoseRefinementMaxTranslationM()
+                      << " max_rotation_deg="
+                      << GetStaticBackgroundPoseRefinementMaxRotationDeg()
+                      << std::endl;
+        }
+        return false;
+    }
+
+    const int nFeatures =
+        std::min(frame.N, static_cast<int>(frame.mvpMapPoints.size()));
+    std::vector<unsigned char> keepStaticFeature(nFeatures, 0);
+    for(const int idx : staticFeatureIndices)
+    {
+        if(idx >= 0 && idx < nFeatures)
+            keepStaticFeature[idx] = 1;
+    }
+
+    int keptStaticMatches = 0;
+    for(int idx = 0; idx < nFeatures; ++idx)
+    {
+        const bool keep = keepStaticFeature[idx] != 0;
+        if(keep)
+        {
+            frame.mvbOutlier[idx] = false;
+            ++keptStaticMatches;
+        }
+        else
+        {
+            frame.mvpMapPoints[idx] = static_cast<MapPoint*>(NULL);
+            frame.mvbOutlier[idx] = true;
+        }
+    }
+
+    const int refinedInliers = Optimizer::PoseOptimization(&frame);
+    const Sophus::SE3f refinedPose = frame.GetPose();
+    const StaticBackgroundPoseResidualStats residualAfter =
+        EvaluateStaticBackgroundPoseResiduals(frame, staticFeatureIndices);
+    const Sophus::SE3f deltaPose = refinedPose * originalPose.inverse();
+    const double deltaTranslation =
+        static_cast<double>(deltaPose.translation().norm());
+    const double deltaRotationDeg =
+        static_cast<double>(deltaPose.so3().log().norm()) *
+        180.0 / 3.14159265358979323846;
+
+    const bool enoughInliers = refinedInliers >= minMatches;
+    const bool safeDelta =
+        deltaTranslation <= GetStaticBackgroundPoseRefinementMaxTranslationM() &&
+        deltaRotationDeg <= GetStaticBackgroundPoseRefinementMaxRotationDeg();
+    const double minTranslation =
+        GetStaticBackgroundPoseRefinementMinTranslationM();
+    const double minRotationDeg =
+        GetStaticBackgroundPoseRefinementMinRotationDeg();
+    const bool requireUsefulCorrection =
+        minTranslation > 0.0 || minRotationDeg > 0.0;
+    const bool usefulCorrection =
+        !requireUsefulCorrection ||
+        deltaTranslation >= minTranslation ||
+        deltaRotationDeg >= minRotationDeg;
+
+    const bool residualStatsValid =
+        residualBefore.observations > 0 &&
+        residualAfter.observations > 0 &&
+        std::isfinite(residualBefore.chi2Mean) &&
+        std::isfinite(residualAfter.chi2Mean);
+    const double residualGainAbs =
+        residualStatsValid ? residualBefore.chi2Mean - residualAfter.chi2Mean : 0.0;
+    const double residualGainRatio =
+        (residualStatsValid && residualBefore.chi2Mean > 0.0)
+            ? residualGainAbs / residualBefore.chi2Mean
+            : 0.0;
+    const bool residualGainPass =
+        !residualGateEnabled ||
+        (residualStatsValid &&
+         residualAfter.chi2Mean <=
+             GetStaticBackgroundPoseRefinementMaxMeanChi2After() &&
+         residualGainAbs >=
+             GetStaticBackgroundPoseRefinementMinChi2GainAbs() &&
+         residualGainRatio >=
+             GetStaticBackgroundPoseRefinementMinChi2GainRatio() &&
+         residualAfter.inlierRatio + 1e-9 >=
+             residualBefore.inlierRatio +
+             GetStaticBackgroundPoseRefinementMinInlierRatioGain());
+    const bool accepted =
+        enoughInliers && safeDelta && usefulCorrection && residualGainPass;
+
+    frame.mvpMapPoints = originalMapPoints;
+    frame.mvbOutlier = originalOutliers;
+    if(!accepted)
+        frame.SetPose(originalPose);
+
+    if(EnableStaticBackgroundPoseRefinementLog())
+    {
+        std::cout << "[STSLAM_STATIC_BG_POSE_REFINE]"
+                  << " frame=" << frame.mnId
+                  << " stage=" << stage
+                  << " accepted=" << (accepted ? 1 : 0)
+                  << " reason="
+                  << (accepted ? "accepted" :
+                      (!enoughInliers ? "insufficient_refined_inliers" :
+                       (!safeDelta ? "unsafe_pose_delta" :
+                        (!usefulCorrection ? "below_min_pose_delta" :
+                         "insufficient_residual_gain"))))
+                  << " static_matches=" << staticMatches
+                  << " kept_static_matches=" << keptStaticMatches
+                  << " refined_inliers=" << refinedInliers
+                  << " min_matches=" << minMatches
+                  << " residual_gate=" << (residualGateEnabled ? 1 : 0)
+                  << " residual_before_obs=" << residualBefore.observations
+                  << " residual_after_obs=" << residualAfter.observations
+                  << " residual_before_chi2_mean=" << residualBefore.chi2Mean
+                  << " residual_after_chi2_mean=" << residualAfter.chi2Mean
+                  << " residual_gain_abs=" << residualGainAbs
+                  << " residual_gain_ratio=" << residualGainRatio
+                  << " residual_before_inlier_ratio="
+                  << residualBefore.inlierRatio
+                  << " residual_after_inlier_ratio="
+                  << residualAfter.inlierRatio
+                  << " delta_translation_m=" << deltaTranslation
+                  << " delta_rotation_deg=" << deltaRotationDeg
+                  << " min_translation_m=" << minTranslation
+                  << " min_rotation_deg=" << minRotationDeg
+                  << " max_translation_m="
+                  << GetStaticBackgroundPoseRefinementMaxTranslationM()
+                  << " max_rotation_deg="
+                  << GetStaticBackgroundPoseRefinementMaxRotationDeg()
+                  << std::endl;
+    }
+
+    return accepted;
+}
+
 int ComputeMaxGeometricDynamicActions(const int eligibleMatches,
                                       const double maxRejectRatio)
 {
@@ -12805,6 +13278,8 @@ bool Tracking::TrackLocalMap()
             }
         }
     }
+
+    RefinePoseWithStaticBackground(mCurrentFrame, "track_local_map_post_pose");
 
     aux1 = 0, aux2 = 0;
     for(int i=0; i<mCurrentFrame.N; i++)
