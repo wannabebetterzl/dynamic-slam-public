@@ -1,0 +1,18 @@
+Segment-aware mechanism summary
+
+matches 100-299 frames 103-302
+  v9-mainline: SE3 0.037839893, Sim3 -0.005667867; v9-v8: SE3 -0.009746551, Sim3 -0.001047946
+  v9 events: score_created=23.000000000, score_candidates=332.000000000, delayed_mp_sum=9.000000000, delayed_mp_mean=0.204545455, lba_windows=44.000000000
+  keyframes: mainline=109, v8=122, v9=116
+matches 150-249 frames 153-252
+  v9-mainline: SE3 0.056517055, Sim3 -0.007035497; v9-v8: SE3 0.002153468, Sim3 0.004477757
+  v9 events: score_created=13.000000000, score_candidates=182.000000000, delayed_mp_sum=7.000000000, delayed_mp_mean=0.304347826, lba_windows=23.000000000
+  keyframes: mainline=56, v8=67, v9=61
+matches 150-299 frames 153-302
+  v9-mainline: SE3 0.046406297, Sim3 -0.005304089; v9-v8: SE3 0.002026146, Sim3 0.001664418
+  v9 events: score_created=13.000000000, score_candidates=242.000000000, delayed_mp_sum=7.000000000, delayed_mp_mean=0.205882353, lba_windows=34.000000000
+  keyframes: mainline=79, v8=94, v9=85
+matches 550-599 frames 553-602
+  v9-mainline: SE3 0.005770429, Sim3 0.002584992; v9-v8: SE3 0.044281850, Sim3 0.011369598
+  v9 events: score_created=0.000000000, score_candidates=17.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=7.000000000
+  keyframes: mainline=31, v8=28, v9=28

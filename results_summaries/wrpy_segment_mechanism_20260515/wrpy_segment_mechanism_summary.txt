@@ -1,0 +1,30 @@
+Segment-aware mechanism summary
+
+matches 100-149 frames 103-152
+  v9-mainline: SE3 0.006288035, Sim3 -0.006641163; v9-v8: SE3 -0.052823384, Sim3 -0.007339506
+  v9 events: score_created=10.000000000, score_candidates=90.000000000, delayed_mp_sum=2.000000000, delayed_mp_mean=0.200000000, lba_windows=10.000000000
+  keyframes: mainline=30, v8=28, v9=31
+matches 150-199 frames 153-202
+  v9-mainline: SE3 0.069699393, Sim3 -0.015676260; v9-v8: SE3 0.013301780, Sim3 0.007016019
+  v9 events: score_created=7.000000000, score_candidates=101.000000000, delayed_mp_sum=2.000000000, delayed_mp_mean=0.153846154, lba_windows=13.000000000
+  keyframes: mainline=40, v8=46, v9=43
+matches 200-249 frames 203-252
+  v9-mainline: SE3 0.039157914, Sim3 0.010995234; v9-v8: SE3 -0.017663572, Sim3 0.000326352
+  v9 events: score_created=6.000000000, score_candidates=81.000000000, delayed_mp_sum=5.000000000, delayed_mp_mean=0.500000000, lba_windows=10.000000000
+  keyframes: mainline=16, v8=21, v9=18
+matches 250-299 frames 253-302
+  v9-mainline: SE3 0.008724003, Sim3 0.000638020; v9-v8: SE3 0.003797417, Sim3 -0.007851518
+  v9 events: score_created=0.000000000, score_candidates=60.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=11.000000000
+  keyframes: mainline=23, v8=27, v9=24
+matches 300-349 frames 303-352
+  v9-mainline: SE3 -0.048754214, Sim3 -0.012127766; v9-v8: SE3 0.046595645, Sim3 0.006362132
+  v9 events: score_created=0.000000000, score_candidates=0.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=4.000000000
+  keyframes: mainline=3, v8=2, v9=2
+matches 500-549 frames 503-552
+  v9-mainline: SE3 -0.030948112, Sim3 -0.008012823; v9-v8: SE3 0.017255976, Sim3 0.009284941
+  v9 events: score_created=0.000000000, score_candidates=0.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=4.000000000
+  keyframes: mainline=7, v8=8, v9=8
+matches 550-599 frames 553-602
+  v9-mainline: SE3 0.005770429, Sim3 0.002584992; v9-v8: SE3 0.044281850, Sim3 0.011369598
+  v9 events: score_created=0.000000000, score_candidates=17.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=7.000000000
+  keyframes: mainline=31, v8=28, v9=28
