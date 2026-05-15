@@ -1,0 +1,78 @@
+Segment-aware mechanism summary
+
+matches 0-49 frames 3-52
+  v9-mainline: SE3 -0.021993064, Sim3 -0.020849932; v9-v8: SE3 -0.027885177, Sim3 -0.019481904
+  v9 events: score_created=3.000000000, score_candidates=59.000000000, delayed_mp_sum=2.000000000, delayed_mp_mean=0.333333333, lba_windows=6.000000000
+  keyframes: mainline=21, v8=12, v9=13
+matches 50-99 frames 53-102
+  v9-mainline: SE3 -0.013226315, Sim3 -0.039395989; v9-v8: SE3 -0.028865040, Sim3 -0.036041771
+  v9 events: score_created=24.000000000, score_candidates=206.000000000, delayed_mp_sum=2.000000000, delayed_mp_mean=0.285714286, lba_windows=7.000000000
+  keyframes: mainline=15, v8=22, v9=18
+matches 100-149 frames 103-152
+  v9-mainline: SE3 -0.182373403, Sim3 -0.001331612; v9-v8: SE3 -0.081490774, Sim3 -0.003172366
+  v9 events: score_created=3.000000000, score_candidates=122.000000000, delayed_mp_sum=1.000000000, delayed_mp_mean=0.111111111, lba_windows=9.000000000
+  keyframes: mainline=31, v8=22, v9=21
+matches 150-199 frames 153-202
+  v9-mainline: SE3 -0.292346053, Sim3 0.015691241; v9-v8: SE3 -0.191827430, Sim3 0.009717767
+  v9 events: score_created=7.000000000, score_candidates=60.000000000, delayed_mp_sum=3.000000000, delayed_mp_mean=0.272727273, lba_windows=11.000000000
+  keyframes: mainline=43, v8=39, v9=40
+matches 200-249 frames 203-252
+  v9-mainline: SE3 -0.176848174, Sim3 -0.016975069; v9-v8: SE3 -0.105054978, Sim3 -0.008126891
+  v9 events: score_created=2.000000000, score_candidates=39.000000000, delayed_mp_sum=1.000000000, delayed_mp_mean=0.111111111, lba_windows=9.000000000
+  keyframes: mainline=18, v8=19, v9=18
+matches 250-299 frames 253-302
+  v9-mainline: SE3 -0.031160157, Sim3 0.005910130; v9-v8: SE3 -0.012691390, Sim3 -0.003383506
+  v9 events: score_created=0.000000000, score_candidates=68.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=10.000000000
+  keyframes: mainline=24, v8=24, v9=20
+matches 300-349 frames 303-352
+  v9-mainline: SE3 -0.057383390, Sim3 -0.014684811; v9-v8: SE3 -0.014792102, Sim3 -0.003562693
+  v9 events: score_created=0.000000000, score_candidates=6.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=3.000000000
+  keyframes: mainline=2, v8=1, v9=2
+matches 350-399 frames 353-402
+  v9-mainline: SE3 -0.005810541, Sim3 -0.012951533; v9-v8: SE3 0.008738500, Sim3 -0.002927651
+  v9 events: score_created=0.000000000, score_candidates=0.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=3.000000000
+  keyframes: mainline=0, v8=0, v9=0
+matches 400-449 frames 403-452
+  v9-mainline: SE3 -0.011801793, Sim3 -0.010544230; v9-v8: SE3 0.004864977, Sim3 -0.004048994
+  v9 events: score_created=0.000000000, score_candidates=0.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=8.000000000
+  keyframes: mainline=20, v8=14, v9=14
+matches 450-499 frames 453-502
+  v9-mainline: SE3 -0.014706491, Sim3 -0.009534856; v9-v8: SE3 -0.000953452, Sim3 -0.004451645
+  v9 events: score_created=0.000000000, score_candidates=0.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=4.000000000
+  keyframes: mainline=3, v8=5, v9=2
+matches 500-549 frames 503-552
+  v9-mainline: SE3 -0.010092402, Sim3 -0.004219703; v9-v8: SE3 -0.003760603, Sim3 0.000683916
+  v9 events: score_created=0.000000000, score_candidates=2.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=3.000000000
+  keyframes: mainline=8, v8=8, v9=7
+matches 550-599 frames 553-602
+  v9-mainline: SE3 -0.024707625, Sim3 -0.005921358; v9-v8: SE3 -0.010687004, Sim3 -0.012074777
+  v9 events: score_created=0.000000000, score_candidates=29.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=6.000000000
+  keyframes: mainline=28, v8=31, v9=24
+matches 600-649 frames 603-652
+  v9-mainline: SE3 0.013665331, Sim3 -0.009876455; v9-v8: SE3 0.006805433, Sim3 -0.008687884
+  v9 events: score_created=0.000000000, score_candidates=7.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=5.000000000
+  keyframes: mainline=12, v8=6, v9=7
+matches 650-699 frames 653-702
+  v9-mainline: SE3 -0.014553361, Sim3 -0.017033236; v9-v8: SE3 -0.006901925, Sim3 -0.009818553
+  v9 events: score_created=0.000000000, score_candidates=26.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=10.000000000
+  keyframes: mainline=36, v8=41, v9=38
+matches 700-749 frames 703-752
+  v9-mainline: SE3 0.005551328, Sim3 -0.018684150; v9-v8: SE3 -0.014558668, Sim3 -0.013000457
+  v9 events: score_created=0.000000000, score_candidates=4.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=7.000000000
+  keyframes: mainline=32, v8=25, v9=23
+matches 750-799 frames 753-802
+  v9-mainline: SE3 0.006216302, Sim3 -0.016281075; v9-v8: SE3 -0.016878708, Sim3 -0.010442204
+  v9 events: score_created=0.000000000, score_candidates=0.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=11.000000000
+  keyframes: mainline=22, v8=23, v9=12
+matches 800-849 frames 803-852
+  v9-mainline: SE3 -0.100245511, Sim3 -0.010209963; v9-v8: SE3 -0.059356182, Sim3 -0.001772044
+  v9 events: score_created=4.000000000, score_candidates=95.000000000, delayed_mp_sum=4.000000000, delayed_mp_mean=0.363636364, lba_windows=11.000000000
+  keyframes: mainline=40, v8=42, v9=42
+matches 850-899 frames 853-902
+  v9-mainline: SE3 -0.117167906, Sim3 0.018318807; v9-v8: SE3 -0.108916159, Sim3 0.010539287
+  v9 events: score_created=0.000000000, score_candidates=1.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=6.000000000
+  keyframes: mainline=15, v8=15, v9=17
+matches 900-905 frames 903-908
+  v9-mainline: SE3 -0.107637018, Sim3 0.017975273; v9-v8: SE3 -0.117534609, Sim3 0.004235111
+  v9 events: score_created=0.000000000, score_candidates=0.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=1.000000000
+  keyframes: mainline=4, v8=4, v9=2
