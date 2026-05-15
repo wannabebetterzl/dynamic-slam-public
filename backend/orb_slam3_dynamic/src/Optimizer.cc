@@ -2388,19 +2388,168 @@ int DynamicMapAdmissionLocalBADelayV9MinPoseUse()
                               0);
 }
 
+bool EnableDynamicMapAdmissionOcclusionLocalBADelay()
+{
+    return GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_AWARE_LBA_DELAY",
+                               GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_AWARE",
+                                                   false));
+}
+
+int DynamicMapAdmissionOcclusionLocalBADelayMinAgeKFs()
+{
+    return GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_LBA_DELAY_MIN_AGE_KFS",
+                              3,
+                              0);
+}
+
+int DynamicMapAdmissionOcclusionLocalBADelayMinPoseUse()
+{
+    return GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_LBA_DELAY_MIN_POSE_USE",
+                              2,
+                              0);
+}
+
+bool EnableDynamicMapAdmissionRecoveryV11EarlyLocalBA()
+{
+    return GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V11_EARLY_LBA",
+                               false);
+}
+
+bool EnableDynamicMapAdmissionRecoveryV12Probation()
+{
+    return GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_PROBATION",
+                               false);
+}
+
+bool EnableDynamicMapAdmissionPoseChainGuardV13()
+{
+    return GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V13",
+                               false);
+}
+
+std::string DynamicMapAdmissionRecoveryV12Mode()
+{
+    const char* envValue =
+        std::getenv("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MODE");
+    return envValue ? std::string(envValue) : std::string("posterior");
+}
+
+bool DynamicMapAdmissionRecoveryV12FixedDelayMode()
+{
+    return DynamicMapAdmissionRecoveryV12Mode() == "fixed_delay";
+}
+
+int DynamicMapAdmissionRecoveryV12FixedDelayKFs()
+{
+    return GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_FIXED_DELAY_KFS",
+                              2,
+                              0);
+}
+
+int DynamicMapAdmissionRecoveryV12MinAgeKFs()
+{
+    return GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MIN_AGE_KFS",
+                              2,
+                              0);
+}
+
+int DynamicMapAdmissionRecoveryV12MinPoseUse()
+{
+    return GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MIN_POSE_USE",
+                              3,
+                              0);
+}
+
+int DynamicMapAdmissionRecoveryV12MinObservations()
+{
+    return GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MIN_OBSERVATIONS",
+                              4,
+                              1);
+}
+
+double DynamicMapAdmissionRecoveryV12MinFoundRatio()
+{
+    return GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MIN_FOUND_RATIO",
+                                 0.35,
+                                 0.0);
+}
+
+double DynamicMapAdmissionRecoveryV12MinInlierRate()
+{
+    return GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MIN_INLIER_RATE",
+                                 0.60,
+                                 0.0);
+}
+
+double DynamicMapAdmissionRecoveryV12MaxMeanChi2()
+{
+    return GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MAX_MEAN_CHI2",
+                                 6.0,
+                                 0.0);
+}
+
+bool IsRecoveryV12ReadyForLocalBA(MapPoint* pMP, KeyFrame* pCurrentKF)
+{
+    if(!pMP || !pCurrentKF)
+        return false;
+
+    const int ageKFs =
+        static_cast<int>(pCurrentKF->mnId) - static_cast<int>(pMP->mnFirstKFid);
+    if(DynamicMapAdmissionRecoveryV12FixedDelayMode())
+        return ageKFs >= DynamicMapAdmissionRecoveryV12FixedDelayKFs();
+
+    if(ageKFs < DynamicMapAdmissionRecoveryV12MinAgeKFs())
+        return false;
+    if(pMP->Observations() < DynamicMapAdmissionRecoveryV12MinObservations())
+        return false;
+    if(pMP->GetFoundRatio() < DynamicMapAdmissionRecoveryV12MinFoundRatio())
+        return false;
+    if(pMP->GetSupportQualityPoseUseCount() <
+       DynamicMapAdmissionRecoveryV12MinPoseUse())
+        return false;
+    return pMP->GetSupportQualityPoseUseInlierRate() >=
+               DynamicMapAdmissionRecoveryV12MinInlierRate() &&
+           pMP->GetSupportQualityPoseUseMeanChi2() <=
+               DynamicMapAdmissionRecoveryV12MaxMeanChi2();
+}
+
 bool ShouldDelayScoreAdmissionLocalBA(MapPoint* pMP, KeyFrame* pCurrentKF)
 {
     if(!EnableDynamicMapAdmissionLocalBADelayV9() || !pMP ||
        !pMP->WasCreatedFromScoreAdmission())
         return false;
 
+    if(EnableDynamicMapAdmissionRecoveryV12Probation() &&
+       pMP->WasCreatedFromRecoveryAdmission())
+        return !IsRecoveryV12ReadyForLocalBA(pMP, pCurrentKF);
+
+    if(EnableDynamicMapAdmissionPoseChainGuardV13() &&
+       pMP->WasCreatedUnderPoseChainGuard())
+        return !IsRecoveryV12ReadyForLocalBA(pMP, pCurrentKF);
+
+    if(EnableDynamicMapAdmissionRecoveryV11EarlyLocalBA() &&
+       pMP->WasCreatedFromRecoveryAdmission())
+        return false;
+
+    int minAgeKFs = DynamicMapAdmissionLocalBADelayV9MinAgeKFs();
+    int minPoseUse = DynamicMapAdmissionLocalBADelayV9MinPoseUse();
+    if(EnableDynamicMapAdmissionOcclusionLocalBADelay() &&
+       pMP->WasCreatedUnderOcclusionPressure())
+    {
+        minAgeKFs =
+            std::max(minAgeKFs,
+                     DynamicMapAdmissionOcclusionLocalBADelayMinAgeKFs());
+        minPoseUse =
+            std::max(minPoseUse,
+                     DynamicMapAdmissionOcclusionLocalBADelayMinPoseUse());
+    }
+
     const int ageKFs =
         pCurrentKF ?
         static_cast<int>(pCurrentKF->mnId) - static_cast<int>(pMP->mnFirstKFid) :
         0;
-    return ageKFs < DynamicMapAdmissionLocalBADelayV9MinAgeKFs() ||
-           pMP->GetSupportQualityPoseUseCount() <
-               DynamicMapAdmissionLocalBADelayV9MinPoseUse();
+    return ageKFs < minAgeKFs ||
+           pMP->GetSupportQualityPoseUseCount() < minPoseUse;
 }
 
 int GetNearBoundaryDiagnosticRadiusPx()

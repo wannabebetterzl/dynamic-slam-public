@@ -33,6 +33,7 @@
 #include<sstream>
 #include<map>
 #include<set>
+#include<string>
 
 namespace ORB_SLAM3
 {
@@ -575,6 +576,241 @@ double DynamicMapAdmissionStateKfStepEwmaAlpha()
     return std::min(1.0, value);
 }
 
+bool DynamicMapAdmissionRecoveryV11()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V11",
+                            false);
+    return value;
+}
+
+bool DynamicMapAdmissionRecoveryV11Log()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V11_LOG",
+                            false);
+    return value;
+}
+
+bool DynamicMapAdmissionRecoveryV12Probation()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_PROBATION",
+                            false);
+    return value;
+}
+
+std::string DynamicMapAdmissionRecoveryV12Mode()
+{
+    static const std::string value = []() {
+        const char* envValue =
+            std::getenv("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MODE");
+        return envValue ? std::string(envValue) : std::string("posterior");
+    }();
+    return value;
+}
+
+bool DynamicMapAdmissionRecoveryV12FixedDelayMode()
+{
+    static const bool value =
+        DynamicMapAdmissionRecoveryV12Mode() == "fixed_delay";
+    return value;
+}
+
+int DynamicMapAdmissionRecoveryV12FixedDelayKFs()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_FIXED_DELAY_KFS",
+                           2,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionRecoveryV12MinAgeKFs()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MIN_AGE_KFS",
+                           2,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionRecoveryV12MaxProbationAgeKFs()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MAX_PROBATION_AGE_KFS",
+                           8,
+                           1);
+    return value;
+}
+
+int DynamicMapAdmissionRecoveryV12MinPoseUse()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MIN_POSE_USE",
+                           3,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionRecoveryV12MinObservations()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MIN_OBSERVATIONS",
+                           4,
+                           1);
+    return value;
+}
+
+double DynamicMapAdmissionRecoveryV12MinFoundRatio()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MIN_FOUND_RATIO",
+                              0.35,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionRecoveryV12MinInlierRate()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MIN_INLIER_RATE",
+                              0.60,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionRecoveryV12MaxMeanChi2()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V12_MAX_MEAN_CHI2",
+                              6.0,
+                              0.0);
+    return value;
+}
+
+bool DynamicMapAdmissionPoseChainGuardV13()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V13",
+                            false);
+    return value;
+}
+
+bool DynamicMapAdmissionPoseChainGuardV13Log()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V13_LOG",
+                            false);
+    return value;
+}
+
+double DynamicMapAdmissionPoseChainGuardV13MinNeedScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V13_MIN_NEED_SCORE",
+                              2.0,
+                              0.0);
+    return value;
+}
+
+bool DynamicMapAdmissionPoseChainGuardV13RequireKeyFramePressure()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V13_REQUIRE_KEYFRAME_PRESSURE",
+                            true);
+    return value;
+}
+
+bool DynamicMapAdmissionPoseChainGuardV13RequireScaleOrLBAPressure()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V13_REQUIRE_SCALE_OR_LBA_PRESSURE",
+                            true);
+    return value;
+}
+
+double DynamicMapAdmissionRecoveryV11MinNeedScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V11_MIN_NEED_SCORE",
+                              1.0,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionRecoveryV11MinSupportScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V11_MIN_SUPPORT_SCORE",
+                              0.70,
+                              0.0);
+    return value;
+}
+
+int DynamicMapAdmissionRecoveryV11MinReliableSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V11_MIN_RELIABLE_SUPPORT",
+                           2,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionRecoveryV11MinDepthSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V11_MIN_DEPTH_SUPPORT",
+                           1,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionRecoveryV11MinResidualSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V11_MIN_RESIDUAL_SUPPORT",
+                           1,
+                           0);
+    return value;
+}
+
+double DynamicMapAdmissionRecoveryV11MinCandidateScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V11_MIN_CANDIDATE_SCORE",
+                              0.70,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionRecoveryV11MinTotalScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V11_MIN_TOTAL_SCORE",
+                              1.45,
+                              0.0);
+    return value;
+}
+
+int DynamicMapAdmissionRecoveryV11MaxPromotionsPerKeyFrame()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V11_MAX_PROMOTIONS_PER_KEYFRAME",
+                           12,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionRecoveryV11MaxPromotionsPerNeighbor()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V11_MAX_PROMOTIONS_PER_NEIGHBOR",
+                           3,
+                           0);
+    return value;
+}
+
 bool DynamicMapAdmissionCoverageAwareV7()
 {
     static const bool value =
@@ -779,6 +1015,94 @@ int DynamicMapAdmissionV8MinObservationsForMaturity()
     return value;
 }
 
+bool DynamicMapAdmissionOcclusionAware()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_AWARE",
+                            false);
+    return value;
+}
+
+bool DynamicMapAdmissionOcclusionLog()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_LOG",
+                            false);
+    return value;
+}
+
+int DynamicMapAdmissionOcclusionMaxKeyFrameGap()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_MAX_KEYFRAME_GAP",
+                           2,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionOcclusionMinBoundaryFeatures()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_MIN_BOUNDARY_FEATURES",
+                           60,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionOcclusionMinDynamicFeatures()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_MIN_DYNAMIC_FEATURES",
+                           80,
+                           0);
+    return value;
+}
+
+double DynamicMapAdmissionOcclusionMinSupportScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_MIN_SUPPORT_SCORE",
+                              0.55,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionOcclusionMinCandidateScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_MIN_CANDIDATE_SCORE",
+                              0.50,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionOcclusionMinTotalScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_MIN_TOTAL_SCORE",
+                              1.05,
+                              0.0);
+    return value;
+}
+
+int DynamicMapAdmissionOcclusionMaxPromotionsPerKeyFrame()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_MAX_PROMOTIONS_PER_KEYFRAME",
+                           8,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionOcclusionMaxPromotionsPerNeighbor()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_MAX_PROMOTIONS_PER_NEIGHBOR",
+                           2,
+                           0);
+    return value;
+}
+
 bool DynamicMapAdmissionConstraintRoleLog()
 {
     static const bool value =
@@ -825,7 +1149,11 @@ AdmissionStateAwarenessContext MakeAdmissionStateAwarenessContext(
     const int lastLBAMapPoints)
 {
     AdmissionStateAwarenessContext context;
-    context.enabled = DynamicMapAdmissionStateAware();
+    context.enabled =
+        DynamicMapAdmissionStateAware() ||
+        DynamicMapAdmissionRecoveryV11() ||
+        DynamicMapAdmissionRecoveryV12Probation() ||
+        DynamicMapAdmissionPoseChainGuardV13();
     if(!context.enabled)
         return context;
 
@@ -878,6 +1206,21 @@ AdmissionStateAwarenessContext MakeAdmissionStateAwarenessContext(
     context.allowAdmission =
         context.needScore >= DynamicMapAdmissionStateMinNeedScore();
     return context;
+}
+
+bool AdmissionPoseChainGuardV13Active(const AdmissionStateAwarenessContext& context)
+{
+    if(!DynamicMapAdmissionPoseChainGuardV13() || !context.enabled)
+        return false;
+    if(context.needScore < DynamicMapAdmissionPoseChainGuardV13MinNeedScore())
+        return false;
+    if(DynamicMapAdmissionPoseChainGuardV13RequireKeyFramePressure() &&
+       !context.keyframePressure)
+        return false;
+    if(DynamicMapAdmissionPoseChainGuardV13RequireScaleOrLBAPressure() &&
+       !(context.scalePressure || context.localBAPressure))
+        return false;
+    return true;
 }
 
 struct AdmissionCoverageContext
@@ -934,6 +1277,56 @@ AdmissionCoverageContext MakeAdmissionCoverageContext(KeyFrame* pKF)
             DynamicMapAdmissionV7MinUnmatchedBoundaryFeatures() ||
         context.unmatchedBoundaryCells >=
             DynamicMapAdmissionV7MinUnmatchedBoundaryCells();
+    return context;
+}
+
+struct AdmissionOcclusionContext
+{
+    bool enabled = false;
+    bool active = false;
+    bool denseKeyframes = false;
+    bool boundaryPressure = false;
+    bool dynamicMaskPressure = false;
+    int keyframeFrameGap = -1;
+    int boundaryFeatures = 0;
+    int dynamicFeatures = 0;
+};
+
+AdmissionOcclusionContext MakeAdmissionOcclusionContext(KeyFrame* pKF)
+{
+    AdmissionOcclusionContext context;
+    context.enabled = DynamicMapAdmissionOcclusionAware();
+    if(!context.enabled || !pKF)
+        return context;
+
+    if(pKF->mPrevKF)
+    {
+        context.keyframeFrameGap =
+            static_cast<int>(pKF->mnFrameId) -
+            static_cast<int>(pKF->mPrevKF->mnFrameId);
+        context.denseKeyframes =
+            context.keyframeFrameGap >= 0 &&
+            context.keyframeFrameGap <=
+                DynamicMapAdmissionOcclusionMaxKeyFrameGap();
+    }
+
+    for(int idx = 0; idx < pKF->N; ++idx)
+    {
+        if(pKF->GetFeatureInstanceId(idx) > 0)
+            ++context.dynamicFeatures;
+        if(pKF->IsFeatureStaticNearDynamicMask(idx))
+            ++context.boundaryFeatures;
+    }
+
+    context.boundaryPressure =
+        context.boundaryFeatures >=
+        DynamicMapAdmissionOcclusionMinBoundaryFeatures();
+    context.dynamicMaskPressure =
+        context.dynamicFeatures >=
+        DynamicMapAdmissionOcclusionMinDynamicFeatures();
+    context.active =
+        context.denseKeyframes &&
+        (context.boundaryPressure || context.dynamicMaskPressure);
     return context;
 }
 
@@ -1183,6 +1576,19 @@ bool AdmissionScoreSupportAllowsGeometry(const AdmissionScoreCandidateInfo& info
     if(info.depthConsistentSupport <= 0 && info.reliableSupport <= 0)
         return false;
     return info.supportScore >= DynamicMapAdmissionScoreMinSupportScore();
+}
+
+bool AdmissionRecoveryV11HasHighQualitySupport(
+    const AdmissionScoreCandidateInfo& info)
+{
+    return info.supportScore >=
+               DynamicMapAdmissionRecoveryV11MinSupportScore() &&
+           info.reliableSupport >=
+               DynamicMapAdmissionRecoveryV11MinReliableSupport() &&
+           info.depthConsistentSupport >=
+               DynamicMapAdmissionRecoveryV11MinDepthSupport() &&
+           info.residualReliableSupport >=
+               DynamicMapAdmissionRecoveryV11MinResidualSupport();
 }
 
 double ComputeAdmissionCandidateScore(const double parallaxScore,
@@ -2351,6 +2757,10 @@ void LocalMapping::MapPointCulling()
     const bool v5UsefulnessLog = DynamicMapAdmissionV5UsefulnessLog();
     const bool v7Probation = DynamicMapAdmissionV7Probation();
     const bool lifecycleV8 = DynamicMapAdmissionLifecycleV8();
+    const bool recoveryV12Probation =
+        DynamicMapAdmissionRecoveryV12Probation();
+    const bool poseChainGuardV13 =
+        DynamicMapAdmissionPoseChainGuardV13();
     const bool constraintRoleCollect = DynamicMapAdmissionConstraintRoleCollect();
     int recentNearBoundaryPoints = 0;
     int recentCleanStaticPoints = 0;
@@ -2398,8 +2808,15 @@ void LocalMapping::MapPointCulling()
             nearBoundaryDiagnostics && pMP &&
             pMP->WasCreatedFromDirectDynamicAdmission();
         const bool scoreAdmission =
-            (v5UsefulnessLog || v7Probation || lifecycleV8) && pMP &&
+            (v5UsefulnessLog || v7Probation || lifecycleV8 ||
+             recoveryV12Probation || poseChainGuardV13) && pMP &&
             pMP->WasCreatedFromScoreAdmission();
+        const bool recoveryAdmission =
+            recoveryV12Probation && scoreAdmission &&
+            pMP->WasCreatedFromRecoveryAdmission();
+        const bool poseChainGuardAdmission =
+            poseChainGuardV13 && scoreAdmission &&
+            pMP->WasCreatedUnderPoseChainGuard();
         if(nearBoundaryDiagnostics && pMP)
         {
             if(admissionDirectDynamic)
@@ -2483,7 +2900,59 @@ void LocalMapping::MapPointCulling()
                 v7LowUseReject = true;
             }
         }
-        if(lifecycleV8 && scoreAdmission && pMP && !pMP->isBad())
+        if((recoveryAdmission || poseChainGuardAdmission) && pMP && !pMP->isBad())
+        {
+            const int ageKFs =
+                static_cast<int>(nCurrentKFid) -
+                static_cast<int>(pMP->mnFirstKFid);
+            if(DynamicMapAdmissionRecoveryV12FixedDelayMode())
+            {
+                if(ageKFs >= DynamicMapAdmissionRecoveryV12FixedDelayKFs())
+                    v8Mature = true;
+                else
+                    v8KeepProbation = true;
+            }
+            else
+            {
+                const int poseUseCount = pMP->GetSupportQualityPoseUseCount();
+                const bool poseEvidence =
+                    poseUseCount >= DynamicMapAdmissionRecoveryV12MinPoseUse();
+                const bool poseGood =
+                    poseEvidence &&
+                    pMP->GetSupportQualityPoseUseInlierRate() >=
+                        DynamicMapAdmissionRecoveryV12MinInlierRate() &&
+                    pMP->GetSupportQualityPoseUseMeanChi2() <=
+                        DynamicMapAdmissionRecoveryV12MaxMeanChi2();
+                const bool observationGood =
+                    pMP->Observations() >=
+                        DynamicMapAdmissionRecoveryV12MinObservations();
+                const bool foundGood =
+                    pMP->GetFoundRatio() >=
+                        DynamicMapAdmissionRecoveryV12MinFoundRatio();
+
+                if(ageKFs >= DynamicMapAdmissionRecoveryV12MinAgeKFs() &&
+                   poseEvidence && !poseGood)
+                {
+                    v8QualityReject = true;
+                }
+                else if(ageKFs >=
+                            DynamicMapAdmissionRecoveryV12MaxProbationAgeKFs() &&
+                        (!poseEvidence || !observationGood || !foundGood))
+                {
+                    v8LowEvidenceReject = true;
+                }
+                else if(ageKFs >= DynamicMapAdmissionRecoveryV12MinAgeKFs() &&
+                        poseGood && observationGood && foundGood)
+                {
+                    v8Mature = true;
+                }
+                else
+                {
+                    v8KeepProbation = true;
+                }
+            }
+        }
+        else if(lifecycleV8 && scoreAdmission && pMP && !pMP->isBad())
         {
             const int ageKFs =
                 static_cast<int>(nCurrentKFid) -
@@ -2722,7 +3191,8 @@ void LocalMapping::MapPointCulling()
                 0.0);
     }
 
-    if(v7Probation && recentScoreAdmissionPoints > 0)
+    if((v7Probation || recoveryV12Probation || poseChainGuardV13) &&
+       recentScoreAdmissionPoints > 0)
     {
         std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_V7_PROBATION]"
                   << " frame=" << mpCurrentKeyFrame->mnFrameId
@@ -2786,6 +3256,28 @@ void LocalMapping::MapPointCulling()
                   << DynamicMapAdmissionV7ProbationMaxMeanChi2()
                   << " probation_low_use_age_kfs="
                   << DynamicMapAdmissionV7ProbationLowUseAgeKFs()
+                  << " recovery_v12_probation="
+                  << (recoveryV12Probation ? 1 : 0)
+                  << " recovery_v12_mode="
+                  << DynamicMapAdmissionRecoveryV12Mode()
+                  << " recovery_v12_fixed_delay_kfs="
+                  << DynamicMapAdmissionRecoveryV12FixedDelayKFs()
+                  << " recovery_v12_min_age_kfs="
+                  << DynamicMapAdmissionRecoveryV12MinAgeKFs()
+                  << " recovery_v12_max_probation_age_kfs="
+                  << DynamicMapAdmissionRecoveryV12MaxProbationAgeKFs()
+                  << " recovery_v12_min_pose_use="
+                  << DynamicMapAdmissionRecoveryV12MinPoseUse()
+                  << " recovery_v12_min_observations="
+                  << DynamicMapAdmissionRecoveryV12MinObservations()
+                  << " recovery_v12_min_found_ratio="
+                  << DynamicMapAdmissionRecoveryV12MinFoundRatio()
+                  << " recovery_v12_min_inlier_rate="
+                  << DynamicMapAdmissionRecoveryV12MinInlierRate()
+                  << " recovery_v12_max_mean_chi2="
+                  << DynamicMapAdmissionRecoveryV12MaxMeanChi2()
+                  << " pose_chain_guard_v13="
+                  << (poseChainGuardV13 ? 1 : 0)
                   << std::endl;
     }
 }
@@ -2828,11 +3320,26 @@ void LocalMapping::CreateNewMapPoints()
             mnAdmissionLastLBAMapPoints);
     const AdmissionCoverageContext admissionCoverageContext =
         MakeAdmissionCoverageContext(mpCurrentKeyFrame);
+    const AdmissionOcclusionContext admissionOcclusionContext =
+        MakeAdmissionOcclusionContext(mpCurrentKeyFrame);
     const bool dynamicMapAdmissionCoverageAwareV7 =
         DynamicMapAdmissionCoverageAwareV7();
     const bool dynamicMapAdmissionLifecycleV8 =
         DynamicMapAdmissionLifecycleV8();
+    const bool dynamicMapAdmissionOcclusionAware =
+        DynamicMapAdmissionOcclusionAware();
+    const bool dynamicMapAdmissionRecoveryV12Probation =
+        DynamicMapAdmissionRecoveryV12Probation();
+    const bool dynamicMapAdmissionPoseChainGuardV13 =
+        DynamicMapAdmissionPoseChainGuardV13();
+    const bool poseChainGuardV13Active =
+        AdmissionPoseChainGuardV13Active(admissionStateContext);
+    const bool dynamicMapAdmissionRecoveryV11 =
+        DynamicMapAdmissionRecoveryV11() ||
+        dynamicMapAdmissionRecoveryV12Probation;
     int v7PromotedThisKeyFrame = 0;
+    int occlusionPromotedThisKeyFrame = 0;
+    int recoveryPromotedThisKeyFrame = 0;
     if(admissionStateContext.keyframeStep >= 0.0)
     {
         const double alpha = DynamicMapAdmissionStateKfStepEwmaAlpha();
@@ -2996,6 +3503,9 @@ void LocalMapping::CreateNewMapPoints()
         int promotedGeomAfterScale = 0;
         int promotedGeomCreated = 0;
         std::set<std::pair<size_t, size_t> > promotedBoundaryPairsForGeometry;
+        std::set<std::pair<size_t, size_t> > occlusionPressurePairsForGeometry;
+        std::set<std::pair<size_t, size_t> > recoveryPairsForGeometry;
+        std::set<std::pair<size_t, size_t> > poseChainGuardPairsForGeometry;
         std::map<std::pair<size_t, size_t>, AdmissionScoreCandidateInfo> scoreCandidateInfoByPair;
         int scoreSupportCandidateBoundaryPairs = 0;
         int scoreSupportAcceptedBoundaryPairs = 0;
@@ -3013,6 +3523,26 @@ void LocalMapping::CreateNewMapPoints()
         int v7CoverageGapAllowedBoundaryPairs = 0;
         int v7CoverageQuotaRejectedBoundaryPairs = 0;
         int v7PromotedThisNeighbor = 0;
+        int occlusionCandidateBoundaryPairs = 0;
+        int occlusionAllowedBoundaryPairs = 0;
+        int occlusionRejectedBoundaryPairs = 0;
+        int occlusionQuotaRejectedBoundaryPairs = 0;
+        int occlusionSupportRejectedBoundaryPairs = 0;
+        int occlusionGeomRejectedBoundaryPairs = 0;
+        int occlusionCreatedBoundaryPairs = 0;
+        int occlusionPromotedThisNeighbor = 0;
+        int recoveryCandidateBoundaryPairs = 0;
+        int recoveryPregeomAllowedBoundaryPairs = 0;
+        int recoveryRejectedBoundaryPairs = 0;
+        int recoveryNeedRejectedBoundaryPairs = 0;
+        int recoverySupportRejectedBoundaryPairs = 0;
+        int recoveryQuotaRejectedBoundaryPairs = 0;
+        int recoveryGeomRejectedBoundaryPairs = 0;
+        int recoveryCreatedBoundaryPairs = 0;
+        int recoveryPromotedThisNeighbor = 0;
+        int poseChainGuardCandidateBoundaryPairs = 0;
+        int poseChainGuardMarkedBoundaryPairs = 0;
+        int poseChainGuardCreatedBoundaryPairs = 0;
         if((ForceFilterDetectedDynamicFeatures() ||
             dynamicMapAdmissionVetoCreateNewMapPoints ||
             dynamicMapAdmissionBoundaryGateCreateNewMapPoints ||
@@ -3280,6 +3810,95 @@ void LocalMapping::CreateNewMapPoints()
                                 ++stateAwareRejectedBoundaryPairs;
                                 supportOk = false;
                             }
+                        }
+                        if(dynamicMapAdmissionRecoveryV11 && supportOk)
+                        {
+                            ++recoveryCandidateBoundaryPairs;
+                            const bool poseChainNeed =
+                                admissionStateContext.needScore >=
+                                DynamicMapAdmissionRecoveryV11MinNeedScore();
+                            const bool supportHighQuality =
+                                AdmissionRecoveryV11HasHighQualitySupport(scoreInfo);
+
+                            bool quotaOk = true;
+                            const int maxPromotionsPerKF =
+                                DynamicMapAdmissionRecoveryV11MaxPromotionsPerKeyFrame();
+                            const int maxPromotionsPerNeighbor =
+                                DynamicMapAdmissionRecoveryV11MaxPromotionsPerNeighbor();
+                            if(maxPromotionsPerKF > 0 &&
+                               recoveryPromotedThisKeyFrame >= maxPromotionsPerKF)
+                                quotaOk = false;
+                            if(maxPromotionsPerNeighbor > 0 &&
+                               recoveryPromotedThisNeighbor >= maxPromotionsPerNeighbor)
+                                quotaOk = false;
+
+                            if(poseChainNeed && supportHighQuality && quotaOk)
+                            {
+                                ++recoveryPregeomAllowedBoundaryPairs;
+                                ++recoveryPromotedThisKeyFrame;
+                                ++recoveryPromotedThisNeighbor;
+                                recoveryPairsForGeometry.insert(vMatchedIndices[pairIdx]);
+                            }
+                            else
+                            {
+                                ++recoveryRejectedBoundaryPairs;
+                                if(!poseChainNeed)
+                                    ++recoveryNeedRejectedBoundaryPairs;
+                                if(poseChainNeed && !supportHighQuality)
+                                    ++recoverySupportRejectedBoundaryPairs;
+                                if(poseChainNeed && supportHighQuality && !quotaOk)
+                                    ++recoveryQuotaRejectedBoundaryPairs;
+                            }
+                        }
+                        if(dynamicMapAdmissionOcclusionAware &&
+                           admissionOcclusionContext.active &&
+                           supportOk)
+                        {
+                            ++occlusionCandidateBoundaryPairs;
+                            bool occlusionOk = true;
+                            if(scoreInfo.supportScore <
+                               DynamicMapAdmissionOcclusionMinSupportScore())
+                            {
+                                occlusionOk = false;
+                                ++occlusionSupportRejectedBoundaryPairs;
+                            }
+
+                            bool quotaOk = true;
+                            const int maxPromotionsPerKF =
+                                DynamicMapAdmissionOcclusionMaxPromotionsPerKeyFrame();
+                            const int maxPromotionsPerNeighbor =
+                                DynamicMapAdmissionOcclusionMaxPromotionsPerNeighbor();
+                            if(maxPromotionsPerKF > 0 &&
+                               occlusionPromotedThisKeyFrame >= maxPromotionsPerKF)
+                                quotaOk = false;
+                            if(maxPromotionsPerNeighbor > 0 &&
+                               occlusionPromotedThisNeighbor >= maxPromotionsPerNeighbor)
+                                quotaOk = false;
+
+                            if(occlusionOk && quotaOk)
+                            {
+                                ++occlusionAllowedBoundaryPairs;
+                                ++occlusionPromotedThisKeyFrame;
+                                ++occlusionPromotedThisNeighbor;
+                                occlusionPressurePairsForGeometry.insert(
+                                    vMatchedIndices[pairIdx]);
+                            }
+                            else
+                            {
+                                ++occlusionRejectedBoundaryPairs;
+                                if(occlusionOk && !quotaOk)
+                                    ++occlusionQuotaRejectedBoundaryPairs;
+                                supportOk = false;
+                            }
+                        }
+                        if(dynamicMapAdmissionPoseChainGuardV13 &&
+                           poseChainGuardV13Active &&
+                           supportOk)
+                        {
+                            ++poseChainGuardCandidateBoundaryPairs;
+                            ++poseChainGuardMarkedBoundaryPairs;
+                            poseChainGuardPairsForGeometry.insert(
+                                vMatchedIndices[pairIdx]);
                         }
                         if(dynamicMapAdmissionV5UsefulnessLog)
                         {
@@ -3559,6 +4178,15 @@ void LocalMapping::CreateNewMapPoints()
             const bool promotedBoundaryCandidate =
                 promotedBoundaryPairsForGeometry.find(matchedPair) !=
                 promotedBoundaryPairsForGeometry.end();
+            const bool occlusionPressureCandidate =
+                occlusionPressurePairsForGeometry.find(matchedPair) !=
+                occlusionPressurePairsForGeometry.end();
+            const bool recoveryPressureCandidate =
+                recoveryPairsForGeometry.find(matchedPair) !=
+                recoveryPairsForGeometry.end();
+            const bool poseChainGuardCandidate =
+                poseChainGuardPairsForGeometry.find(matchedPair) !=
+                poseChainGuardPairsForGeometry.end();
             const std::map<std::pair<size_t, size_t>, AdmissionScoreCandidateInfo>::const_iterator scoreInfoIt =
                 scoreCandidateInfoByPair.find(matchedPair);
             const bool scoreBasedBoundaryCandidate =
@@ -3572,6 +4200,7 @@ void LocalMapping::CreateNewMapPoints()
             double scaleScore = 0.0;
             double finalCandidateScore = 0.0;
             double finalTotalScore = 0.0;
+            bool recoveryGeometryAccepted = false;
             const int instanceIdCandidate1 = mpCurrentKeyFrame->GetFeatureInstanceId(idx1);
             const int instanceIdCandidate2 = pKF2->GetFeatureInstanceId(idx2);
             const bool sameInstanceCandidate =
@@ -4130,6 +4759,42 @@ void LocalMapping::CreateNewMapPoints()
                         scoreInfoIt->second.supportScore +
                     DynamicMapAdmissionScoreCandidateWeight() *
                         finalCandidateScore;
+                if(recoveryPressureCandidate)
+                {
+                    recoveryGeometryAccepted =
+                        finalCandidateScore >=
+                            DynamicMapAdmissionRecoveryV11MinCandidateScore() &&
+                        finalTotalScore >=
+                            DynamicMapAdmissionRecoveryV11MinTotalScore();
+                    if(!recoveryGeometryAccepted)
+                        ++recoveryGeomRejectedBoundaryPairs;
+                }
+                if(occlusionPressureCandidate &&
+                   (finalCandidateScore <
+                        DynamicMapAdmissionOcclusionMinCandidateScore() ||
+                    finalTotalScore <
+                        DynamicMapAdmissionOcclusionMinTotalScore()))
+                {
+                    ++scorePostGeomRejectedBoundaryPairs;
+                    ++occlusionGeomRejectedBoundaryPairs;
+                    if(dynamicMapAdmissionV5UsefulnessLog)
+                    {
+                        PrintAdmissionV5CandidateGeometryEvent(
+                            mpCurrentKeyFrame,
+                            pKF2,
+                            idx1,
+                            idx2,
+                            "reject_occlusion_score",
+                            scoreInfoIt->second,
+                            parallaxScore,
+                            reprojRatio1,
+                            reprojRatio2,
+                            scaleScore,
+                            finalCandidateScore,
+                            finalTotalScore);
+                    }
+                    continue;
+                }
                 if(finalCandidateScore <
                        DynamicMapAdmissionScoreMinCandidateScore() ||
                    finalTotalScore < DynamicMapAdmissionScoreMinTotalScore())
@@ -4154,6 +4819,12 @@ void LocalMapping::CreateNewMapPoints()
                     continue;
                 }
                 ++scoreCreatedBoundaryPairs;
+                if(occlusionPressureCandidate)
+                    ++occlusionCreatedBoundaryPairs;
+                if(recoveryGeometryAccepted)
+                    ++recoveryCreatedBoundaryPairs;
+                if(poseChainGuardCandidate)
+                    ++poseChainGuardCreatedBoundaryPairs;
                 if(dynamicMapAdmissionV5UsefulnessLog)
                 {
                     PrintAdmissionV5CandidateGeometryEvent(
@@ -4197,7 +4868,10 @@ void LocalMapping::CreateNewMapPoints()
             }
             if((dynamicMapAdmissionV5UsefulnessLog ||
                 dynamicMapAdmissionCoverageAwareV7 ||
-                dynamicMapAdmissionLifecycleV8) &&
+                dynamicMapAdmissionLifecycleV8 ||
+                dynamicMapAdmissionRecoveryV11 ||
+                dynamicMapAdmissionRecoveryV12Probation ||
+                dynamicMapAdmissionPoseChainGuardV13) &&
                scoreBasedBoundaryCandidate)
             {
                 pMP->SetScoreAdmissionDiagnostics(
@@ -4226,6 +4900,18 @@ void LocalMapping::CreateNewMapPoints()
                     bPointStereo,
                     mpCurrentKeyFrame->IsFeatureStaticNearDynamicMask(idx1),
                     pKF2->IsFeatureStaticNearDynamicMask(idx2));
+                pMP->SetOcclusionAdmissionDiagnostics(
+                    occlusionPressureCandidate,
+                    static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                    static_cast<long>(mpCurrentKeyFrame->mnId));
+                pMP->SetRecoveryAdmissionDiagnostics(
+                    recoveryGeometryAccepted,
+                    static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                    static_cast<long>(mpCurrentKeyFrame->mnId));
+                pMP->SetPoseChainGuardAdmissionDiagnostics(
+                    poseChainGuardCandidate,
+                    static_cast<long>(mpCurrentKeyFrame->mnFrameId),
+                    static_cast<long>(mpCurrentKeyFrame->mnId));
             }
             if(nearBoundaryDiagnostics)
             {
@@ -4357,6 +5043,144 @@ void LocalMapping::CreateNewMapPoints()
                       << scorePostGeomRejectedBoundaryPairs
                       << " score_created="
                       << scoreCreatedBoundaryPairs
+                      << std::endl;
+        }
+
+        if(DynamicMapAdmissionOcclusionLog() &&
+           occlusionCandidateBoundaryPairs > 0)
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_OCCLUSION_AWARE]"
+                      << " frame=" << mpCurrentKeyFrame->mnFrameId
+                      << " stage=create_new_map_points"
+                      << " current_kf=" << mpCurrentKeyFrame->mnId
+                      << " neighbor_kf=" << pKF2->mnId
+                      << " active="
+                      << (admissionOcclusionContext.active ? 1 : 0)
+                      << " dense_keyframes="
+                      << (admissionOcclusionContext.denseKeyframes ? 1 : 0)
+                      << " keyframe_gap="
+                      << admissionOcclusionContext.keyframeFrameGap
+                      << " boundary_features="
+                      << admissionOcclusionContext.boundaryFeatures
+                      << " dynamic_features="
+                      << admissionOcclusionContext.dynamicFeatures
+                      << " candidates="
+                      << occlusionCandidateBoundaryPairs
+                      << " allowed="
+                      << occlusionAllowedBoundaryPairs
+                      << " rejected="
+                      << occlusionRejectedBoundaryPairs
+                      << " support_rejected="
+                      << occlusionSupportRejectedBoundaryPairs
+                      << " quota_rejected="
+                      << occlusionQuotaRejectedBoundaryPairs
+                      << " geom_rejected="
+                      << occlusionGeomRejectedBoundaryPairs
+                      << " created="
+                      << occlusionCreatedBoundaryPairs
+                      << " promoted_keyframe_so_far="
+                      << occlusionPromotedThisKeyFrame
+                      << " promoted_neighbor="
+                      << occlusionPromotedThisNeighbor
+                      << " min_support_score="
+                      << DynamicMapAdmissionOcclusionMinSupportScore()
+                      << " min_candidate_score="
+                      << DynamicMapAdmissionOcclusionMinCandidateScore()
+                      << " min_total_score="
+                      << DynamicMapAdmissionOcclusionMinTotalScore()
+                      << std::endl;
+        }
+
+        if(DynamicMapAdmissionPoseChainGuardV13Log() &&
+           (poseChainGuardV13Active || poseChainGuardCandidateBoundaryPairs > 0))
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V13]"
+                      << " frame=" << mpCurrentKeyFrame->mnFrameId
+                      << " stage=create_new_map_points"
+                      << " current_kf=" << mpCurrentKeyFrame->mnId
+                      << " neighbor_kf=" << pKF2->mnId
+                      << " active=" << (poseChainGuardV13Active ? 1 : 0)
+                      << " candidates="
+                      << poseChainGuardCandidateBoundaryPairs
+                      << " marked="
+                      << poseChainGuardMarkedBoundaryPairs
+                      << " created="
+                      << poseChainGuardCreatedBoundaryPairs
+                      << " need_score="
+                      << admissionStateContext.needScore
+                      << " min_need_score="
+                      << DynamicMapAdmissionPoseChainGuardV13MinNeedScore()
+                      << " tracking_pressure="
+                      << (admissionStateContext.trackingPressure ? 1 : 0)
+                      << " keyframe_pressure="
+                      << (admissionStateContext.keyframePressure ? 1 : 0)
+                      << " scale_pressure="
+                      << (admissionStateContext.scalePressure ? 1 : 0)
+                      << " lba_pressure="
+                      << (admissionStateContext.localBAPressure ? 1 : 0)
+                      << " tracking_inliers="
+                      << admissionStateContext.trackingInliers
+                      << " keyframe_gap="
+                      << admissionStateContext.keyframeFrameGap
+                      << " keyframe_step="
+                      << admissionStateContext.keyframeStep
+                      << " keyframe_step_ewma="
+                      << admissionStateContext.keyframeStepEwma
+                      << " keyframe_step_ratio="
+                      << admissionStateContext.keyframeStepRatio
+                      << " lba_edges_per_mp="
+                      << admissionStateContext.lastLBAEdgesPerMP
+                      << std::endl;
+        }
+
+        if(DynamicMapAdmissionRecoveryV11Log() &&
+           recoveryCandidateBoundaryPairs > 0)
+        {
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_RECOVERY_V11]"
+                      << " frame=" << mpCurrentKeyFrame->mnFrameId
+                      << " stage=create_new_map_points"
+                      << " current_kf=" << mpCurrentKeyFrame->mnId
+                      << " neighbor_kf=" << pKF2->mnId
+                      << " candidates="
+                      << recoveryCandidateBoundaryPairs
+                      << " pregeom_allowed="
+                      << recoveryPregeomAllowedBoundaryPairs
+                      << " rejected="
+                      << recoveryRejectedBoundaryPairs
+                      << " need_rejected="
+                      << recoveryNeedRejectedBoundaryPairs
+                      << " support_rejected="
+                      << recoverySupportRejectedBoundaryPairs
+                      << " quota_rejected="
+                      << recoveryQuotaRejectedBoundaryPairs
+                      << " geom_rejected="
+                      << recoveryGeomRejectedBoundaryPairs
+                      << " created="
+                      << recoveryCreatedBoundaryPairs
+                      << " promoted_keyframe_so_far="
+                      << recoveryPromotedThisKeyFrame
+                      << " promoted_neighbor="
+                      << recoveryPromotedThisNeighbor
+                      << " recovery_v12_probation="
+                      << (dynamicMapAdmissionRecoveryV12Probation ? 1 : 0)
+                      << " need_score="
+                      << admissionStateContext.needScore
+                      << " min_need_score="
+                      << DynamicMapAdmissionRecoveryV11MinNeedScore()
+                      << " tracking_pressure="
+                      << (admissionStateContext.trackingPressure ? 1 : 0)
+                      << " keyframe_pressure="
+                      << (admissionStateContext.keyframePressure ? 1 : 0)
+                      << " scale_pressure="
+                      << (admissionStateContext.scalePressure ? 1 : 0)
+                      << " lba_pressure="
+                      << (admissionStateContext.localBAPressure ? 1 : 0)
+                      << " min_support_score="
+                      << DynamicMapAdmissionRecoveryV11MinSupportScore()
+                      << " min_candidate_score="
+                      << DynamicMapAdmissionRecoveryV11MinCandidateScore()
+                      << " min_total_score="
+                      << DynamicMapAdmissionRecoveryV11MinTotalScore()
                       << std::endl;
         }
 

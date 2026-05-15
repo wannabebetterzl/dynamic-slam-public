@@ -1,0 +1,10 @@
+Pose-chain causal summary
+
+cases: v12, v13_min3
+
+v13_min3_minus_v12 segment 0-149: keyframes=-6.000000000, delayed_mp_sum=-5.000000000, traj_path_ratio_delta=-0.027387588, recovery_created=-4.000000000, pose_chain_active=4.000000000
+v13_min3_minus_v12 segment 150-299: keyframes=2.000000000, delayed_mp_sum=-1.000000000, traj_path_ratio_delta=-0.448797317, recovery_created=2.000000000, pose_chain_active=25.000000000
+v13_min3_minus_v12 segment 300-549: keyframes=0.000000000, delayed_mp_sum=-2.000000000, traj_path_ratio_delta=-2.376317394, recovery_created=0.000000000, pose_chain_active=3.000000000
+v13_min3_minus_v12 segment 550-599: keyframes=1.000000000, delayed_mp_sum=0.000000000, traj_path_ratio_delta=-1.970801480, recovery_created=1.000000000, pose_chain_active=10.000000000
+v13_min3_minus_v12 segment 600-799: keyframes=-7.000000000, delayed_mp_sum=3.000000000, traj_path_ratio_delta=-0.048238148, recovery_created=0.000000000, pose_chain_active=20.000000000
+v13_min3_minus_v12 segment 800-908: keyframes=0.000000000, delayed_mp_sum=2.000000000, traj_path_ratio_delta=-0.306204182, recovery_created=3.000000000, pose_chain_active=18.000000000

@@ -228,6 +228,18 @@ public:
                                           long frameId,
                                           long keyFrameId);
     bool WasCreatedFromScoreAdmission();
+    void SetOcclusionAdmissionDiagnostics(bool occlusionPressure,
+                                          long frameId,
+                                          long keyFrameId);
+    bool WasCreatedUnderOcclusionPressure();
+    void SetRecoveryAdmissionDiagnostics(bool recoveryAdmission,
+                                         long frameId,
+                                         long keyFrameId);
+    bool WasCreatedFromRecoveryAdmission();
+    void SetPoseChainGuardAdmissionDiagnostics(bool poseChainGuard,
+                                               long frameId,
+                                               long keyFrameId);
+    bool WasCreatedUnderPoseChainGuard();
     double GetScoreAdmissionSupportScore();
     double GetScoreAdmissionCandidateScore();
     double GetScoreAdmissionTotalScore();

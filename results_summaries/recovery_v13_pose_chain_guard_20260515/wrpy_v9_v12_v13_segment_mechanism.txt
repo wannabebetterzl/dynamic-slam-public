@@ -1,0 +1,20 @@
+Segment-aware mechanism summary
+
+matches 0-149 frames 3-152
+  v9 events: score_created=30.000000000, score_candidates=387.000000000, delayed_mp_sum=5.000000000, delayed_mp_mean=0.227272727, lba_windows=22.000000000
+  keyframes: mainline=, v8=, v9=52
+matches 150-299 frames 153-302
+  v9 events: score_created=9.000000000, score_candidates=167.000000000, delayed_mp_sum=4.000000000, delayed_mp_mean=0.133333333, lba_windows=30.000000000
+  keyframes: mainline=, v8=, v9=78
+matches 300-549 frames 303-552
+  v9 events: score_created=0.000000000, score_candidates=8.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=21.000000000
+  keyframes: mainline=, v8=, v9=25
+matches 550-599 frames 553-602
+  v9 events: score_created=0.000000000, score_candidates=29.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=6.000000000
+  keyframes: mainline=, v8=, v9=24
+matches 600-799 frames 603-802
+  v9 events: score_created=0.000000000, score_candidates=37.000000000, delayed_mp_sum=0.000000000, delayed_mp_mean=0.000000000, lba_windows=33.000000000
+  keyframes: mainline=, v8=, v9=80
+matches 800-905 frames 803-908
+  v9 events: score_created=4.000000000, score_candidates=96.000000000, delayed_mp_sum=4.000000000, delayed_mp_mean=0.222222222, lba_windows=18.000000000
+  keyframes: mainline=, v8=, v9=61

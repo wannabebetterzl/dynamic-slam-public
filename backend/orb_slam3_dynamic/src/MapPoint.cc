@@ -38,8 +38,17 @@ struct AdmissionDiagnosticsRecord
     bool directDynamic = false;
     bool staticNearDynamicBoundary = false;
     bool scoreAdmission = false;
+    bool occlusionPressure = false;
+    bool recoveryAdmission = false;
+    bool poseChainGuard = false;
     long frameId = -1;
     long keyFrameId = -1;
+    long occlusionFrameId = -1;
+    long occlusionKeyFrameId = -1;
+    long recoveryFrameId = -1;
+    long recoveryKeyFrameId = -1;
+    long poseChainGuardFrameId = -1;
+    long poseChainGuardKeyFrameId = -1;
     int featureIdx = -1;
     int boundaryRadiusPx = 0;
     int scoreRawSupport = 0;
@@ -493,6 +502,63 @@ bool MapPoint::WasCreatedFromScoreAdmission()
     return it != gAdmissionDiagnostics.end() && it->second.scoreAdmission;
 }
 
+void MapPoint::SetOcclusionAdmissionDiagnostics(bool occlusionPressure,
+                                                long frameId,
+                                                long keyFrameId)
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    AdmissionDiagnosticsRecord& record = gAdmissionDiagnostics[this];
+    record.occlusionPressure = occlusionPressure;
+    record.occlusionFrameId = frameId;
+    record.occlusionKeyFrameId = keyFrameId;
+}
+
+bool MapPoint::WasCreatedUnderOcclusionPressure()
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+        gAdmissionDiagnostics.find(this);
+    return it != gAdmissionDiagnostics.end() && it->second.occlusionPressure;
+}
+
+void MapPoint::SetRecoveryAdmissionDiagnostics(bool recoveryAdmission,
+                                               long frameId,
+                                               long keyFrameId)
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    AdmissionDiagnosticsRecord& record = gAdmissionDiagnostics[this];
+    record.recoveryAdmission = recoveryAdmission;
+    record.recoveryFrameId = frameId;
+    record.recoveryKeyFrameId = keyFrameId;
+}
+
+bool MapPoint::WasCreatedFromRecoveryAdmission()
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+        gAdmissionDiagnostics.find(this);
+    return it != gAdmissionDiagnostics.end() && it->second.recoveryAdmission;
+}
+
+void MapPoint::SetPoseChainGuardAdmissionDiagnostics(bool poseChainGuard,
+                                                     long frameId,
+                                                     long keyFrameId)
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    AdmissionDiagnosticsRecord& record = gAdmissionDiagnostics[this];
+    record.poseChainGuard = poseChainGuard;
+    record.poseChainGuardFrameId = frameId;
+    record.poseChainGuardKeyFrameId = keyFrameId;
+}
+
+bool MapPoint::WasCreatedUnderPoseChainGuard()
+{
+    unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
+    std::map<const MapPoint*, AdmissionDiagnosticsRecord>::const_iterator it =
+        gAdmissionDiagnostics.find(this);
+    return it != gAdmissionDiagnostics.end() && it->second.poseChainGuard;
+}
+
 double MapPoint::GetScoreAdmissionSupportScore()
 {
     unique_lock<mutex> lock(gAdmissionDiagnosticsMutex);
@@ -675,6 +741,9 @@ void MapPoint::DumpScoreAdmissionLifecycleCsv(const string& filename)
 
     f << std::fixed << std::setprecision(6);
     f << "mp_id,is_bad,first_kf_id,first_frame,admission_frame,admission_kf,"
+      << "occlusion_pressure,occlusion_frame,occlusion_kf,"
+      << "recovery_admission,recovery_frame,recovery_kf,"
+      << "pose_chain_guard,pose_chain_guard_frame,pose_chain_guard_kf,"
       << "admission_feature,neighbor_kf,neighbor_feature,boundary_radius_px,"
       << "support_score,candidate_score,total_score,raw_support,reliable_support,"
       << "residual_support,depth_support,geom_baseline,geom_cos_parallax,"
@@ -768,6 +837,15 @@ void MapPoint::DumpScoreAdmissionLifecycleCsv(const string& filename)
           << pMutableMP->mnFirstFrame << ','
           << record.frameId << ','
           << record.keyFrameId << ','
+          << (record.occlusionPressure ? 1 : 0) << ','
+          << record.occlusionFrameId << ','
+          << record.occlusionKeyFrameId << ','
+          << (record.recoveryAdmission ? 1 : 0) << ','
+          << record.recoveryFrameId << ','
+          << record.recoveryKeyFrameId << ','
+          << (record.poseChainGuard ? 1 : 0) << ','
+          << record.poseChainGuardFrameId << ','
+          << record.poseChainGuardKeyFrameId << ','
           << record.featureIdx << ','
           << record.neighborKeyFrameId << ','
           << record.neighborFeatureIdx << ','
