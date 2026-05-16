@@ -1,0 +1,5 @@
+case,run_dir,matched,se3_ate_rmse_m,sim3_ate_rmse_m,sim3_scale,rpet_se3_rmse_m,rper_se3_rmse_deg
+v12_posterior,/home/lj/dynamic-slam-public/runs/cross_sequence_v12_v13_safety_20260515_215956/whalfsphere_raw_v12_posterior_r1,1064,0.03172996938500786,0.02050783423648227,0.952516992668653,0.017074198860575162,0.48340799280258445
+v17_fallback_only,/home/lj/dynamic-slam-public/runs/whalfsphere_v17_v18_isolation_noavx_20260516_064324/whalfsphere_v17_fallback_only,1064,0.14601666001080457,0.11134653462959454,0.8335981996939814,0.016743627802166473,0.4811791865520446
+v18_pose_step_safeguard,/home/lj/dynamic-slam-public/runs/whalfsphere_v17_v18_isolation_noavx_20260516_064324/whalfsphere_v18_pose_step_safeguard,1064,0.028698920321865586,0.019075467184732665,0.9577246887094706,0.016100954779913367,0.5155379517676426
+v19_donoharm_grid,/home/lj/dynamic-slam-public/runs/v19_cross_sequence_safety_noavx_20260516_062758/whalfsphere_raw_v19,1064,0.11725428087548469,0.08642851876987832,0.8579000549880129,0.014058027792386782,0.4581560301144552

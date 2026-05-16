@@ -1,0 +1,16 @@
+run,segment,lines,active_lines,candidate_pairs,allowed_pairs,rejected_pairs,base_rejected_pairs,support_rejected_pairs,quota_rejected_pairs,created_pairs,background_supported,boundary_mixed,depth_unsupported
+v17_both,0-149,262,262,201,4,197,166,31,0,3,4,76,121
+v17_both,150-299,494,494,317,3,314,284,30,0,1,3,59,255
+v17_both,300-549,40,40,2,0,2,2,0,0,0,0,0,2
+v17_both,550-599,58,58,28,5,23,22,0,1,1,6,11,11
+v17_both,600-905,535,535,130,0,130,119,11,0,0,0,44,86
+v17_fallback,0-149,262,262,201,4,197,166,31,0,3,4,76,121
+v17_fallback,150-299,473,473,201,4,197,178,19,0,1,4,53,144
+v17_fallback,300-549,44,44,1,0,1,1,0,0,0,0,0,1
+v17_fallback,550-599,66,66,35,5,30,30,0,0,1,5,15,15
+v17_fallback,600-905,572,572,134,2,132,129,3,0,2,2,38,94
+v17_keyframe,0-149,0,0,0,0,0,0,0,0,0,0,0,0
+v17_keyframe,150-299,0,0,0,0,0,0,0,0,0,0,0,0
+v17_keyframe,300-549,0,0,0,0,0,0,0,0,0,0,0,0
+v17_keyframe,550-599,0,0,0,0,0,0,0,0,0,0,0,0
+v17_keyframe,600-905,0,0,0,0,0,0,0,0,0,0,0,0

@@ -1437,10 +1437,11 @@ struct StaticBackgroundPoseResidualStats
     double inlierRatio = 0.0;
 };
 
-bool ComputeStaticBackgroundObservationChi2(const Frame& frame,
-                                            const int idx,
-                                            double& chi2,
-                                            double& chi2Threshold)
+bool ComputeStaticBackgroundObservationChi2WithPose(const Frame& frame,
+                                                    const int idx,
+                                                    const Sophus::SE3f& Tcw,
+                                                    double& chi2,
+                                                    double& chi2Threshold)
 {
     if(idx < 0 ||
        idx >= frame.N ||
@@ -1461,7 +1462,7 @@ bool ComputeStaticBackgroundObservationChi2(const Frame& frame,
     if(!pointWorld.allFinite())
         return false;
 
-    const Eigen::Vector3f pointCamera = frame.GetPose() * pointWorld;
+    const Eigen::Vector3f pointCamera = Tcw * pointWorld;
     if(!pointCamera.allFinite() || pointCamera(2) <= 0.0f)
         return false;
 
@@ -1503,16 +1504,87 @@ bool ComputeStaticBackgroundObservationChi2(const Frame& frame,
     return std::isfinite(chi2);
 }
 
+bool ComputeStaticBackgroundObservationChi2(const Frame& frame,
+                                            const int idx,
+                                            double& chi2,
+                                            double& chi2Threshold)
+{
+    return ComputeStaticBackgroundObservationChi2WithPose(
+        frame,
+        idx,
+        frame.GetPose(),
+        chi2,
+        chi2Threshold);
+}
+
 StaticBackgroundPoseResidualStats EvaluateStaticBackgroundPoseResiduals(
     const Frame& frame,
-    const std::vector<int>& featureIndices)
+    const std::vector<int>& featureIndices,
+    const Sophus::SE3f& Tcw)
 {
     StaticBackgroundPoseResidualStats stats;
     for(const int idx : featureIndices)
     {
         double chi2 = 0.0;
         double chi2Threshold = 0.0;
-        if(!ComputeStaticBackgroundObservationChi2(frame, idx, chi2, chi2Threshold))
+        if(!ComputeStaticBackgroundObservationChi2WithPose(
+               frame,
+               idx,
+               Tcw,
+               chi2,
+               chi2Threshold))
+            continue;
+        ++stats.observations;
+        stats.chi2Sum += chi2;
+        if(chi2 <= chi2Threshold)
+            ++stats.inliers;
+    }
+
+    if(stats.observations > 0)
+    {
+        stats.chi2Mean =
+            stats.chi2Sum / static_cast<double>(stats.observations);
+        stats.inlierRatio =
+            static_cast<double>(stats.inliers) /
+            static_cast<double>(stats.observations);
+    }
+    return stats;
+}
+
+StaticBackgroundPoseResidualStats EvaluateStaticBackgroundPoseResiduals(
+    const Frame& frame,
+    const std::vector<int>& featureIndices)
+{
+    return EvaluateStaticBackgroundPoseResiduals(
+        frame,
+        featureIndices,
+        frame.GetPose());
+}
+
+StaticBackgroundPoseResidualStats EvaluateStaticBackgroundPoseResidualsNoHeap(
+    const Frame& frame,
+    const int nearRadiusPx,
+    const Sophus::SE3f& Tcw,
+    int& featureCount)
+{
+    StaticBackgroundPoseResidualStats stats;
+    featureCount = 0;
+    const int nFeatures =
+        std::min(frame.N, static_cast<int>(frame.mvpMapPoints.size()));
+    for(int idx = 0; idx < nFeatures; ++idx)
+    {
+        if(!IsStaticBackgroundRefinementFeature(frame, idx, nearRadiusPx))
+            continue;
+
+        ++featureCount;
+        double chi2 = 0.0;
+        double chi2Threshold = 0.0;
+        if(!ComputeStaticBackgroundObservationChi2WithPose(
+               frame,
+               idx,
+               Tcw,
+               chi2,
+               chi2Threshold))
             continue;
         ++stats.observations;
         stats.chi2Sum += chi2;
@@ -3390,6 +3462,668 @@ bool EnableObservabilityLogging()
     return value;
 }
 
+bool EnablePoseChainQualityLog()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_CHAIN_QUALITY_LOG", false);
+    return value;
+}
+
+bool EnablePoseChainControllerV16()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16", false);
+    return value;
+}
+
+bool EnablePoseChainControllerV16Log()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_LOG", false);
+    return value;
+}
+
+bool EnableSupportLowFallbackV17()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_SUPPORT_LOW_FALLBACK_V17", false);
+    return value;
+}
+
+bool EnableSupportLowFallbackV17Log()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_SUPPORT_LOW_FALLBACK_V17_LOG", false);
+    return value;
+}
+
+bool EnableKeyFrameObservabilityGainV17()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_KEYFRAME_OBSERVABILITY_GAIN_V17", false);
+    return value;
+}
+
+int KeyFrameObservabilityGainV17MaxPointBoost()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_KEYFRAME_OBSERVABILITY_GAIN_V17_MAX_POINT_BOOST",
+                           50,
+                           0);
+    return value;
+}
+
+bool KeyFrameObservabilityGainV17AllowRisk()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_KEYFRAME_OBSERVABILITY_GAIN_V17_ALLOW_RISK", true);
+    return value;
+}
+
+bool EnablePoseStepSafeguardV18()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V18", false);
+    return value;
+}
+
+bool EnablePoseStepSafeguardV18Log()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V18_LOG", false);
+    return value;
+}
+
+double PoseStepSafeguardV18MaxStepRatio()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V18_MAX_STEP_RATIO",
+                            1.8,
+                            1.0,
+                            1000.0);
+    return value;
+}
+
+double PoseStepSafeguardV18MaxAbsStepM()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V18_MAX_ABS_STEP_M",
+                            0.018,
+                            0.0,
+                            1000.0);
+    return value;
+}
+
+int PoseStepSafeguardV18MinRecentSteps()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V18_MIN_RECENT_STEPS",
+                           5,
+                           0);
+    return value;
+}
+
+bool PoseStepSafeguardV18RequireSupportLow()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V18_REQUIRE_SUPPORT_LOW",
+                            true);
+    return value;
+}
+
+bool PoseStepSafeguardV18RequireKeyframePressure()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V18_REQUIRE_KEYFRAME_PRESSURE",
+                            true);
+    return value;
+}
+
+bool PoseStepSafeguardV18RequireMotionPressure()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V18_REQUIRE_MOTION_PRESSURE",
+                            false);
+    return value;
+}
+
+bool EnablePoseStepSafeguardV19DoNoHarm()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V19_DO_NO_HARM", false);
+    return value;
+}
+
+double PoseStepSafeguardV19MaxTriggerStepRatio()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V19_MAX_TRIGGER_STEP_RATIO",
+                            4.0,
+                            1.0,
+                            1000.0);
+    return value;
+}
+
+double PoseStepSafeguardV19MaxEstimatedStepM()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V19_MAX_ESTIMATED_STEP_M",
+                            0.055,
+                            0.0,
+                            1000.0);
+    return value;
+}
+
+int PoseStepSafeguardV19MinStaticInliersForExtreme()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V19_MIN_STATIC_INLIERS_FOR_EXTREME",
+                           160,
+                           0);
+    return value;
+}
+
+double PoseStepSafeguardV19MaxStaticGridCoverageForExtreme()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V19_MAX_STATIC_GRID_COVERAGE_FOR_EXTREME",
+                            0.025,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+double PoseStepSafeguardV19ClampBlend()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V19_CLAMP_BLEND",
+                            1.0,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+bool EnablePoseStepSafeguardV20ClusterVerification()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V20_CLUSTER_VERIFICATION",
+                            false);
+    return value;
+}
+
+int PoseStepSafeguardV20ClusterWindowFrames()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V20_CLUSTER_WINDOW_FRAMES",
+                           8,
+                           0);
+    return value;
+}
+
+int PoseStepSafeguardV20MinClusterHits()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V20_MIN_CLUSTER_HITS",
+                           2,
+                           1);
+    return value;
+}
+
+std::vector<int>& PoseStepSafeguardV20ExtremeSparseFrames()
+{
+    static std::vector<int> recentFrames;
+    return recentFrames;
+}
+
+bool EnablePoseStepSafeguardV21ResidualVerification()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V21_RESIDUAL_VERIFICATION",
+                            false);
+    return value;
+}
+
+int PoseStepSafeguardV21StaticNearRadiusPx()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V21_STATIC_NEAR_RADIUS_PX",
+                           5,
+                           0);
+    return value;
+}
+
+int PoseStepSafeguardV21MinResidualObservations()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V21_MIN_RESIDUAL_OBS",
+                           20,
+                           0);
+    return value;
+}
+
+double PoseStepSafeguardV21MaxChi2InflationRatio()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V21_MAX_CHI2_INFLATION_RATIO",
+                            1.10,
+                            1.0,
+                            1000.0);
+    return value;
+}
+
+double PoseStepSafeguardV21MaxChi2IncreaseAbs()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V21_MAX_CHI2_INCREASE_ABS",
+                            2.0,
+                            0.0,
+                            1e6);
+    return value;
+}
+
+double PoseStepSafeguardV21MaxInlierRatioDrop()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V21_MAX_INLIER_RATIO_DROP",
+                            0.05,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+bool PoseStepSafeguardV21RejectInvalidResiduals()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V21_REJECT_INVALID_RESIDUALS",
+                            false);
+    return value;
+}
+
+bool EnablePoseStepSafeguardV22ContextualResidualGate()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V22_CONTEXTUAL_RESIDUAL_GATE",
+                            false);
+    return value;
+}
+
+double PoseStepSafeguardV22MinDynamicFeatureGridCoverage()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V22_MIN_DYNAMIC_FEATURE_GRID_COVERAGE",
+                            0.030,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+int PoseStepSafeguardV22MaxHazardStaticInliers()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V22_MAX_HAZARD_STATIC_INLIERS",
+                           140,
+                           0);
+    return value;
+}
+
+double PoseStepSafeguardV22MaxHazardStaticGridCoverage()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V22_MAX_HAZARD_STATIC_GRID_COVERAGE",
+                            0.026,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+double PoseStepSafeguardV22MinHazardChi2IncreaseAbs()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V22_MIN_HAZARD_CHI2_INCREASE_ABS",
+                            5.0,
+                            0.0,
+                            1e6);
+    return value;
+}
+
+double PoseStepSafeguardV22MinHazardInlierRatioDrop()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V22_MIN_HAZARD_INLIER_RATIO_DROP",
+                            0.15,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+bool PoseStepSafeguardV22RequireMotionPressure()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V22_REQUIRE_MOTION_PRESSURE",
+                            true);
+    return value;
+}
+
+bool EnablePoseStepSafeguardV23SegmentResidualController()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V23_SEGMENT_RESIDUAL_CONTROLLER",
+                            false);
+    return value;
+}
+
+int PoseStepSafeguardV23SegmentWindowFrames()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V23_SEGMENT_WINDOW_FRAMES",
+                           8,
+                           1);
+    return value;
+}
+
+int PoseStepSafeguardV23MinSegmentHits()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V23_MIN_SEGMENT_HITS",
+                           2,
+                           1);
+    return value;
+}
+
+int PoseStepSafeguardV23HoldFrames()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V23_HOLD_FRAMES",
+                           6,
+                           0);
+    return value;
+}
+
+double PoseStepSafeguardV23MinDynamicFeatureGridCoverage()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V23_MIN_DYNAMIC_FEATURE_GRID_COVERAGE",
+                            0.020,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+int PoseStepSafeguardV23MaxSegmentStaticInliers()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V23_MAX_SEGMENT_STATIC_INLIERS",
+                           120,
+                           0);
+    return value;
+}
+
+double PoseStepSafeguardV23MaxSegmentStaticGridCoverage()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V23_MAX_SEGMENT_STATIC_GRID_COVERAGE",
+                            0.035,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+double PoseStepSafeguardV23MinSegmentChi2IncreaseAbs()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V23_MIN_SEGMENT_CHI2_INCREASE_ABS",
+                            3.0,
+                            0.0,
+                            1e6);
+    return value;
+}
+
+double PoseStepSafeguardV23MinSegmentInlierRatioDrop()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_STEP_SAFEGUARD_V23_MIN_SEGMENT_INLIER_RATIO_DROP",
+                            0.15,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+bool PoseStepSafeguardV23RequireMotionPressure()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_STEP_SAFEGUARD_V23_REQUIRE_MOTION_PRESSURE",
+                            true);
+    return value;
+}
+
+struct PoseStepSafeguardV23SegmentState
+{
+    static const int kCapacity = 32;
+    long long frames[kCapacity];
+    bool evidence[kCapacity];
+    int nextIndex;
+    long long activeUntilFrame;
+    bool initialized;
+};
+
+PoseStepSafeguardV23SegmentState& PoseStepSafeguardV23State()
+{
+    static PoseStepSafeguardV23SegmentState state;
+    if(!state.initialized)
+    {
+        for(int i = 0; i < PoseStepSafeguardV23SegmentState::kCapacity; ++i)
+        {
+            state.frames[i] = -1000000000LL;
+            state.evidence[i] = false;
+        }
+        state.nextIndex = 0;
+        state.activeUntilFrame = -1000000000LL;
+        state.initialized = true;
+    }
+    return state;
+}
+
+void ResetPoseStepSafeguardV23State()
+{
+    PoseStepSafeguardV23SegmentState& state = PoseStepSafeguardV23State();
+    for(int i = 0; i < PoseStepSafeguardV23SegmentState::kCapacity; ++i)
+    {
+        state.frames[i] = -1000000000LL;
+        state.evidence[i] = false;
+    }
+    state.nextIndex = 0;
+    state.activeUntilFrame = -1000000000LL;
+}
+
+int CountPoseStepSafeguardV23RecentEvidence(const long long currentFrameId)
+{
+    const PoseStepSafeguardV23SegmentState& state =
+        PoseStepSafeguardV23State();
+    const int windowFrames = PoseStepSafeguardV23SegmentWindowFrames();
+    int hits = 0;
+    for(int i = 0; i < PoseStepSafeguardV23SegmentState::kCapacity; ++i)
+    {
+        if(!state.evidence[i])
+            continue;
+        const long long age = currentFrameId - state.frames[i];
+        if(age >= 0 && age <= windowFrames)
+            ++hits;
+    }
+    return hits;
+}
+
+bool UpdatePoseStepSafeguardV23SegmentState(const long long currentFrameId,
+                                            const bool currentEvidence,
+                                            int& recentEvidenceHits,
+                                            long long& activeUntilFrame)
+{
+    PoseStepSafeguardV23SegmentState& state = PoseStepSafeguardV23State();
+    if(currentEvidence)
+    {
+        state.frames[state.nextIndex] = currentFrameId;
+        state.evidence[state.nextIndex] = true;
+        state.nextIndex =
+            (state.nextIndex + 1) %
+            PoseStepSafeguardV23SegmentState::kCapacity;
+    }
+
+    recentEvidenceHits =
+        CountPoseStepSafeguardV23RecentEvidence(currentFrameId);
+    if(recentEvidenceHits >= PoseStepSafeguardV23MinSegmentHits())
+    {
+        state.activeUntilFrame =
+            std::max(state.activeUntilFrame,
+                     currentFrameId + PoseStepSafeguardV23HoldFrames());
+    }
+
+    activeUntilFrame = state.activeUntilFrame;
+    return currentFrameId <= state.activeUntilFrame;
+}
+
+bool EnablePoseChainQualityStats()
+{
+    return EnablePoseChainQualityLog() ||
+           EnablePoseChainControllerV16() ||
+           EnableSupportLowFallbackV17() ||
+           EnablePoseStepSafeguardV18() ||
+           EnablePoseStepSafeguardV21ResidualVerification();
+}
+
+double PoseChainControllerV16MinStepRatio()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_STEP_RATIO",
+                            1.5,
+                            1.0,
+                            1000.0);
+    return value;
+}
+
+bool PoseChainControllerV16RequireKeyframePressure()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_REQUIRE_KEYFRAME_PRESSURE",
+                            true);
+    return value;
+}
+
+bool PoseChainControllerV16RequireSupportLow()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_REQUIRE_SUPPORT_LOW",
+                            true);
+    return value;
+}
+
+bool PoseChainControllerV16RequireBoundaryPressure()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_REQUIRE_BOUNDARY_PRESSURE",
+                            false);
+    return value;
+}
+
+int PoseChainQualityRecentWindow()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_CHAIN_QUALITY_RECENT_WINDOW", 30, 2);
+    return value;
+}
+
+int PoseChainQualityMinStaticInliers()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_CHAIN_QUALITY_MIN_STATIC_INLIERS", 60, 0);
+    return value;
+}
+
+double PoseChainQualityMinStaticGridCoverage()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_CHAIN_QUALITY_MIN_STATIC_GRID_COVERAGE",
+                            0.050,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+double PoseChainQualityStepRatioThreshold()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_CHAIN_QUALITY_STEP_RATIO_THRESHOLD",
+                            2.0,
+                            1.0,
+                            1000.0);
+    return value;
+}
+
+double PoseChainQualityMinStepForMotionPressure()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_CHAIN_QUALITY_MIN_STEP_FOR_MOTION_PRESSURE",
+                            0.005,
+                            0.0,
+                            10.0);
+    return value;
+}
+
+double PoseChainQualityBoundaryInlierFracThreshold()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_CHAIN_QUALITY_BOUNDARY_INLIER_FRAC_THRESHOLD",
+                            0.25,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+int PoseChainQualityMinRecentKeyframes()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_CHAIN_QUALITY_MIN_RECENT_KEYFRAMES", 4, 0);
+    return value;
+}
+
+double PoseChainQualityKeyframeRateThreshold()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_CHAIN_QUALITY_KEYFRAME_RATE_THRESHOLD",
+                            0.20,
+                            0.0,
+                            1.0);
+    return value;
+}
+
+double PoseChainQualityKeyframesPerMeterThreshold()
+{
+    static const double value =
+        GetEnvDoubleClamped("STSLAM_POSE_CHAIN_QUALITY_KEYFRAMES_PER_METER_THRESHOLD",
+                            20.0,
+                            0.0,
+                            100000.0);
+    return value;
+}
+
+std::vector<double>& PoseChainQualityRecentSteps()
+{
+    static std::vector<double> recentSteps;
+    return recentSteps;
+}
+
+std::vector<int>& PoseChainQualityRecentKeyframeFlags()
+{
+    static std::vector<int> recentKeyframeFlags;
+    return recentKeyframeFlags;
+}
+
+void ResetPoseChainQualityHistory()
+{
+    PoseChainQualityRecentSteps().clear();
+    PoseChainQualityRecentKeyframeFlags().clear();
+    PoseStepSafeguardV20ExtremeSparseFrames().clear();
+    ResetPoseStepSafeguardV23State();
+}
+
 std::string GetMaskModeName()
 {
     const char* envValue = std::getenv("ORB_SLAM3_MASK_MODE");
@@ -3495,6 +4229,827 @@ int CountTrackedMapPoints(const Frame& frame)
             ++count;
     }
     return count;
+}
+
+bool IsFrameMapPointInlier(const Frame& frame, const int idx)
+{
+    if(idx < 0 || idx >= static_cast<int>(frame.mvpMapPoints.size()))
+        return false;
+
+    MapPoint* pMP = frame.mvpMapPoints[idx];
+    if(!pMP || pMP->isBad())
+        return false;
+
+    if(idx < static_cast<int>(frame.mvbOutlier.size()) && frame.mvbOutlier[idx])
+        return false;
+
+    return true;
+}
+
+bool IsStaticFrameMapPointInlier(const Frame& frame, const int idx)
+{
+    if(!IsFrameMapPointInlier(frame, idx))
+        return false;
+
+    MapPoint* pMP = frame.mvpMapPoints[idx];
+    if(pMP && pMP->GetInstanceId() > 0)
+        return false;
+
+    return frame.GetFeatureInstanceId(static_cast<size_t>(idx)) <= 0;
+}
+
+int CountInlierStaticMapPoints(const Frame& frame)
+{
+    int count = 0;
+    const int nFeatures =
+        std::min(frame.N, static_cast<int>(frame.mvpMapPoints.size()));
+    for(int i = 0; i < nFeatures; ++i)
+    {
+        if(IsStaticFrameMapPointInlier(frame, i))
+            ++count;
+    }
+    return count;
+}
+
+int CountInlierMapPoints(const Frame& frame)
+{
+    int count = 0;
+    const int nFeatures =
+        std::min(frame.N, static_cast<int>(frame.mvpMapPoints.size()));
+    for(int i = 0; i < nFeatures; ++i)
+    {
+        if(IsFrameMapPointInlier(frame, i))
+            ++count;
+    }
+    return count;
+}
+
+double ComputeInlierMapPointGridCoverage(const Frame& frame,
+                                         const bool onlyStatic)
+{
+    bool occupied[FRAME_GRID_COLS][FRAME_GRID_ROWS] = {{false}};
+    int occupiedCells = 0;
+    const float minX = Frame::mnMinX;
+    const float minY = Frame::mnMinY;
+    const float maxX = Frame::mnMaxX;
+    const float maxY = Frame::mnMaxY;
+    const float gridWidthInv = Frame::mfGridElementWidthInv;
+    const float gridHeightInv = Frame::mfGridElementHeightInv;
+    const int nFeatures =
+        std::min(frame.N, static_cast<int>(frame.mvpMapPoints.size()));
+
+    for(int i = 0; i < nFeatures; ++i)
+    {
+        if(i >= static_cast<int>(frame.mvKeysUn.size()))
+            continue;
+
+        if(onlyStatic)
+        {
+            if(!IsStaticFrameMapPointInlier(frame, i))
+                continue;
+        }
+        else if(!IsFrameMapPointInlier(frame, i))
+        {
+            continue;
+        }
+
+        const cv::Point2f& pt = frame.mvKeysUn[i].pt;
+        if(pt.x < minX || pt.x >= maxX || pt.y < minY || pt.y >= maxY)
+            continue;
+
+        const int gridPosX =
+            std::min(FRAME_GRID_COLS - 1,
+                     std::max(0, static_cast<int>((pt.x - minX) * gridWidthInv)));
+        const int gridPosY =
+            std::min(FRAME_GRID_ROWS - 1,
+                     std::max(0, static_cast<int>((pt.y - minY) * gridHeightInv)));
+
+        if(!occupied[gridPosX][gridPosY])
+        {
+            occupied[gridPosX][gridPosY] = true;
+            ++occupiedCells;
+        }
+    }
+
+    const double totalCells =
+        static_cast<double>(FRAME_GRID_COLS) * static_cast<double>(FRAME_GRID_ROWS);
+    return occupiedCells / std::max(1.0, totalCells);
+}
+
+double EstimatePoseChainFrameStepFromLastFrame(Frame& currentFrame,
+                                               Frame& lastFrame)
+{
+    if(!currentFrame.isSet())
+        return -1.0;
+    if(!lastFrame.isSet())
+        return 0.0;
+
+    return static_cast<double>(
+        (currentFrame.GetCameraCenter() - lastFrame.GetCameraCenter()).norm());
+}
+
+struct PoseChainQualityObservationStats
+{
+    bool enabled = false;
+    int recentWindow = 0;
+    double estimatedFrameStep = -1.0;
+    double recentStepMedian = 0.0;
+    double stepRatioProxy = 0.0;
+    int recentKeyframes = 0;
+    double recentKeyframeRate = 0.0;
+    double recentKeyframesPerMeter = 0.0;
+    int staticInlierCount = 0;
+    double staticInlierGridCoverage = 0.0;
+    double dynamicFeatureGridCoverage = 0.0;
+    int boundaryInlierCount = 0;
+    double boundaryInlierFrac = 0.0;
+    bool supportLow = false;
+    bool motionPressure = false;
+    bool keyframePressure = false;
+    bool boundaryPressure = false;
+    bool poseChainRisk = false;
+};
+
+PoseChainQualityObservationStats ComputePoseChainQualityObservationStats(
+    const Frame& frame,
+    const double estimatedFrameStep,
+    const std::vector<double>& recentSteps,
+    const std::vector<int>& recentKeyframeFlags)
+{
+    PoseChainQualityObservationStats stats;
+    stats.enabled = EnablePoseChainQualityStats();
+    stats.recentWindow = PoseChainQualityRecentWindow();
+    stats.estimatedFrameStep = estimatedFrameStep;
+
+    if(!stats.enabled)
+        return stats;
+
+    std::vector<double> positiveSteps;
+    positiveSteps.reserve(recentSteps.size());
+    double recentPath = 0.0;
+    for(size_t i = 0; i < recentSteps.size(); ++i)
+    {
+        if(recentSteps[i] > 0.0 && std::isfinite(recentSteps[i]))
+        {
+            positiveSteps.push_back(recentSteps[i]);
+            recentPath += recentSteps[i];
+        }
+    }
+
+    stats.recentStepMedian = MedianValue(positiveSteps);
+    if(stats.recentStepMedian > 1e-6 && estimatedFrameStep >= 0.0)
+        stats.stepRatioProxy = estimatedFrameStep / stats.recentStepMedian;
+    else if(estimatedFrameStep >= 0.0)
+        stats.stepRatioProxy = 1.0;
+
+    for(size_t i = 0; i < recentKeyframeFlags.size(); ++i)
+    {
+        if(recentKeyframeFlags[i] != 0)
+            ++stats.recentKeyframes;
+    }
+    if(!recentKeyframeFlags.empty())
+        stats.recentKeyframeRate =
+            static_cast<double>(stats.recentKeyframes) /
+            static_cast<double>(recentKeyframeFlags.size());
+    if(recentPath > 1e-6)
+        stats.recentKeyframesPerMeter =
+            static_cast<double>(stats.recentKeyframes) / recentPath;
+
+    stats.staticInlierCount = CountInlierStaticMapPoints(frame);
+    stats.staticInlierGridCoverage = ComputeInlierMapPointGridCoverage(frame, true);
+    if(EnablePoseStepSafeguardV22ContextualResidualGate() ||
+       EnablePoseStepSafeguardV23SegmentResidualController())
+        stats.dynamicFeatureGridCoverage =
+            ComputeFeatureGridCoverage(frame, false, true);
+    const int inlierCount = CountInlierMapPoints(frame);
+    const int boundaryRadiusPx = GetDynamicMapAdmissionBoundaryRadiusPx();
+    const int nFeatures =
+        std::min(frame.N, static_cast<int>(frame.mvpMapPoints.size()));
+    for(int i = 0; i < nFeatures; ++i)
+    {
+        if(!IsFrameMapPointInlier(frame, i))
+            continue;
+
+        const bool directDynamic = frame.GetFeatureInstanceId(static_cast<size_t>(i)) > 0;
+        const bool nearDynamic =
+            !directDynamic && HasDynamicMaskSupportNearFeature(frame, i, boundaryRadiusPx);
+        if(directDynamic || nearDynamic)
+            ++stats.boundaryInlierCount;
+    }
+    if(inlierCount > 0)
+        stats.boundaryInlierFrac =
+            static_cast<double>(stats.boundaryInlierCount) /
+            static_cast<double>(inlierCount);
+
+    stats.supportLow =
+        stats.staticInlierCount < PoseChainQualityMinStaticInliers() ||
+        stats.staticInlierGridCoverage < PoseChainQualityMinStaticGridCoverage();
+    stats.motionPressure =
+        estimatedFrameStep >= PoseChainQualityMinStepForMotionPressure() &&
+        stats.stepRatioProxy >= PoseChainQualityStepRatioThreshold();
+    stats.keyframePressure =
+        (stats.recentKeyframes >= PoseChainQualityMinRecentKeyframes() &&
+         stats.recentKeyframeRate >= PoseChainQualityKeyframeRateThreshold()) ||
+        stats.recentKeyframesPerMeter >= PoseChainQualityKeyframesPerMeterThreshold();
+    stats.boundaryPressure =
+        stats.boundaryInlierFrac >= PoseChainQualityBoundaryInlierFracThreshold();
+    stats.poseChainRisk =
+        (stats.motionPressure || stats.keyframePressure) &&
+        stats.supportLow &&
+        stats.boundaryPressure;
+
+    return stats;
+}
+
+bool PoseChainControllerV16IsRiskFrame(
+    const PoseChainQualityObservationStats& stats)
+{
+    if(!EnablePoseChainControllerV16() || !stats.enabled)
+        return false;
+
+    const bool motionLike =
+        stats.motionPressure ||
+        (stats.estimatedFrameStep >= PoseChainQualityMinStepForMotionPressure() &&
+         stats.stepRatioProxy >= PoseChainControllerV16MinStepRatio());
+    const bool keyframeOk =
+        !PoseChainControllerV16RequireKeyframePressure() ||
+        stats.keyframePressure;
+    const bool supportOk =
+        !PoseChainControllerV16RequireSupportLow() ||
+        stats.supportLow;
+    const bool boundaryOk =
+        !PoseChainControllerV16RequireBoundaryPressure() ||
+        stats.boundaryPressure;
+
+    return motionLike && keyframeOk && supportOk && boundaryOk;
+}
+
+bool ApplyPoseStepSafeguardV18(Frame& currentFrame,
+                               Frame& lastFrame,
+                               const std::string& stage)
+{
+    if(!EnablePoseStepSafeguardV18())
+        return false;
+    if(!currentFrame.isSet() || !lastFrame.isSet())
+        return false;
+
+    int recentPositiveSteps = 0;
+    const std::vector<double>& recentSteps = PoseChainQualityRecentSteps();
+    for(size_t i = 0; i < recentSteps.size(); ++i)
+    {
+        if(recentSteps[i] > 0.0 && std::isfinite(recentSteps[i]))
+            ++recentPositiveSteps;
+    }
+    if(recentPositiveSteps < PoseStepSafeguardV18MinRecentSteps())
+        return false;
+
+    const double estimatedStep =
+        EstimatePoseChainFrameStepFromLastFrame(currentFrame, lastFrame);
+    const PoseChainQualityObservationStats stats =
+        ComputePoseChainQualityObservationStats(
+            currentFrame,
+            estimatedStep,
+            PoseChainQualityRecentSteps(),
+            PoseChainQualityRecentKeyframeFlags());
+    if(!stats.enabled || estimatedStep <= 0.0 || !std::isfinite(estimatedStep))
+        return false;
+    if(stats.recentStepMedian <= 1e-6 || !std::isfinite(stats.recentStepMedian))
+        return false;
+
+    const bool supportOk =
+        !PoseStepSafeguardV18RequireSupportLow() || stats.supportLow;
+    const bool keyframeOk =
+        !PoseStepSafeguardV18RequireKeyframePressure() || stats.keyframePressure;
+    const bool motionOk =
+        !PoseStepSafeguardV18RequireMotionPressure() || stats.motionPressure;
+    if(!supportOk || !keyframeOk || !motionOk)
+        return false;
+
+    double allowedStep = stats.recentStepMedian * PoseStepSafeguardV18MaxStepRatio();
+    const double maxAbsStep = PoseStepSafeguardV18MaxAbsStepM();
+    if(maxAbsStep > 0.0)
+        allowedStep = std::min(allowedStep, maxAbsStep);
+    if(allowedStep <= 1e-6 || estimatedStep <= allowedStep)
+        return false;
+
+    const bool sparseStaticSupport =
+        stats.staticInlierCount <
+        PoseStepSafeguardV19MinStaticInliersForExtreme();
+    const double maxStaticGridCoverage =
+        PoseStepSafeguardV19MaxStaticGridCoverageForExtreme();
+    const bool poorStaticSpatialSupport =
+        maxStaticGridCoverage <= 0.0 ||
+        stats.staticInlierGridCoverage <= maxStaticGridCoverage;
+    const bool extremeStepRatio =
+        stats.stepRatioProxy >= PoseStepSafeguardV19MaxTriggerStepRatio();
+    const double maxEstimatedStep = PoseStepSafeguardV19MaxEstimatedStepM();
+    const bool extremeAbsoluteStep =
+        maxEstimatedStep > 0.0 && estimatedStep >= maxEstimatedStep;
+    const bool extremeSparseSupport =
+        sparseStaticSupport &&
+        poorStaticSpatialSupport &&
+        (extremeStepRatio || extremeAbsoluteStep);
+
+    int v20ClusterHits = 0;
+    if(EnablePoseStepSafeguardV20ClusterVerification() &&
+       !EnablePoseStepSafeguardV21ResidualVerification())
+    {
+        std::vector<int>& recentExtremeFrames =
+            PoseStepSafeguardV20ExtremeSparseFrames();
+        const int clusterWindow = PoseStepSafeguardV20ClusterWindowFrames();
+        recentExtremeFrames.erase(
+            std::remove_if(recentExtremeFrames.begin(),
+                           recentExtremeFrames.end(),
+                           [clusterWindow, &currentFrame](const int frameId) {
+                               return clusterWindow > 0 &&
+                                      currentFrame.mnId - frameId > clusterWindow;
+                           }),
+            recentExtremeFrames.end());
+        if(extremeSparseSupport &&
+           (recentExtremeFrames.empty() ||
+            recentExtremeFrames.back() != currentFrame.mnId))
+        {
+            recentExtremeFrames.push_back(currentFrame.mnId);
+        }
+        v20ClusterHits = static_cast<int>(recentExtremeFrames.size());
+
+        if(extremeSparseSupport &&
+           v20ClusterHits >= PoseStepSafeguardV20MinClusterHits())
+        {
+            if(EnablePoseStepSafeguardV18Log())
+            {
+                std::cout << "[STSLAM_POSE_STEP_SAFEGUARD_V18]"
+                          << " stage=" << stage
+                          << " frame=" << currentFrame.mnId
+                          << " applied=0"
+                          << " reason=v20_cluster_extreme_sparse_support"
+                          << " estimated_step=" << estimatedStep
+                          << " allowed_step=" << allowedStep
+                          << " recent_step_median=" << stats.recentStepMedian
+                          << " step_ratio=" << stats.stepRatioProxy
+                          << " support_low=" << (stats.supportLow ? 1 : 0)
+                          << " keyframe_pressure=" << (stats.keyframePressure ? 1 : 0)
+                          << " motion_pressure=" << (stats.motionPressure ? 1 : 0)
+                          << " static_inliers=" << stats.staticInlierCount
+                          << " static_grid_coverage=" << stats.staticInlierGridCoverage
+                          << " v19_max_trigger_step_ratio="
+                          << PoseStepSafeguardV19MaxTriggerStepRatio()
+                          << " v19_max_estimated_step_m="
+                          << PoseStepSafeguardV19MaxEstimatedStepM()
+                          << " v19_min_static_inliers_for_extreme="
+                          << PoseStepSafeguardV19MinStaticInliersForExtreme()
+                          << " v19_max_static_grid_coverage_for_extreme="
+                          << PoseStepSafeguardV19MaxStaticGridCoverageForExtreme()
+                          << " v20_cluster_hits=" << v20ClusterHits
+                          << " v20_cluster_window_frames="
+                          << PoseStepSafeguardV20ClusterWindowFrames()
+                          << " v20_min_cluster_hits="
+                          << PoseStepSafeguardV20MinClusterHits()
+                          << std::endl;
+            }
+            return false;
+        }
+    }
+    else if(EnablePoseStepSafeguardV19DoNoHarm() && extremeSparseSupport)
+    {
+        if(EnablePoseStepSafeguardV18Log())
+        {
+            std::cout << "[STSLAM_POSE_STEP_SAFEGUARD_V18]"
+                      << " stage=" << stage
+                      << " frame=" << currentFrame.mnId
+                      << " applied=0"
+                      << " reason=v19_extreme_sparse_support"
+                      << " estimated_step=" << estimatedStep
+                      << " allowed_step=" << allowedStep
+                      << " recent_step_median=" << stats.recentStepMedian
+                      << " step_ratio=" << stats.stepRatioProxy
+                      << " support_low=" << (stats.supportLow ? 1 : 0)
+                      << " keyframe_pressure=" << (stats.keyframePressure ? 1 : 0)
+                      << " motion_pressure=" << (stats.motionPressure ? 1 : 0)
+                      << " static_inliers=" << stats.staticInlierCount
+                      << " static_grid_coverage=" << stats.staticInlierGridCoverage
+                      << " v19_max_trigger_step_ratio="
+                      << PoseStepSafeguardV19MaxTriggerStepRatio()
+                      << " v19_max_estimated_step_m="
+                      << PoseStepSafeguardV19MaxEstimatedStepM()
+                      << " v19_min_static_inliers_for_extreme="
+                      << PoseStepSafeguardV19MinStaticInliersForExtreme()
+                      << " v19_max_static_grid_coverage_for_extreme="
+                      << PoseStepSafeguardV19MaxStaticGridCoverageForExtreme()
+                      << std::endl;
+        }
+        return false;
+    }
+
+    const double clampBlend = PoseStepSafeguardV19ClampBlend();
+    const double targetStep =
+        allowedStep + (estimatedStep - allowedStep) * (1.0 - clampBlend);
+    if(targetStep <= 1e-6 || targetStep >= estimatedStep)
+        return false;
+
+    const Eigen::Vector3f lastCenter = lastFrame.GetCameraCenter();
+    const Eigen::Vector3f currentCenter = currentFrame.GetCameraCenter();
+    const Eigen::Vector3f delta = currentCenter - lastCenter;
+    const float deltaNorm = delta.norm();
+    if(deltaNorm <= 1e-6f || !std::isfinite(deltaNorm))
+        return false;
+
+    const Eigen::Vector3f clampedCenter =
+        lastCenter + delta * static_cast<float>(targetStep / estimatedStep);
+    const Sophus::SE3f originalPose = currentFrame.GetPose();
+    const Eigen::Matrix3f Rcw = originalPose.rotationMatrix();
+    const Eigen::Vector3f tcw = -Rcw * clampedCenter;
+    const Sophus::SE3f candidatePose(Rcw, tcw);
+
+    bool v21ResidualVerificationAccepted = true;
+    const char* v21ResidualReason = "disabled";
+    StaticBackgroundPoseResidualStats v21ResidualBefore;
+    StaticBackgroundPoseResidualStats v21ResidualAfter;
+    int v21ResidualFeatureCount = 0;
+    bool v21ResidualStatsValid = false;
+    bool v21ResidualEnoughObs = false;
+    bool v22ContextualGateEnabled = false;
+    bool v22DynamicOcclusionResidualHazard = false;
+    bool v23SegmentControllerEnabled = false;
+    bool v23CurrentSegmentEvidence = false;
+    bool v23SegmentActive = false;
+    int v23RecentEvidenceHits = 0;
+    long long v23ActiveUntilFrame = -1000000000LL;
+    double v21Chi2IncreaseAbs = 0.0;
+    double v21Chi2InflationRatio = 0.0;
+    double v21InlierRatioDelta = 0.0;
+    if(EnablePoseStepSafeguardV21ResidualVerification())
+    {
+        int residualFeatureCountBefore = 0;
+        int residualFeatureCountAfter = 0;
+        v21ResidualBefore =
+            EvaluateStaticBackgroundPoseResidualsNoHeap(
+                currentFrame,
+                PoseStepSafeguardV21StaticNearRadiusPx(),
+                originalPose,
+                residualFeatureCountBefore);
+        v21ResidualAfter =
+            EvaluateStaticBackgroundPoseResidualsNoHeap(
+                currentFrame,
+                PoseStepSafeguardV21StaticNearRadiusPx(),
+                candidatePose,
+                residualFeatureCountAfter);
+        v21ResidualFeatureCount =
+            std::max(residualFeatureCountBefore, residualFeatureCountAfter);
+
+        v21ResidualStatsValid =
+            v21ResidualBefore.observations > 0 &&
+            v21ResidualAfter.observations > 0 &&
+            std::isfinite(v21ResidualBefore.chi2Mean) &&
+            std::isfinite(v21ResidualAfter.chi2Mean);
+        v21ResidualEnoughObs =
+            v21ResidualStatsValid &&
+            v21ResidualBefore.observations >=
+                PoseStepSafeguardV21MinResidualObservations() &&
+            v21ResidualAfter.observations >=
+                PoseStepSafeguardV21MinResidualObservations();
+
+        if(v21ResidualStatsValid)
+        {
+            v21Chi2IncreaseAbs =
+                v21ResidualAfter.chi2Mean - v21ResidualBefore.chi2Mean;
+            if(v21ResidualBefore.chi2Mean > 1e-9)
+            {
+                v21Chi2InflationRatio =
+                    v21ResidualAfter.chi2Mean /
+                    v21ResidualBefore.chi2Mean;
+            }
+            else
+            {
+                v21Chi2InflationRatio =
+                    v21ResidualAfter.chi2Mean <=
+                            v21ResidualBefore.chi2Mean + 1e-9
+                        ? 1.0
+                        : std::numeric_limits<double>::infinity();
+            }
+            v21InlierRatioDelta =
+                v21ResidualAfter.inlierRatio -
+                v21ResidualBefore.inlierRatio;
+        }
+
+        if(!v21ResidualEnoughObs)
+        {
+            v21ResidualVerificationAccepted =
+                !PoseStepSafeguardV21RejectInvalidResiduals();
+            v21ResidualReason =
+                v21ResidualVerificationAccepted
+                    ? "accepted_insufficient_residual_observations"
+                    : "insufficient_residual_observations";
+        }
+        else
+        {
+            const bool chi2Ok =
+                v21Chi2InflationRatio <=
+                    PoseStepSafeguardV21MaxChi2InflationRatio() ||
+                v21Chi2IncreaseAbs <=
+                    PoseStepSafeguardV21MaxChi2IncreaseAbs();
+            const bool inlierOk =
+                v21ResidualAfter.inlierRatio +
+                    PoseStepSafeguardV21MaxInlierRatioDrop() + 1e-9 >=
+                v21ResidualBefore.inlierRatio;
+            v21ResidualVerificationAccepted = chi2Ok && inlierOk;
+            v21ResidualReason =
+                v21ResidualVerificationAccepted
+                    ? "accepted_residual_verified"
+                    : (!chi2Ok ? "residual_chi2_worse"
+                               : "residual_inlier_ratio_drop");
+        }
+
+        v22ContextualGateEnabled =
+            EnablePoseStepSafeguardV22ContextualResidualGate();
+        v23SegmentControllerEnabled =
+            EnablePoseStepSafeguardV23SegmentResidualController();
+        if(!v21ResidualVerificationAccepted &&
+           (v22ContextualGateEnabled || v23SegmentControllerEnabled))
+        {
+            if(v22ContextualGateEnabled)
+            {
+                const bool dynamicOcclusionPressure =
+                    stats.dynamicFeatureGridCoverage >=
+                    PoseStepSafeguardV22MinDynamicFeatureGridCoverage();
+                const bool sparseStaticSupportForHazard =
+                    stats.staticInlierCount <=
+                        PoseStepSafeguardV22MaxHazardStaticInliers() &&
+                    stats.staticInlierGridCoverage <=
+                        PoseStepSafeguardV22MaxHazardStaticGridCoverage();
+                const bool residualExplosionForHazard =
+                    v21ResidualStatsValid &&
+                    v21Chi2IncreaseAbs >=
+                        PoseStepSafeguardV22MinHazardChi2IncreaseAbs() &&
+                    -v21InlierRatioDelta >=
+                        PoseStepSafeguardV22MinHazardInlierRatioDrop();
+                const bool motionOkForHazard =
+                    !PoseStepSafeguardV22RequireMotionPressure() ||
+                    stats.motionPressure;
+                v22DynamicOcclusionResidualHazard =
+                    dynamicOcclusionPressure &&
+                    sparseStaticSupportForHazard &&
+                    residualExplosionForHazard &&
+                    motionOkForHazard;
+            }
+
+            if(v23SegmentControllerEnabled)
+            {
+                const bool dynamicSegmentEvidence =
+                    stats.dynamicFeatureGridCoverage >=
+                    PoseStepSafeguardV23MinDynamicFeatureGridCoverage();
+                const bool sparseSegmentSupport =
+                    stats.staticInlierCount <=
+                        PoseStepSafeguardV23MaxSegmentStaticInliers() &&
+                    stats.staticInlierGridCoverage <=
+                        PoseStepSafeguardV23MaxSegmentStaticGridCoverage();
+                const bool residualSegmentEvidence =
+                    v21ResidualStatsValid &&
+                    v21Chi2IncreaseAbs >=
+                        PoseStepSafeguardV23MinSegmentChi2IncreaseAbs() &&
+                    -v21InlierRatioDelta >=
+                        PoseStepSafeguardV23MinSegmentInlierRatioDrop();
+                const bool motionOkForSegment =
+                    !PoseStepSafeguardV23RequireMotionPressure() ||
+                    stats.motionPressure;
+                v23CurrentSegmentEvidence =
+                    dynamicSegmentEvidence &&
+                    sparseSegmentSupport &&
+                    residualSegmentEvidence &&
+                    motionOkForSegment;
+                v23SegmentActive =
+                    UpdatePoseStepSafeguardV23SegmentState(
+                        static_cast<long long>(currentFrame.mnId),
+                        v23CurrentSegmentEvidence,
+                        v23RecentEvidenceHits,
+                        v23ActiveUntilFrame);
+            }
+
+            const bool residualReject =
+                v22DynamicOcclusionResidualHazard ||
+                (v23SegmentControllerEnabled && v23SegmentActive);
+
+            if(residualReject)
+            {
+                v21ResidualReason =
+                    v22DynamicOcclusionResidualHazard
+                        ? "v22_dynamic_occlusion_residual_reject"
+                        : "v23_occlusion_segment_residual_reject";
+            }
+            else
+            {
+                v21ResidualVerificationAccepted = true;
+                v21ResidualReason =
+                    v23SegmentControllerEnabled
+                        ? "accepted_v23_pose_chain_context"
+                        : "accepted_v22_pose_chain_context";
+            }
+        }
+
+        if(!v21ResidualVerificationAccepted)
+        {
+            if(EnablePoseStepSafeguardV18Log())
+            {
+                std::cout << "[STSLAM_POSE_STEP_SAFEGUARD_V18]"
+                          << " stage=" << stage
+                          << " frame=" << currentFrame.mnId
+                          << " applied=0"
+                          << " reason=v21_residual_verification_reject"
+                          << " v21_reason=" << v21ResidualReason
+                          << " estimated_step=" << estimatedStep
+                          << " allowed_step=" << allowedStep
+                          << " target_step=" << targetStep
+                          << " recent_step_median=" << stats.recentStepMedian
+                          << " step_ratio=" << stats.stepRatioProxy
+                          << " support_low=" << (stats.supportLow ? 1 : 0)
+                          << " keyframe_pressure=" << (stats.keyframePressure ? 1 : 0)
+                          << " motion_pressure=" << (stats.motionPressure ? 1 : 0)
+                          << " static_inliers=" << stats.staticInlierCount
+                          << " static_grid_coverage=" << stats.staticInlierGridCoverage;
+                if(v22ContextualGateEnabled || v23SegmentControllerEnabled)
+                {
+                    std::cout << " dynamic_feature_grid_coverage="
+                              << stats.dynamicFeatureGridCoverage;
+                }
+                std::cout << " v21_feature_count=" << v21ResidualFeatureCount
+                          << " v21_residual_before_obs="
+                          << v21ResidualBefore.observations
+                          << " v21_residual_after_obs="
+                          << v21ResidualAfter.observations
+                          << " v21_residual_before_chi2_mean="
+                          << v21ResidualBefore.chi2Mean
+                          << " v21_residual_after_chi2_mean="
+                          << v21ResidualAfter.chi2Mean
+                          << " v21_chi2_increase_abs="
+                          << v21Chi2IncreaseAbs
+                          << " v21_chi2_inflation_ratio="
+                          << v21Chi2InflationRatio
+                          << " v21_inlier_ratio_delta="
+                          << v21InlierRatioDelta
+                          << " v21_residual_before_inlier_ratio="
+                          << v21ResidualBefore.inlierRatio
+                          << " v21_residual_after_inlier_ratio="
+                          << v21ResidualAfter.inlierRatio
+                          << " v21_min_residual_obs="
+                          << PoseStepSafeguardV21MinResidualObservations()
+                          << " v21_max_chi2_inflation_ratio="
+                          << PoseStepSafeguardV21MaxChi2InflationRatio()
+                          << " v21_max_chi2_increase_abs="
+                          << PoseStepSafeguardV21MaxChi2IncreaseAbs()
+                          << " v21_max_inlier_ratio_drop="
+                          << PoseStepSafeguardV21MaxInlierRatioDrop();
+                if(v22ContextualGateEnabled)
+                {
+                    std::cout << " v22_contextual_residual_gate=1"
+                              << " v22_dynamic_occlusion_residual_hazard="
+                              << (v22DynamicOcclusionResidualHazard ? 1 : 0)
+                              << " v22_min_dynamic_feature_grid_coverage="
+                              << PoseStepSafeguardV22MinDynamicFeatureGridCoverage()
+                              << " v22_max_hazard_static_inliers="
+                              << PoseStepSafeguardV22MaxHazardStaticInliers()
+                              << " v22_max_hazard_static_grid_coverage="
+                              << PoseStepSafeguardV22MaxHazardStaticGridCoverage()
+                              << " v22_min_hazard_chi2_increase_abs="
+                              << PoseStepSafeguardV22MinHazardChi2IncreaseAbs()
+                              << " v22_min_hazard_inlier_ratio_drop="
+                              << PoseStepSafeguardV22MinHazardInlierRatioDrop();
+                }
+                if(v23SegmentControllerEnabled)
+                {
+                    std::cout << " v23_segment_residual_controller=1"
+                              << " v23_current_segment_evidence="
+                              << (v23CurrentSegmentEvidence ? 1 : 0)
+                              << " v23_segment_active="
+                              << (v23SegmentActive ? 1 : 0)
+                              << " v23_recent_evidence_hits="
+                              << v23RecentEvidenceHits
+                              << " v23_active_until_frame="
+                              << v23ActiveUntilFrame
+                              << " v23_segment_window_frames="
+                              << PoseStepSafeguardV23SegmentWindowFrames()
+                              << " v23_min_segment_hits="
+                              << PoseStepSafeguardV23MinSegmentHits()
+                              << " v23_hold_frames="
+                              << PoseStepSafeguardV23HoldFrames()
+                              << " v23_min_dynamic_feature_grid_coverage="
+                              << PoseStepSafeguardV23MinDynamicFeatureGridCoverage()
+                              << " v23_max_segment_static_inliers="
+                              << PoseStepSafeguardV23MaxSegmentStaticInliers()
+                              << " v23_max_segment_static_grid_coverage="
+                              << PoseStepSafeguardV23MaxSegmentStaticGridCoverage()
+                              << " v23_min_segment_chi2_increase_abs="
+                              << PoseStepSafeguardV23MinSegmentChi2IncreaseAbs()
+                              << " v23_min_segment_inlier_ratio_drop="
+                              << PoseStepSafeguardV23MinSegmentInlierRatioDrop();
+                }
+                std::cout << std::endl;
+            }
+            return false;
+        }
+    }
+
+    currentFrame.SetPose(candidatePose);
+
+    if(EnablePoseStepSafeguardV18Log())
+    {
+        std::cout << "[STSLAM_POSE_STEP_SAFEGUARD_V18]"
+                  << " stage=" << stage
+                  << " frame=" << currentFrame.mnId
+                  << " applied=1"
+                  << " estimated_step=" << estimatedStep
+                  << " allowed_step=" << allowedStep
+                  << " target_step=" << targetStep
+                  << " recent_step_median=" << stats.recentStepMedian
+                  << " step_ratio=" << stats.stepRatioProxy
+                  << " support_low=" << (stats.supportLow ? 1 : 0)
+                  << " keyframe_pressure=" << (stats.keyframePressure ? 1 : 0)
+                  << " motion_pressure=" << (stats.motionPressure ? 1 : 0)
+                  << " static_inliers=" << stats.staticInlierCount
+                  << " static_grid_coverage=" << stats.staticInlierGridCoverage;
+        if(v22ContextualGateEnabled || v23SegmentControllerEnabled)
+        {
+            std::cout << " dynamic_feature_grid_coverage="
+                      << stats.dynamicFeatureGridCoverage;
+        }
+        std::cout << " recent_positive_steps=" << recentPositiveSteps
+                  << " max_step_ratio=" << PoseStepSafeguardV18MaxStepRatio()
+                  << " max_abs_step=" << PoseStepSafeguardV18MaxAbsStepM()
+                  << " v19_do_no_harm="
+                  << (EnablePoseStepSafeguardV19DoNoHarm() ? 1 : 0)
+                  << " v19_clamp_blend=" << clampBlend
+                  << " v20_cluster_verification="
+                  << (EnablePoseStepSafeguardV20ClusterVerification() ? 1 : 0)
+                  << " v20_extreme_sparse_support="
+                  << (extremeSparseSupport ? 1 : 0)
+                  << " v20_cluster_hits=" << v20ClusterHits
+                  << " v21_residual_verification="
+                  << (EnablePoseStepSafeguardV21ResidualVerification() ? 1 : 0)
+                  << " v21_reason=" << v21ResidualReason
+                  << " v21_feature_count=" << v21ResidualFeatureCount
+                  << " v21_residual_before_obs="
+                  << v21ResidualBefore.observations
+                  << " v21_residual_after_obs="
+                  << v21ResidualAfter.observations
+                  << " v21_residual_before_chi2_mean="
+                  << v21ResidualBefore.chi2Mean
+                  << " v21_residual_after_chi2_mean="
+                  << v21ResidualAfter.chi2Mean
+                  << " v21_chi2_increase_abs="
+                  << v21Chi2IncreaseAbs
+                  << " v21_chi2_inflation_ratio="
+                  << v21Chi2InflationRatio
+                  << " v21_inlier_ratio_delta="
+                  << v21InlierRatioDelta
+                  << " v21_residual_before_inlier_ratio="
+                  << v21ResidualBefore.inlierRatio
+                  << " v21_residual_after_inlier_ratio="
+                  << v21ResidualAfter.inlierRatio;
+        if(v22ContextualGateEnabled)
+        {
+            std::cout << " v22_contextual_residual_gate=1"
+                      << " v22_dynamic_occlusion_residual_hazard="
+                      << (v22DynamicOcclusionResidualHazard ? 1 : 0);
+        }
+        if(v23SegmentControllerEnabled)
+        {
+            std::cout << " v23_segment_residual_controller=1"
+                      << " v23_current_segment_evidence="
+                      << (v23CurrentSegmentEvidence ? 1 : 0)
+                      << " v23_segment_active="
+                      << (v23SegmentActive ? 1 : 0)
+                      << " v23_recent_evidence_hits="
+                      << v23RecentEvidenceHits
+                      << " v23_active_until_frame="
+                      << v23ActiveUntilFrame;
+        }
+        std::cout << std::endl;
+    }
+
+    return true;
+}
+
+void AnnotatePoseChainControllerV16KeyFrame(
+    KeyFrame* pKF,
+    const PoseChainQualityObservationStats& stats)
+{
+    if(!pKF)
+        return;
+
+    KeyFrame::PoseChainControllerV16Stats keyFrameStats;
+    keyFrameStats.risk = PoseChainControllerV16IsRiskFrame(stats);
+    keyFrameStats.supportLow = stats.supportLow;
+    keyFrameStats.motionPressure = stats.motionPressure;
+    keyFrameStats.keyframePressure = stats.keyframePressure;
+    keyFrameStats.boundaryPressure = stats.boundaryPressure;
+    keyFrameStats.stepRatio = stats.stepRatioProxy;
+    keyFrameStats.estimatedStep = stats.estimatedFrameStep;
+    keyFrameStats.staticGridCoverage = stats.staticInlierGridCoverage;
+    keyFrameStats.staticInliers = stats.staticInlierCount;
+    keyFrameStats.boundaryInliers = stats.boundaryInlierCount;
+    keyFrameStats.boundaryFrac = stats.boundaryInlierFrac;
+    keyFrameStats.recentKfRate = stats.recentKeyframeRate;
+    keyFrameStats.recentKfsPerMeter = stats.recentKeyframesPerMeter;
+    pKF->SetPoseChainControllerV16Stats(keyFrameStats);
 }
 
 struct FrameFeatureDebugStats
@@ -3651,7 +5206,8 @@ void WriteObservabilityFrameStats(std::ofstream& stream,
                                   const bool recentRelocalizationGuard,
                                   const bool relocalizedThisFrame,
                                   const bool recentlyLost,
-                                  const bool lost)
+                                  const bool lost,
+                                  const PoseChainQualityObservationStats& poseChainStats)
 {
     if(!stream.is_open())
         return;
@@ -3696,6 +5252,25 @@ void WriteObservabilityFrameStats(std::ofstream& stream,
            << "," << (relocalizedThisFrame ? 1 : 0)
            << "," << (recentlyLost ? 1 : 0)
            << "," << (lost ? 1 : 0)
+           << "," << (poseChainStats.enabled ? 1 : 0)
+           << "," << poseChainStats.recentWindow
+           << "," << std::setprecision(6) << poseChainStats.recentStepMedian
+           << "," << std::setprecision(6) << poseChainStats.stepRatioProxy
+           << "," << poseChainStats.recentKeyframes
+           << "," << std::setprecision(6) << poseChainStats.recentKeyframeRate
+           << "," << std::setprecision(6) << poseChainStats.recentKeyframesPerMeter
+           << "," << poseChainStats.staticInlierCount
+           << "," << std::setprecision(6) << poseChainStats.staticInlierGridCoverage
+           << "," << poseChainStats.boundaryInlierCount
+           << "," << std::setprecision(6) << poseChainStats.boundaryInlierFrac
+           << "," << (poseChainStats.supportLow ? 1 : 0)
+           << "," << (poseChainStats.motionPressure ? 1 : 0)
+           << "," << (poseChainStats.keyframePressure ? 1 : 0)
+           << "," << (poseChainStats.boundaryPressure ? 1 : 0)
+           << "," << (poseChainStats.poseChainRisk ? 1 : 0)
+           << "," << frame.mnDynamicDepthMaskedFeatures
+           << "," << frame.mnDynamicDepthInvalidatedFeatures
+           << "," << frame.mnDynamicDepthNoDepthFeatures
            << std::endl;
 }
 
@@ -3953,6 +5528,9 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
     mdObservabilityAccumEstimatedPath = 0.0;
     mdObservabilityLastTimestamp = 0.0;
 
+    if(EnablePoseChainQualityStats())
+        ResetPoseChainQualityHistory();
+
     vector<GeometricCamera*> vpCams = mpAtlas->GetAllCameras();
     std::cout << "There are " << vpCams.size() << " cameras in the atlas" << std::endl;
     for(GeometricCamera* pCam : vpCams)
@@ -3998,7 +5576,16 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
                 << "num_keyframes,num_mappoints,local_map_matches_before_pose,"
                 << "inlier_map_matches_after_pose,inlier_margin_30,has_pose,"
                 << "estimated_frame_step_m,estimated_accum_path_m,delta_time_s,"
-                << "recent_relocalization_guard,relocalized_this_frame,is_recently_lost,is_lost"
+                << "recent_relocalization_guard,relocalized_this_frame,is_recently_lost,is_lost,"
+                << "v14_enabled,v14_recent_window,v14_recent_step_median_m,"
+                << "v14_step_ratio_proxy,v14_recent_keyframes,v14_recent_keyframe_rate,"
+                << "v14_recent_keyframes_per_m,v14_static_inlier_count,"
+                << "v14_static_inlier_grid_coverage,v14_boundary_inlier_count,"
+                << "v14_boundary_inlier_frac,v14_support_low,v14_motion_pressure,"
+                << "v14_keyframe_pressure,v14_boundary_pressure,v14_pose_chain_risk,"
+                << "v14_dynamic_depth_masked_features,"
+                << "v14_dynamic_depth_invalidated_features,"
+                << "v14_dynamic_depth_no_depth_features"
                 << std::endl;
         }
     }
@@ -4451,6 +6038,13 @@ void Tracking::AppendObservabilityFrameStats()
             ? (mnObservabilityMatchesInliersAfterPose - 30)
             : -999;
 
+    const PoseChainQualityObservationStats poseChainStats =
+        ComputePoseChainQualityObservationStats(
+            mCurrentFrame,
+            estimatedFrameStep,
+            PoseChainQualityRecentSteps(),
+            PoseChainQualityRecentKeyframeFlags());
+
     WriteObservabilityFrameStats(f_observability_stats,
                                  mCurrentFrame,
                                  mState,
@@ -4469,7 +6063,21 @@ void Tracking::AppendObservabilityFrameStats()
                                  mnLastRelocFrameId > 0 &&
                                      mCurrentFrame.mnId == mnLastRelocFrameId,
                                  mState == RECENTLY_LOST,
-                                 mState == LOST);
+                                 mState == LOST,
+                                 poseChainStats);
+
+    if(EnablePoseChainQualityStats() && hasPose)
+    {
+        std::vector<double>& recentSteps = PoseChainQualityRecentSteps();
+        std::vector<int>& recentKeyframeFlags = PoseChainQualityRecentKeyframeFlags();
+        recentSteps.push_back(std::max(0.0, estimatedFrameStep));
+        recentKeyframeFlags.push_back(mbCurrentFrameCreatedKeyFrame ? 1 : 0);
+        const int recentWindow = PoseChainQualityRecentWindow();
+        while(static_cast<int>(recentSteps.size()) > recentWindow)
+            recentSteps.erase(recentSteps.begin());
+        while(static_cast<int>(recentKeyframeFlags.size()) > recentWindow)
+            recentKeyframeFlags.erase(recentKeyframeFlags.begin());
+    }
 }
 
 void Tracking::newParameterLoader(Settings *settings) {
@@ -13280,6 +14888,9 @@ bool Tracking::TrackLocalMap()
     }
 
     RefinePoseWithStaticBackground(mCurrentFrame, "track_local_map_post_pose");
+    ApplyPoseStepSafeguardV18(mCurrentFrame,
+                              mLastFrame,
+                              "track_local_map_post_pose");
 
     aux1 = 0, aux2 = 0;
     for(int i=0; i<mCurrentFrame.N; i++)
@@ -13550,6 +15161,45 @@ void Tracking::CreateNewKeyFrame()
         return;
 
     KeyFrame* pKF = new KeyFrame(mCurrentFrame,mpAtlas->GetCurrentMap(),mpKeyFrameDB);
+    if(EnablePoseChainControllerV16())
+    {
+        const double estimatedFrameStep =
+            EstimatePoseChainFrameStepFromLastFrame(mCurrentFrame, mLastFrame);
+        const PoseChainQualityObservationStats poseChainStats =
+            ComputePoseChainQualityObservationStats(
+                mCurrentFrame,
+                estimatedFrameStep,
+                PoseChainQualityRecentSteps(),
+                PoseChainQualityRecentKeyframeFlags());
+        AnnotatePoseChainControllerV16KeyFrame(pKF, poseChainStats);
+
+        if(EnablePoseChainControllerV16Log())
+        {
+            const KeyFrame::PoseChainControllerV16Stats keyFrameStats =
+                pKF->GetPoseChainControllerV16Stats();
+            std::cout << "[STSLAM_POSE_CHAIN_CONTROLLER_V16]"
+                      << " stage=create_keyframe"
+                      << " frame=" << mCurrentFrame.mnId
+                      << " keyframe_id=" << pKF->mnId
+                      << " risk=" << (keyFrameStats.risk ? 1 : 0)
+                      << " support_low=" << (poseChainStats.supportLow ? 1 : 0)
+                      << " motion_pressure=" << (poseChainStats.motionPressure ? 1 : 0)
+                      << " keyframe_pressure=" << (poseChainStats.keyframePressure ? 1 : 0)
+                      << " boundary_pressure=" << (poseChainStats.boundaryPressure ? 1 : 0)
+                      << " estimated_step=" << poseChainStats.estimatedFrameStep
+                      << " step_ratio=" << poseChainStats.stepRatioProxy
+                      << " static_inliers=" << poseChainStats.staticInlierCount
+                      << " static_grid_coverage="
+                      << poseChainStats.staticInlierGridCoverage
+                      << " boundary_inliers=" << poseChainStats.boundaryInlierCount
+                      << " boundary_frac=" << poseChainStats.boundaryInlierFrac
+                      << " recent_kf_rate=" << poseChainStats.recentKeyframeRate
+                      << " recent_kfs_per_meter="
+                      << poseChainStats.recentKeyframesPerMeter
+                      << std::endl;
+        }
+    }
+
     if(KeepInstanceStructurePointsOutOfStaticKeyFrameSlots())
     {
         int removedStructurePointsFromStaticSlots = 0;
@@ -13638,6 +15288,16 @@ void Tracking::CreateNewKeyFrame()
         int maxPoint = 100;
         if(mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
             maxPoint = 100;
+        const int keyFrameObservabilityGainV17BaseMaxPoint = maxPoint;
+        const KeyFrame::PoseChainControllerV16Stats keyFrameObservabilityGainV17Stats =
+            pKF->GetPoseChainControllerV16Stats();
+        const bool keyFrameObservabilityGainV17Active =
+            EnableKeyFrameObservabilityGainV17() &&
+            keyFrameObservabilityGainV17Stats.supportLow &&
+            (KeyFrameObservabilityGainV17AllowRisk() ||
+             !keyFrameObservabilityGainV17Stats.risk);
+        if(keyFrameObservabilityGainV17Active)
+            maxPoint += KeyFrameObservabilityGainV17MaxPointBoost();
 
         vector<pair<float,int> > vDepthIdx;
         int N = (mCurrentFrame.Nleft != -1) ? mCurrentFrame.Nleft : mCurrentFrame.N;
@@ -13788,6 +15448,8 @@ void Tracking::CreateNewKeyFrame()
         int nearBoundaryCreatedNewCandidates = 0;
         int cleanStaticCreatedNewCandidates = 0;
         int directDynamicCreatedNewCandidates = 0;
+        int keyFrameObservabilityGainV17CreatedNewPoints = 0;
+        int keyFrameObservabilityGainV17ConsumedDepthPoints = 0;
         std::map<AdmissionMatchedControlBin, int> boundaryMatchedExactBudget;
         std::map<AdmissionMatchedControlBin, int> boundaryMatchedFallbackBudget;
         if(!vDepthIdx.empty())
@@ -14005,6 +15667,8 @@ void Tracking::CreateNewKeyFrame()
 
                     mCurrentFrame.mvpMapPoints[i]=pNewMP;
                     nPoints++;
+                    ++keyFrameObservabilityGainV17CreatedNewPoints;
+                    keyFrameObservabilityGainV17ConsumedDepthPoints = nPoints;
                     if(nearBoundaryDiagnostics)
                     {
                         if(createdDirectDynamic)
@@ -14028,6 +15692,7 @@ void Tracking::CreateNewKeyFrame()
                 else
                 {
                     nPoints++;
+                    keyFrameObservabilityGainV17ConsumedDepthPoints = nPoints;
                 }
 
                 if(vDepthIdx[j].first>mThDepth && nPoints>maxPoint)
@@ -14046,6 +15711,39 @@ void Tracking::CreateNewKeyFrame()
                       << " keyframe_id=" << pKF->mnId
                       << " vetoed_candidates=" << dynamicMapAdmissionVetoed
                       << " accepted_depth_candidates=" << vDepthIdx.size()
+                      << std::endl;
+        }
+
+        if(EnableSupportLowFallbackV17Log() ||
+           EnableKeyFrameObservabilityGainV17() ||
+           keyFrameObservabilityGainV17Active)
+        {
+            std::cout << "[STSLAM_KEYFRAME_OBSERVABILITY_GAIN_V17]"
+                      << " stage=create_new_keyframe"
+                      << " frame=" << mCurrentFrame.mnId
+                      << " keyframe_id=" << pKF->mnId
+                      << " active="
+                      << (keyFrameObservabilityGainV17Active ? 1 : 0)
+                      << " support_low="
+                      << (keyFrameObservabilityGainV17Stats.supportLow ? 1 : 0)
+                      << " risk="
+                      << (keyFrameObservabilityGainV17Stats.risk ? 1 : 0)
+                      << " keyframe_pressure="
+                      << (keyFrameObservabilityGainV17Stats.keyframePressure ? 1 : 0)
+                      << " base_max_point="
+                      << keyFrameObservabilityGainV17BaseMaxPoint
+                      << " max_point=" << maxPoint
+                      << " max_point_boost="
+                      << (maxPoint - keyFrameObservabilityGainV17BaseMaxPoint)
+                      << " accepted_depth_candidates=" << vDepthIdx.size()
+                      << " consumed_depth_points="
+                      << keyFrameObservabilityGainV17ConsumedDepthPoints
+                      << " created_new_points="
+                      << keyFrameObservabilityGainV17CreatedNewPoints
+                      << " boundary_skipped_new_candidates="
+                      << boundaryAwareSkippedNewCandidates
+                      << " delayed_support_promoted_new_candidates="
+                      << boundaryDelayedSupportPromotedNewCandidates
                       << std::endl;
         }
 

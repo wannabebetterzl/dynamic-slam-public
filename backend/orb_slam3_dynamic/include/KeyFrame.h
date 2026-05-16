@@ -290,6 +290,26 @@ public:
     std::vector<WindowFrameSnapshot> GetImageFrameWindow() const;
     std::vector<WindowFrameSnapshot>& GetMutableImageFrameWindow();
 
+    struct PoseChainControllerV16Stats
+    {
+        bool risk = false;
+        bool supportLow = false;
+        bool motionPressure = false;
+        bool keyframePressure = false;
+        bool boundaryPressure = false;
+        double stepRatio = 0.0;
+        double estimatedStep = -1.0;
+        double staticGridCoverage = 0.0;
+        int staticInliers = 0;
+        int boundaryInliers = 0;
+        double boundaryFrac = 0.0;
+        double recentKfRate = 0.0;
+        double recentKfsPerMeter = 0.0;
+    };
+
+    void SetPoseChainControllerV16Stats(const PoseChainControllerV16Stats& stats);
+    PoseChainControllerV16Stats GetPoseChainControllerV16Stats() const;
+
     // Image
     bool IsInImage(const float &x, const float &y) const;
 

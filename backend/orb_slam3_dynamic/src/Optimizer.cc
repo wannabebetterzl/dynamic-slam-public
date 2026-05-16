@@ -2427,6 +2427,63 @@ bool EnableDynamicMapAdmissionPoseChainGuardV13()
                                false);
 }
 
+bool EnablePoseChainControllerV16()
+{
+    return GetEnvFlagOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16", false);
+}
+
+bool EnablePoseChainControllerV16Log()
+{
+    return GetEnvFlagOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_LOG", false);
+}
+
+bool EnablePoseChainControllerV16LocalBA()
+{
+    return GetEnvFlagOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_LBA", true);
+}
+
+int PoseChainControllerV16MinAgeKFs()
+{
+    return GetEnvIntOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_AGE_KFS",
+                              3,
+                              0);
+}
+
+int PoseChainControllerV16MinPoseUse()
+{
+    return GetEnvIntOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_POSE_USE",
+                              4,
+                              0);
+}
+
+int PoseChainControllerV16MinObservations()
+{
+    return GetEnvIntOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_OBSERVATIONS",
+                              4,
+                              1);
+}
+
+double PoseChainControllerV16MinFoundRatio()
+{
+    return GetEnvDoubleOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_FOUND_RATIO",
+                                 0.40,
+                                 0.0);
+}
+
+double PoseChainControllerV16MinInlierRate()
+{
+    return GetEnvDoubleOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_INLIER_RATE",
+                                 0.70,
+                                 0.0);
+}
+
+double PoseChainControllerV16MaxMeanChi2()
+{
+    return GetEnvDoubleOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MAX_MEAN_CHI2",
+                                 4.0,
+                                 0.0);
+}
+
 std::string DynamicMapAdmissionRecoveryV12Mode()
 {
     const char* envValue =
@@ -2511,6 +2568,46 @@ bool IsRecoveryV12ReadyForLocalBA(MapPoint* pMP, KeyFrame* pCurrentKF)
                DynamicMapAdmissionRecoveryV12MinInlierRate() &&
            pMP->GetSupportQualityPoseUseMeanChi2() <=
                DynamicMapAdmissionRecoveryV12MaxMeanChi2();
+}
+
+bool IsPoseChainControllerV16ReadyForLocalBA(MapPoint* pMP, KeyFrame* pCurrentKF)
+{
+    if(!pMP || !pCurrentKF)
+        return false;
+
+    const int ageKFs =
+        static_cast<int>(pCurrentKF->mnId) - static_cast<int>(pMP->mnFirstKFid);
+    if(ageKFs < PoseChainControllerV16MinAgeKFs())
+        return false;
+    if(pMP->Observations() < PoseChainControllerV16MinObservations())
+        return false;
+    if(pMP->GetFoundRatio() < PoseChainControllerV16MinFoundRatio())
+        return false;
+    if(pMP->GetSupportQualityPoseUseCount() <
+       PoseChainControllerV16MinPoseUse())
+        return false;
+
+    return pMP->GetSupportQualityPoseUseInlierRate() >=
+               PoseChainControllerV16MinInlierRate() &&
+           pMP->GetSupportQualityPoseUseMeanChi2() <=
+               PoseChainControllerV16MaxMeanChi2();
+}
+
+bool ShouldDelayScoreAdmissionLocalBAV16(MapPoint* pMP, KeyFrame* pCurrentKF)
+{
+    if(!EnablePoseChainControllerV16() ||
+       !EnablePoseChainControllerV16LocalBA() ||
+       !pMP ||
+       !pCurrentKF ||
+       !pMP->WasCreatedFromScoreAdmission())
+        return false;
+
+    const KeyFrame::PoseChainControllerV16Stats stats =
+        pCurrentKF->GetPoseChainControllerV16Stats();
+    if(!stats.risk)
+        return false;
+
+    return !IsPoseChainControllerV16ReadyForLocalBA(pMP, pCurrentKF);
 }
 
 bool ShouldDelayScoreAdmissionLocalBA(MapPoint* pMP, KeyFrame* pCurrentKF)
@@ -4731,12 +4828,20 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
     const bool constraintRoleCollect = EnableDynamicMapAdmissionConstraintRoleCollect();
     const bool constraintRoleLog = EnableDynamicMapAdmissionConstraintRoleLog();
     std::set<MapPoint*> delayedScoreAdmissionLocalBAPoints;
+    std::set<MapPoint*> delayedPoseChainControllerV16LocalBAPoints;
     int delayedScoreAdmissionLocalBAPointCount = 0;
+    int delayedPoseChainControllerV16LocalBAPointCount = 0;
     auto markDelayedScoreAdmissionLocalBAPoint =
         [&](MapPoint* pMP)
     {
         if(pMP && delayedScoreAdmissionLocalBAPoints.insert(pMP).second)
             ++delayedScoreAdmissionLocalBAPointCount;
+    };
+    auto markDelayedPoseChainControllerV16LocalBAPoint =
+        [&](MapPoint* pMP)
+    {
+        if(pMP && delayedPoseChainControllerV16LocalBAPoints.insert(pMP).second)
+            ++delayedPoseChainControllerV16LocalBAPointCount;
     };
     int scoreAdmissionWindowPoints = 0;
     int scoreAdmissionWindowObsGe2 = 0;
@@ -4751,9 +4856,14 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
             MapPoint* pMP = *lit;
             if(!pMP || !pMP->WasCreatedFromScoreAdmission())
                 continue;
-            if(ShouldDelayScoreAdmissionLocalBA(pMP, pKF))
+            const bool delayByPoseChainControllerV16 =
+                ShouldDelayScoreAdmissionLocalBAV16(pMP, pKF);
+            if(delayByPoseChainControllerV16 ||
+               ShouldDelayScoreAdmissionLocalBA(pMP, pKF))
             {
                 markDelayedScoreAdmissionLocalBAPoint(pMP);
+                if(delayByPoseChainControllerV16)
+                    markDelayedPoseChainControllerV16LocalBAPoint(pMP);
                 continue;
             }
 
@@ -4814,9 +4924,14 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
     for(list<MapPoint*>::iterator lit=lLocalMapPoints.begin(), lend=lLocalMapPoints.end(); lit!=lend; lit++)
     {
         MapPoint* pMP = *lit;
-        if(ShouldDelayScoreAdmissionLocalBA(pMP, pKF))
+        const bool delayByPoseChainControllerV16 =
+            ShouldDelayScoreAdmissionLocalBAV16(pMP, pKF);
+        if(delayByPoseChainControllerV16 ||
+           ShouldDelayScoreAdmissionLocalBA(pMP, pKF))
         {
             markDelayedScoreAdmissionLocalBAPoint(pMP);
+            if(delayByPoseChainControllerV16)
+                markDelayedPoseChainControllerV16LocalBAPoint(pMP);
             continue;
         }
 
@@ -4953,6 +5068,50 @@ void RunVanillaLocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap,
                   << " delayed_mp=" << delayedScoreAdmissionLocalBAPointCount
                   << " optimizer_points=" << nPoints
                   << " optimizer_edges=" << nEdges
+                  << std::endl;
+    }
+
+    if(EnablePoseChainControllerV16Log() && EnablePoseChainControllerV16())
+    {
+        const KeyFrame::PoseChainControllerV16Stats stats =
+            pKF->GetPoseChainControllerV16Stats();
+        std::cout << "[STSLAM_POSE_CHAIN_CONTROLLER_V16]"
+                  << " frame=" << pKF->mnFrameId
+                  << " stage=before_lba"
+                  << " current_kf=" << pKF->mnId
+                  << " risk=" << (stats.risk ? 1 : 0)
+                  << " support_low="
+                  << (stats.supportLow ? 1 : 0)
+                  << " motion_pressure="
+                  << (stats.motionPressure ? 1 : 0)
+                  << " keyframe_pressure="
+                  << (stats.keyframePressure ? 1 : 0)
+                  << " boundary_pressure="
+                  << (stats.boundaryPressure ? 1 : 0)
+                  << " step_ratio=" << stats.stepRatio
+                  << " estimated_step=" << stats.estimatedStep
+                  << " static_inliers=" << stats.staticInliers
+                  << " static_grid_coverage=" << stats.staticGridCoverage
+                  << " boundary_frac=" << stats.boundaryFrac
+                  << " local_kf=" << lLocalKeyFrames.size()
+                  << " fixed_kf=" << lFixedCameras.size()
+                  << " local_mp=" << lLocalMapPoints.size()
+                  << " delayed_v16_mp="
+                  << delayedPoseChainControllerV16LocalBAPointCount
+                  << " delayed_total_mp="
+                  << delayedScoreAdmissionLocalBAPointCount
+                  << " optimizer_points=" << nPoints
+                  << " optimizer_edges=" << nEdges
+                  << " min_age_kfs=" << PoseChainControllerV16MinAgeKFs()
+                  << " min_pose_use=" << PoseChainControllerV16MinPoseUse()
+                  << " min_observations="
+                  << PoseChainControllerV16MinObservations()
+                  << " min_found_ratio="
+                  << PoseChainControllerV16MinFoundRatio()
+                  << " min_inlier_rate="
+                  << PoseChainControllerV16MinInlierRate()
+                  << " max_mean_chi2="
+                  << PoseChainControllerV16MaxMeanChi2()
                   << std::endl;
     }
 

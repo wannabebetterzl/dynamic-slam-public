@@ -1,0 +1,6 @@
+segment,lines,active_lines,candidate_pairs,allowed_pairs,rejected_pairs,base_rejected_pairs,support_rejected_pairs,quota_rejected_pairs,created_pairs,foreground_dynamic,background_supported,boundary_mixed,depth_unsupported,unknown
+0-149,262,262,201,4,197,166,31,0,3,0,4,76,121,0
+150-299,494,494,317,3,314,284,30,0,1,0,3,59,255,0
+300-549,40,40,2,0,2,2,0,0,0,0,0,0,2,0
+550-599,58,58,28,5,23,22,0,1,1,0,6,11,11,0
+600-905,535,535,130,0,130,119,11,0,0,0,0,44,86,0

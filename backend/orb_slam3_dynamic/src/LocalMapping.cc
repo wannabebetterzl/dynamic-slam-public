@@ -730,6 +730,316 @@ bool DynamicMapAdmissionPoseChainGuardV13RequireScaleOrLBAPressure()
     return value;
 }
 
+bool DynamicMapAdmissionPoseChainGuardV15()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V15",
+                            false);
+    return value;
+}
+
+bool DynamicMapAdmissionPoseChainGuardV15Log()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V15_LOG",
+                            false);
+    return value;
+}
+
+double DynamicMapAdmissionPoseChainGuardV15MinNeedScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V15_MIN_NEED_SCORE",
+                              2.0,
+                              0.0);
+    return value;
+}
+
+double DynamicMapAdmissionPoseChainGuardV15StepRatioThreshold()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V15_STEP_RATIO_THRESHOLD",
+                              2.0,
+                              0.0);
+    return value;
+}
+
+bool DynamicMapAdmissionPoseChainGuardV15RequireKeyFramePressure()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V15_REQUIRE_KEYFRAME_PRESSURE",
+                            true);
+    return value;
+}
+
+double DynamicMapAdmissionPoseChainGuardV15MinSupportScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V15_MIN_SUPPORT_SCORE",
+                              0.75,
+                              0.0);
+    return value;
+}
+
+int DynamicMapAdmissionPoseChainGuardV15MinReliableSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V15_MIN_RELIABLE_SUPPORT",
+                           2,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionPoseChainGuardV15MinDepthSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V15_MIN_DEPTH_SUPPORT",
+                           1,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionPoseChainGuardV15MinResidualSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V15_MIN_RESIDUAL_SUPPORT",
+                           1,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionPoseChainGuardV15MaxPromotionsPerKeyFrame()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V15_MAX_PROMOTIONS_PER_KEYFRAME",
+                           8,
+                           0);
+    return value;
+}
+
+int DynamicMapAdmissionPoseChainGuardV15MaxPromotionsPerNeighbor()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V15_MAX_PROMOTIONS_PER_NEIGHBOR",
+                           2,
+                           0);
+    return value;
+}
+
+bool PoseChainControllerV16()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16", false);
+    return value;
+}
+
+bool PoseChainControllerV16Log()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_LOG", false);
+    return value;
+}
+
+bool PoseChainControllerV16Admission()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_ADMISSION",
+                            true);
+    return value;
+}
+
+double PoseChainControllerV16MinSupportScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_SUPPORT_SCORE",
+                              0.75,
+                              0.0);
+    return value;
+}
+
+int PoseChainControllerV16MinReliableSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_RELIABLE_SUPPORT",
+                           2,
+                           0);
+    return value;
+}
+
+int PoseChainControllerV16MinDepthSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_DEPTH_SUPPORT",
+                           1,
+                           0);
+    return value;
+}
+
+int PoseChainControllerV16MinResidualSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_RESIDUAL_SUPPORT",
+                           1,
+                           0);
+    return value;
+}
+
+int PoseChainControllerV16MaxPromotionsPerKeyFrame()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MAX_PROMOTIONS_PER_KEYFRAME",
+                           8,
+                           0);
+    return value;
+}
+
+int PoseChainControllerV16MaxPromotionsPerNeighbor()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MAX_PROMOTIONS_PER_NEIGHBOR",
+                           2,
+                           0);
+    return value;
+}
+
+int PoseChainControllerV16MinAgeKFs()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_AGE_KFS",
+                           3,
+                           0);
+    return value;
+}
+
+int PoseChainControllerV16MinPoseUse()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_POSE_USE",
+                           4,
+                           0);
+    return value;
+}
+
+int PoseChainControllerV16MinObservations()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_OBSERVATIONS",
+                           4,
+                           1);
+    return value;
+}
+
+double PoseChainControllerV16MinFoundRatio()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_FOUND_RATIO",
+                              0.40,
+                              0.0);
+    return value;
+}
+
+double PoseChainControllerV16MinInlierRate()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MIN_INLIER_RATE",
+                              0.70,
+                              0.0);
+    return value;
+}
+
+double PoseChainControllerV16MaxMeanChi2()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_POSE_CHAIN_CONTROLLER_V16_MAX_MEAN_CHI2",
+                              4.0,
+                              0.0);
+    return value;
+}
+
+bool SupportLowFallbackV17()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_SUPPORT_LOW_FALLBACK_V17", false);
+    return value;
+}
+
+bool SupportLowFallbackV17Log()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_SUPPORT_LOW_FALLBACK_V17_LOG", false);
+    return value;
+}
+
+bool SupportLowFallbackV17RequireKeyframePressure()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_SUPPORT_LOW_FALLBACK_V17_REQUIRE_KEYFRAME_PRESSURE",
+                            true);
+    return value;
+}
+
+bool SupportLowFallbackV17AllowRisk()
+{
+    static const bool value =
+        GetEnvFlagOrDefault("STSLAM_SUPPORT_LOW_FALLBACK_V17_ALLOW_RISK",
+                            true);
+    return value;
+}
+
+double SupportLowFallbackV17MinSupportScore()
+{
+    static const double value =
+        GetEnvDoubleOrDefault("STSLAM_SUPPORT_LOW_FALLBACK_V17_MIN_SUPPORT_SCORE",
+                              0.65,
+                              0.0);
+    return value;
+}
+
+int SupportLowFallbackV17MinReliableSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_SUPPORT_LOW_FALLBACK_V17_MIN_RELIABLE_SUPPORT",
+                           2,
+                           0);
+    return value;
+}
+
+int SupportLowFallbackV17MinDepthSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_SUPPORT_LOW_FALLBACK_V17_MIN_DEPTH_SUPPORT",
+                           1,
+                           0);
+    return value;
+}
+
+int SupportLowFallbackV17MinResidualSupport()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_SUPPORT_LOW_FALLBACK_V17_MIN_RESIDUAL_SUPPORT",
+                           1,
+                           0);
+    return value;
+}
+
+int SupportLowFallbackV17MaxPromotionsPerKeyFrame()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_SUPPORT_LOW_FALLBACK_V17_MAX_PROMOTIONS_PER_KEYFRAME",
+                           10,
+                           0);
+    return value;
+}
+
+int SupportLowFallbackV17MaxPromotionsPerNeighbor()
+{
+    static const int value =
+        GetEnvIntOrDefault("STSLAM_SUPPORT_LOW_FALLBACK_V17_MAX_PROMOTIONS_PER_NEIGHBOR",
+                           2,
+                           0);
+    return value;
+}
+
 double DynamicMapAdmissionRecoveryV11MinNeedScore()
 {
     static const double value =
@@ -1153,7 +1463,8 @@ AdmissionStateAwarenessContext MakeAdmissionStateAwarenessContext(
         DynamicMapAdmissionStateAware() ||
         DynamicMapAdmissionRecoveryV11() ||
         DynamicMapAdmissionRecoveryV12Probation() ||
-        DynamicMapAdmissionPoseChainGuardV13();
+        DynamicMapAdmissionPoseChainGuardV13() ||
+        DynamicMapAdmissionPoseChainGuardV15();
     if(!context.enabled)
         return context;
 
@@ -1221,6 +1532,26 @@ bool AdmissionPoseChainGuardV13Active(const AdmissionStateAwarenessContext& cont
        !(context.scalePressure || context.localBAPressure))
         return false;
     return true;
+}
+
+bool AdmissionPoseChainGuardV15Active(const AdmissionStateAwarenessContext& context)
+{
+    if(!DynamicMapAdmissionPoseChainGuardV15() || !context.enabled)
+        return false;
+    if(DynamicMapAdmissionPoseChainGuardV15RequireKeyFramePressure() &&
+       !context.keyframePressure)
+        return false;
+    const bool stepSpike =
+        context.keyframeStep >= DynamicMapAdmissionStateMinKeyFrameStep() &&
+        context.keyframeStepRatio >=
+            DynamicMapAdmissionPoseChainGuardV15StepRatioThreshold();
+    const bool poseChainPressure =
+        context.trackingPressure ||
+        context.scalePressure ||
+        context.localBAPressure ||
+        stepSpike;
+    return poseChainPressure &&
+           context.needScore >= DynamicMapAdmissionPoseChainGuardV15MinNeedScore();
 }
 
 struct AdmissionCoverageContext
@@ -1576,6 +1907,86 @@ bool AdmissionScoreSupportAllowsGeometry(const AdmissionScoreCandidateInfo& info
     if(info.depthConsistentSupport <= 0 && info.reliableSupport <= 0)
         return false;
     return info.supportScore >= DynamicMapAdmissionScoreMinSupportScore();
+}
+
+bool AdmissionPoseChainGuardV15HasHighQualitySupport(
+    const AdmissionScoreCandidateInfo& info)
+{
+    return info.supportScore >=
+               DynamicMapAdmissionPoseChainGuardV15MinSupportScore() &&
+           info.reliableSupport >=
+               DynamicMapAdmissionPoseChainGuardV15MinReliableSupport() &&
+           info.depthConsistentSupport >=
+               DynamicMapAdmissionPoseChainGuardV15MinDepthSupport() &&
+           info.residualReliableSupport >=
+               DynamicMapAdmissionPoseChainGuardV15MinResidualSupport();
+}
+
+bool AdmissionPoseChainControllerV16HasHighQualitySupport(
+    const AdmissionScoreCandidateInfo& info)
+{
+    return info.supportScore >= PoseChainControllerV16MinSupportScore() &&
+           info.reliableSupport >= PoseChainControllerV16MinReliableSupport() &&
+           info.depthConsistentSupport >=
+               PoseChainControllerV16MinDepthSupport() &&
+           info.residualReliableSupport >=
+               PoseChainControllerV16MinResidualSupport();
+}
+
+bool AdmissionSupportLowFallbackV17HasBackgroundSupport(
+    const AdmissionScoreCandidateInfo& info)
+{
+    return info.supportScore >= SupportLowFallbackV17MinSupportScore() &&
+           info.reliableSupport >= SupportLowFallbackV17MinReliableSupport() &&
+           info.depthConsistentSupport >=
+               SupportLowFallbackV17MinDepthSupport() &&
+           info.residualReliableSupport >=
+               SupportLowFallbackV17MinResidualSupport();
+}
+
+enum AdmissionDepthProvenanceV17
+{
+    kDepthProvenanceForegroundDynamic = 0,
+    kDepthProvenanceBackgroundSupported = 1,
+    kDepthProvenanceBoundaryMixed = 2,
+    kDepthProvenanceDepthUnsupported = 3,
+    kDepthProvenanceUnknown = 4
+};
+
+AdmissionDepthProvenanceV17 ClassifyAdmissionDepthProvenanceV17(
+    const AdmissionScoreCandidateInfo& info,
+    const bool boundaryRiskPair,
+    const int instanceId1,
+    const int instanceId2)
+{
+    if(instanceId1 > 0 || instanceId2 > 0)
+        return kDepthProvenanceForegroundDynamic;
+    if(AdmissionSupportLowFallbackV17HasBackgroundSupport(info))
+        return kDepthProvenanceBackgroundSupported;
+    if(boundaryRiskPair && info.rawDepthConsistentSupport > 0)
+        return kDepthProvenanceBoundaryMixed;
+    if(boundaryRiskPair)
+        return kDepthProvenanceDepthUnsupported;
+    return kDepthProvenanceUnknown;
+}
+
+const char* AdmissionDepthProvenanceV17Name(
+    const AdmissionDepthProvenanceV17 provenance)
+{
+    switch(provenance)
+    {
+        case kDepthProvenanceForegroundDynamic:
+            return "foreground_dynamic";
+        case kDepthProvenanceBackgroundSupported:
+            return "background_supported_depth";
+        case kDepthProvenanceBoundaryMixed:
+            return "boundary_mixed_depth";
+        case kDepthProvenanceDepthUnsupported:
+            return "depth_unsupported";
+        case kDepthProvenanceUnknown:
+        default:
+            return "unknown";
+    }
 }
 
 bool AdmissionRecoveryV11HasHighQualitySupport(
@@ -2761,6 +3172,8 @@ void LocalMapping::MapPointCulling()
         DynamicMapAdmissionRecoveryV12Probation();
     const bool poseChainGuardV13 =
         DynamicMapAdmissionPoseChainGuardV13();
+    const bool poseChainControllerV16 =
+        PoseChainControllerV16();
     const bool constraintRoleCollect = DynamicMapAdmissionConstraintRoleCollect();
     int recentNearBoundaryPoints = 0;
     int recentCleanStaticPoints = 0;
@@ -2815,7 +3228,7 @@ void LocalMapping::MapPointCulling()
             recoveryV12Probation && scoreAdmission &&
             pMP->WasCreatedFromRecoveryAdmission();
         const bool poseChainGuardAdmission =
-            poseChainGuardV13 && scoreAdmission &&
+            (poseChainGuardV13 || poseChainControllerV16) && scoreAdmission &&
             pMP->WasCreatedUnderPoseChainGuard();
         if(nearBoundaryDiagnostics && pMP)
         {
@@ -2915,33 +3328,54 @@ void LocalMapping::MapPointCulling()
             else
             {
                 const int poseUseCount = pMP->GetSupportQualityPoseUseCount();
+                const bool usePoseChainControllerV16Thresholds =
+                    poseChainControllerV16 && poseChainGuardAdmission;
+                const int minAgeKFs = usePoseChainControllerV16Thresholds ?
+                    PoseChainControllerV16MinAgeKFs() :
+                    DynamicMapAdmissionRecoveryV12MinAgeKFs();
+                const int maxProbationAgeKFs =
+                    DynamicMapAdmissionRecoveryV12MaxProbationAgeKFs();
+                const int minPoseUse = usePoseChainControllerV16Thresholds ?
+                    PoseChainControllerV16MinPoseUse() :
+                    DynamicMapAdmissionRecoveryV12MinPoseUse();
+                const int minObservations =
+                    usePoseChainControllerV16Thresholds ?
+                    PoseChainControllerV16MinObservations() :
+                    DynamicMapAdmissionRecoveryV12MinObservations();
+                const double minFoundRatio =
+                    usePoseChainControllerV16Thresholds ?
+                    PoseChainControllerV16MinFoundRatio() :
+                    DynamicMapAdmissionRecoveryV12MinFoundRatio();
+                const double minInlierRate =
+                    usePoseChainControllerV16Thresholds ?
+                    PoseChainControllerV16MinInlierRate() :
+                    DynamicMapAdmissionRecoveryV12MinInlierRate();
+                const double maxMeanChi2 =
+                    usePoseChainControllerV16Thresholds ?
+                    PoseChainControllerV16MaxMeanChi2() :
+                    DynamicMapAdmissionRecoveryV12MaxMeanChi2();
                 const bool poseEvidence =
-                    poseUseCount >= DynamicMapAdmissionRecoveryV12MinPoseUse();
+                    poseUseCount >= minPoseUse;
                 const bool poseGood =
                     poseEvidence &&
-                    pMP->GetSupportQualityPoseUseInlierRate() >=
-                        DynamicMapAdmissionRecoveryV12MinInlierRate() &&
-                    pMP->GetSupportQualityPoseUseMeanChi2() <=
-                        DynamicMapAdmissionRecoveryV12MaxMeanChi2();
+                    pMP->GetSupportQualityPoseUseInlierRate() >= minInlierRate &&
+                    pMP->GetSupportQualityPoseUseMeanChi2() <= maxMeanChi2;
                 const bool observationGood =
-                    pMP->Observations() >=
-                        DynamicMapAdmissionRecoveryV12MinObservations();
+                    pMP->Observations() >= minObservations;
                 const bool foundGood =
-                    pMP->GetFoundRatio() >=
-                        DynamicMapAdmissionRecoveryV12MinFoundRatio();
+                    pMP->GetFoundRatio() >= minFoundRatio;
 
-                if(ageKFs >= DynamicMapAdmissionRecoveryV12MinAgeKFs() &&
-                   poseEvidence && !poseGood)
+                if(ageKFs >= minAgeKFs && poseEvidence && !poseGood)
                 {
                     v8QualityReject = true;
                 }
                 else if(ageKFs >=
-                            DynamicMapAdmissionRecoveryV12MaxProbationAgeKFs() &&
+                            maxProbationAgeKFs &&
                         (!poseEvidence || !observationGood || !foundGood))
                 {
                     v8LowEvidenceReject = true;
                 }
-                else if(ageKFs >= DynamicMapAdmissionRecoveryV12MinAgeKFs() &&
+                else if(ageKFs >= minAgeKFs &&
                         poseGood && observationGood && foundGood)
                 {
                     v8Mature = true;
@@ -3278,6 +3712,20 @@ void LocalMapping::MapPointCulling()
                   << DynamicMapAdmissionRecoveryV12MaxMeanChi2()
                   << " pose_chain_guard_v13="
                   << (poseChainGuardV13 ? 1 : 0)
+                  << " pose_chain_controller_v16="
+                  << (poseChainControllerV16 ? 1 : 0)
+                  << " pose_chain_controller_v16_min_age_kfs="
+                  << PoseChainControllerV16MinAgeKFs()
+                  << " pose_chain_controller_v16_min_pose_use="
+                  << PoseChainControllerV16MinPoseUse()
+                  << " pose_chain_controller_v16_min_observations="
+                  << PoseChainControllerV16MinObservations()
+                  << " pose_chain_controller_v16_min_found_ratio="
+                  << PoseChainControllerV16MinFoundRatio()
+                  << " pose_chain_controller_v16_min_inlier_rate="
+                  << PoseChainControllerV16MinInlierRate()
+                  << " pose_chain_controller_v16_max_mean_chi2="
+                  << PoseChainControllerV16MaxMeanChi2()
                   << std::endl;
     }
 }
@@ -3334,12 +3782,36 @@ void LocalMapping::CreateNewMapPoints()
         DynamicMapAdmissionPoseChainGuardV13();
     const bool poseChainGuardV13Active =
         AdmissionPoseChainGuardV13Active(admissionStateContext);
+    const bool dynamicMapAdmissionPoseChainGuardV15 =
+        DynamicMapAdmissionPoseChainGuardV15();
+    const bool poseChainGuardV15Active =
+        AdmissionPoseChainGuardV15Active(admissionStateContext);
+    const bool poseChainControllerV16 =
+        PoseChainControllerV16();
+    const KeyFrame::PoseChainControllerV16Stats poseChainControllerV16Stats =
+        poseChainControllerV16 ?
+        mpCurrentKeyFrame->GetPoseChainControllerV16Stats() :
+        KeyFrame::PoseChainControllerV16Stats();
+    const bool poseChainControllerV16AdmissionActive =
+        poseChainControllerV16 &&
+        PoseChainControllerV16Admission() &&
+        poseChainControllerV16Stats.risk;
+    const bool supportLowFallbackV17Active =
+        SupportLowFallbackV17() &&
+        poseChainControllerV16Stats.supportLow &&
+        (!SupportLowFallbackV17RequireKeyframePressure() ||
+         poseChainControllerV16Stats.keyframePressure) &&
+        (SupportLowFallbackV17AllowRisk() ||
+         !poseChainControllerV16Stats.risk);
     const bool dynamicMapAdmissionRecoveryV11 =
         DynamicMapAdmissionRecoveryV11() ||
         dynamicMapAdmissionRecoveryV12Probation;
     int v7PromotedThisKeyFrame = 0;
     int occlusionPromotedThisKeyFrame = 0;
     int recoveryPromotedThisKeyFrame = 0;
+    int poseChainGuardV15PromotedThisKeyFrame = 0;
+    int poseChainControllerV16PromotedThisKeyFrame = 0;
+    int supportLowFallbackV17PromotedThisKeyFrame = 0;
     if(admissionStateContext.keyframeStep >= 0.0)
     {
         const double alpha = DynamicMapAdmissionStateKfStepEwmaAlpha();
@@ -3506,6 +3978,9 @@ void LocalMapping::CreateNewMapPoints()
         std::set<std::pair<size_t, size_t> > occlusionPressurePairsForGeometry;
         std::set<std::pair<size_t, size_t> > recoveryPairsForGeometry;
         std::set<std::pair<size_t, size_t> > poseChainGuardPairsForGeometry;
+        std::set<std::pair<size_t, size_t> > poseChainGuardV15PairsForGeometry;
+        std::set<std::pair<size_t, size_t> > poseChainControllerV16PairsForGeometry;
+        std::set<std::pair<size_t, size_t> > supportLowFallbackV17PairsForGeometry;
         std::map<std::pair<size_t, size_t>, AdmissionScoreCandidateInfo> scoreCandidateInfoByPair;
         int scoreSupportCandidateBoundaryPairs = 0;
         int scoreSupportAcceptedBoundaryPairs = 0;
@@ -3543,6 +4018,35 @@ void LocalMapping::CreateNewMapPoints()
         int poseChainGuardCandidateBoundaryPairs = 0;
         int poseChainGuardMarkedBoundaryPairs = 0;
         int poseChainGuardCreatedBoundaryPairs = 0;
+        int poseChainGuardV15CandidateBoundaryPairs = 0;
+        int poseChainGuardV15AllowedBoundaryPairs = 0;
+        int poseChainGuardV15RejectedBoundaryPairs = 0;
+        int poseChainGuardV15BaseRejectedBoundaryPairs = 0;
+        int poseChainGuardV15SupportRejectedBoundaryPairs = 0;
+        int poseChainGuardV15QuotaRejectedBoundaryPairs = 0;
+        int poseChainGuardV15CreatedBoundaryPairs = 0;
+        int poseChainGuardV15PromotedThisNeighbor = 0;
+        int poseChainControllerV16CandidateBoundaryPairs = 0;
+        int poseChainControllerV16AllowedBoundaryPairs = 0;
+        int poseChainControllerV16RejectedBoundaryPairs = 0;
+        int poseChainControllerV16BaseRejectedBoundaryPairs = 0;
+        int poseChainControllerV16SupportRejectedBoundaryPairs = 0;
+        int poseChainControllerV16QuotaRejectedBoundaryPairs = 0;
+        int poseChainControllerV16CreatedBoundaryPairs = 0;
+        int poseChainControllerV16PromotedThisNeighbor = 0;
+        int supportLowFallbackV17CandidateBoundaryPairs = 0;
+        int supportLowFallbackV17AllowedBoundaryPairs = 0;
+        int supportLowFallbackV17RejectedBoundaryPairs = 0;
+        int supportLowFallbackV17BaseRejectedBoundaryPairs = 0;
+        int supportLowFallbackV17SupportRejectedBoundaryPairs = 0;
+        int supportLowFallbackV17QuotaRejectedBoundaryPairs = 0;
+        int supportLowFallbackV17CreatedBoundaryPairs = 0;
+        int supportLowFallbackV17PromotedThisNeighbor = 0;
+        int supportLowFallbackV17ForegroundDepthPairs = 0;
+        int supportLowFallbackV17BackgroundDepthPairs = 0;
+        int supportLowFallbackV17BoundaryMixedPairs = 0;
+        int supportLowFallbackV17DepthUnsupportedPairs = 0;
+        int supportLowFallbackV17UnknownDepthPairs = 0;
         if((ForceFilterDetectedDynamicFeatures() ||
             dynamicMapAdmissionVetoCreateNewMapPoints ||
             dynamicMapAdmissionBoundaryGateCreateNewMapPoints ||
@@ -3762,6 +4266,185 @@ void LocalMapping::CreateNewMapPoints()
                             ComputeAdmissionSupportScore(scoreInfo);
                         supportOk =
                             AdmissionScoreSupportAllowsGeometry(scoreInfo);
+                        bool supportLowFallbackV17AllowedForPair = false;
+                        if(supportLowFallbackV17Active)
+                        {
+                            ++supportLowFallbackV17CandidateBoundaryPairs;
+                            const AdmissionDepthProvenanceV17 provenance =
+                                ClassifyAdmissionDepthProvenanceV17(
+                                    scoreInfo,
+                                    isBoundaryRiskPair,
+                                    instanceId1,
+                                    instanceId2);
+                            switch(provenance)
+                            {
+                                case kDepthProvenanceForegroundDynamic:
+                                    ++supportLowFallbackV17ForegroundDepthPairs;
+                                    break;
+                                case kDepthProvenanceBackgroundSupported:
+                                    ++supportLowFallbackV17BackgroundDepthPairs;
+                                    break;
+                                case kDepthProvenanceBoundaryMixed:
+                                    ++supportLowFallbackV17BoundaryMixedPairs;
+                                    break;
+                                case kDepthProvenanceDepthUnsupported:
+                                    ++supportLowFallbackV17DepthUnsupportedPairs;
+                                    break;
+                                case kDepthProvenanceUnknown:
+                                default:
+                                    ++supportLowFallbackV17UnknownDepthPairs;
+                                    break;
+                            }
+
+                            if(!supportOk)
+                            {
+                                ++supportLowFallbackV17RejectedBoundaryPairs;
+                                ++supportLowFallbackV17BaseRejectedBoundaryPairs;
+                            }
+                            else
+                            {
+                                const bool backgroundSupported =
+                                    provenance ==
+                                    kDepthProvenanceBackgroundSupported;
+                                bool quotaOk = true;
+                                const int maxPromotionsPerKF =
+                                    SupportLowFallbackV17MaxPromotionsPerKeyFrame();
+                                const int maxPromotionsPerNeighbor =
+                                    SupportLowFallbackV17MaxPromotionsPerNeighbor();
+                                if(maxPromotionsPerKF > 0 &&
+                                   supportLowFallbackV17PromotedThisKeyFrame >=
+                                       maxPromotionsPerKF)
+                                    quotaOk = false;
+                                if(maxPromotionsPerNeighbor > 0 &&
+                                   supportLowFallbackV17PromotedThisNeighbor >=
+                                       maxPromotionsPerNeighbor)
+                                    quotaOk = false;
+
+                                if(backgroundSupported && quotaOk)
+                                {
+                                    ++supportLowFallbackV17AllowedBoundaryPairs;
+                                    ++supportLowFallbackV17PromotedThisKeyFrame;
+                                    ++supportLowFallbackV17PromotedThisNeighbor;
+                                    supportLowFallbackV17PairsForGeometry.insert(
+                                        vMatchedIndices[pairIdx]);
+                                    recoveryPairsForGeometry.insert(
+                                        vMatchedIndices[pairIdx]);
+                                    if(poseChainControllerV16Stats.risk)
+                                    {
+                                        poseChainControllerV16PairsForGeometry.insert(
+                                            vMatchedIndices[pairIdx]);
+                                    }
+                                    supportLowFallbackV17AllowedForPair = true;
+                                }
+                                else
+                                {
+                                    ++supportLowFallbackV17RejectedBoundaryPairs;
+                                    if(!backgroundSupported)
+                                        ++supportLowFallbackV17SupportRejectedBoundaryPairs;
+                                    if(backgroundSupported && !quotaOk)
+                                        ++supportLowFallbackV17QuotaRejectedBoundaryPairs;
+                                }
+                            }
+                        }
+                        if(dynamicMapAdmissionPoseChainGuardV15 &&
+                           poseChainGuardV15Active)
+                        {
+                            ++poseChainGuardV15CandidateBoundaryPairs;
+                            if(!supportOk)
+                            {
+                                ++poseChainGuardV15RejectedBoundaryPairs;
+                                ++poseChainGuardV15BaseRejectedBoundaryPairs;
+                            }
+                            else
+                            {
+                                const bool supportHighQuality =
+                                    AdmissionPoseChainGuardV15HasHighQualitySupport(
+                                        scoreInfo);
+                                bool quotaOk = true;
+                                const int maxPromotionsPerKF =
+                                    DynamicMapAdmissionPoseChainGuardV15MaxPromotionsPerKeyFrame();
+                                const int maxPromotionsPerNeighbor =
+                                    DynamicMapAdmissionPoseChainGuardV15MaxPromotionsPerNeighbor();
+                                if(maxPromotionsPerKF > 0 &&
+                                   poseChainGuardV15PromotedThisKeyFrame >=
+                                       maxPromotionsPerKF)
+                                    quotaOk = false;
+                                if(maxPromotionsPerNeighbor > 0 &&
+                                   poseChainGuardV15PromotedThisNeighbor >=
+                                       maxPromotionsPerNeighbor)
+                                    quotaOk = false;
+
+                                if(supportHighQuality && quotaOk)
+                                {
+                                    ++poseChainGuardV15AllowedBoundaryPairs;
+                                    ++poseChainGuardV15PromotedThisKeyFrame;
+                                    ++poseChainGuardV15PromotedThisNeighbor;
+                                    poseChainGuardV15PairsForGeometry.insert(
+                                        vMatchedIndices[pairIdx]);
+                                }
+                                else
+                                {
+                                    ++poseChainGuardV15RejectedBoundaryPairs;
+                                    if(!supportHighQuality)
+                                        ++poseChainGuardV15SupportRejectedBoundaryPairs;
+                                    if(supportHighQuality && !quotaOk)
+                                        ++poseChainGuardV15QuotaRejectedBoundaryPairs;
+                                    supportOk = false;
+                                }
+                            }
+                        }
+                        if(poseChainControllerV16AdmissionActive)
+                        {
+                            ++poseChainControllerV16CandidateBoundaryPairs;
+                            if(supportLowFallbackV17AllowedForPair)
+                            {
+                                ++poseChainControllerV16AllowedBoundaryPairs;
+                                ++poseChainControllerV16PromotedThisKeyFrame;
+                                ++poseChainControllerV16PromotedThisNeighbor;
+                            }
+                            else if(!supportOk)
+                            {
+                                ++poseChainControllerV16RejectedBoundaryPairs;
+                                ++poseChainControllerV16BaseRejectedBoundaryPairs;
+                            }
+                            else
+                            {
+                                const bool supportHighQuality =
+                                    AdmissionPoseChainControllerV16HasHighQualitySupport(
+                                        scoreInfo);
+                                bool quotaOk = true;
+                                const int maxPromotionsPerKF =
+                                    PoseChainControllerV16MaxPromotionsPerKeyFrame();
+                                const int maxPromotionsPerNeighbor =
+                                    PoseChainControllerV16MaxPromotionsPerNeighbor();
+                                if(maxPromotionsPerKF > 0 &&
+                                   poseChainControllerV16PromotedThisKeyFrame >=
+                                       maxPromotionsPerKF)
+                                    quotaOk = false;
+                                if(maxPromotionsPerNeighbor > 0 &&
+                                   poseChainControllerV16PromotedThisNeighbor >=
+                                       maxPromotionsPerNeighbor)
+                                    quotaOk = false;
+
+                                if(supportHighQuality && quotaOk)
+                                {
+                                    ++poseChainControllerV16AllowedBoundaryPairs;
+                                    ++poseChainControllerV16PromotedThisKeyFrame;
+                                    ++poseChainControllerV16PromotedThisNeighbor;
+                                    poseChainControllerV16PairsForGeometry.insert(
+                                        vMatchedIndices[pairIdx]);
+                                }
+                                else
+                                {
+                                    ++poseChainControllerV16RejectedBoundaryPairs;
+                                    if(!supportHighQuality)
+                                        ++poseChainControllerV16SupportRejectedBoundaryPairs;
+                                    if(supportHighQuality && !quotaOk)
+                                        ++poseChainControllerV16QuotaRejectedBoundaryPairs;
+                                    supportOk = false;
+                                }
+                            }
+                        }
                         if(dynamicMapAdmissionCoverageAwareV7 && supportOk)
                         {
                             ++v7CoverageCandidateBoundaryPairs;
@@ -4187,6 +4870,18 @@ void LocalMapping::CreateNewMapPoints()
             const bool poseChainGuardCandidate =
                 poseChainGuardPairsForGeometry.find(matchedPair) !=
                 poseChainGuardPairsForGeometry.end();
+            const bool poseChainGuardV15Candidate =
+                poseChainGuardV15PairsForGeometry.find(matchedPair) !=
+                poseChainGuardV15PairsForGeometry.end();
+            const bool poseChainControllerV16Candidate =
+                poseChainControllerV16PairsForGeometry.find(matchedPair) !=
+                poseChainControllerV16PairsForGeometry.end();
+            const bool supportLowFallbackV17Candidate =
+                supportLowFallbackV17PairsForGeometry.find(matchedPair) !=
+                supportLowFallbackV17PairsForGeometry.end();
+            const bool poseChainGuardAnyCandidate =
+                poseChainGuardCandidate || poseChainGuardV15Candidate ||
+                poseChainControllerV16Candidate;
             const std::map<std::pair<size_t, size_t>, AdmissionScoreCandidateInfo>::const_iterator scoreInfoIt =
                 scoreCandidateInfoByPair.find(matchedPair);
             const bool scoreBasedBoundaryCandidate =
@@ -4825,6 +5520,12 @@ void LocalMapping::CreateNewMapPoints()
                     ++recoveryCreatedBoundaryPairs;
                 if(poseChainGuardCandidate)
                     ++poseChainGuardCreatedBoundaryPairs;
+                if(poseChainGuardV15Candidate)
+                    ++poseChainGuardV15CreatedBoundaryPairs;
+                if(poseChainControllerV16Candidate)
+                    ++poseChainControllerV16CreatedBoundaryPairs;
+                if(supportLowFallbackV17Candidate)
+                    ++supportLowFallbackV17CreatedBoundaryPairs;
                 if(dynamicMapAdmissionV5UsefulnessLog)
                 {
                     PrintAdmissionV5CandidateGeometryEvent(
@@ -4871,7 +5572,8 @@ void LocalMapping::CreateNewMapPoints()
                 dynamicMapAdmissionLifecycleV8 ||
                 dynamicMapAdmissionRecoveryV11 ||
                 dynamicMapAdmissionRecoveryV12Probation ||
-                dynamicMapAdmissionPoseChainGuardV13) &&
+                dynamicMapAdmissionPoseChainGuardV13 ||
+                dynamicMapAdmissionPoseChainGuardV15) &&
                scoreBasedBoundaryCandidate)
             {
                 pMP->SetScoreAdmissionDiagnostics(
@@ -4909,7 +5611,7 @@ void LocalMapping::CreateNewMapPoints()
                     static_cast<long>(mpCurrentKeyFrame->mnFrameId),
                     static_cast<long>(mpCurrentKeyFrame->mnId));
                 pMP->SetPoseChainGuardAdmissionDiagnostics(
-                    poseChainGuardCandidate,
+                    poseChainGuardAnyCandidate,
                     static_cast<long>(mpCurrentKeyFrame->mnFrameId),
                     static_cast<long>(mpCurrentKeyFrame->mnId));
             }
@@ -5130,6 +5832,216 @@ void LocalMapping::CreateNewMapPoints()
                       << admissionStateContext.keyframeStepRatio
                       << " lba_edges_per_mp="
                       << admissionStateContext.lastLBAEdgesPerMP
+                      << std::endl;
+        }
+
+        if(DynamicMapAdmissionPoseChainGuardV15Log() &&
+           (poseChainGuardV15Active || poseChainGuardV15CandidateBoundaryPairs > 0))
+        {
+            const bool stepSpike =
+                admissionStateContext.keyframeStep >=
+                    DynamicMapAdmissionStateMinKeyFrameStep() &&
+                admissionStateContext.keyframeStepRatio >=
+                    DynamicMapAdmissionPoseChainGuardV15StepRatioThreshold();
+            std::cout << "[STSLAM_DYNAMIC_MAP_ADMISSION_POSE_CHAIN_GUARD_V15]"
+                      << " frame=" << mpCurrentKeyFrame->mnFrameId
+                      << " stage=create_new_map_points"
+                      << " current_kf=" << mpCurrentKeyFrame->mnId
+                      << " neighbor_kf=" << pKF2->mnId
+                      << " active=" << (poseChainGuardV15Active ? 1 : 0)
+                      << " candidates="
+                      << poseChainGuardV15CandidateBoundaryPairs
+                      << " allowed="
+                      << poseChainGuardV15AllowedBoundaryPairs
+                      << " rejected="
+                      << poseChainGuardV15RejectedBoundaryPairs
+                      << " base_rejected="
+                      << poseChainGuardV15BaseRejectedBoundaryPairs
+                      << " support_rejected="
+                      << poseChainGuardV15SupportRejectedBoundaryPairs
+                      << " quota_rejected="
+                      << poseChainGuardV15QuotaRejectedBoundaryPairs
+                      << " created="
+                      << poseChainGuardV15CreatedBoundaryPairs
+                      << " promoted_keyframe_so_far="
+                      << poseChainGuardV15PromotedThisKeyFrame
+                      << " promoted_neighbor="
+                      << poseChainGuardV15PromotedThisNeighbor
+                      << " need_score="
+                      << admissionStateContext.needScore
+                      << " min_need_score="
+                      << DynamicMapAdmissionPoseChainGuardV15MinNeedScore()
+                      << " tracking_pressure="
+                      << (admissionStateContext.trackingPressure ? 1 : 0)
+                      << " keyframe_pressure="
+                      << (admissionStateContext.keyframePressure ? 1 : 0)
+                      << " scale_pressure="
+                      << (admissionStateContext.scalePressure ? 1 : 0)
+                      << " lba_pressure="
+                      << (admissionStateContext.localBAPressure ? 1 : 0)
+                      << " step_spike="
+                      << (stepSpike ? 1 : 0)
+                      << " tracking_inliers="
+                      << admissionStateContext.trackingInliers
+                      << " keyframe_gap="
+                      << admissionStateContext.keyframeFrameGap
+                      << " keyframe_step="
+                      << admissionStateContext.keyframeStep
+                      << " keyframe_step_ewma="
+                      << admissionStateContext.keyframeStepEwma
+                      << " keyframe_step_ratio="
+                      << admissionStateContext.keyframeStepRatio
+                      << " lba_edges_per_mp="
+                      << admissionStateContext.lastLBAEdgesPerMP
+                      << " min_support_score="
+                      << DynamicMapAdmissionPoseChainGuardV15MinSupportScore()
+                      << " min_reliable_support="
+                      << DynamicMapAdmissionPoseChainGuardV15MinReliableSupport()
+                      << " min_depth_support="
+                      << DynamicMapAdmissionPoseChainGuardV15MinDepthSupport()
+                      << " min_residual_support="
+                      << DynamicMapAdmissionPoseChainGuardV15MinResidualSupport()
+                      << " max_promotions_keyframe="
+                      << DynamicMapAdmissionPoseChainGuardV15MaxPromotionsPerKeyFrame()
+                      << " max_promotions_neighbor="
+                      << DynamicMapAdmissionPoseChainGuardV15MaxPromotionsPerNeighbor()
+                      << std::endl;
+        }
+
+        if(PoseChainControllerV16Log() &&
+           (poseChainControllerV16AdmissionActive ||
+            poseChainControllerV16CandidateBoundaryPairs > 0))
+        {
+            std::cout << "[STSLAM_POSE_CHAIN_CONTROLLER_V16]"
+                      << " frame=" << mpCurrentKeyFrame->mnFrameId
+                      << " stage=create_new_map_points"
+                      << " current_kf=" << mpCurrentKeyFrame->mnId
+                      << " neighbor_kf=" << pKF2->mnId
+                      << " risk="
+                      << (poseChainControllerV16Stats.risk ? 1 : 0)
+                      << " support_low="
+                      << (poseChainControllerV16Stats.supportLow ? 1 : 0)
+                      << " motion_pressure="
+                      << (poseChainControllerV16Stats.motionPressure ? 1 : 0)
+                      << " keyframe_pressure="
+                      << (poseChainControllerV16Stats.keyframePressure ? 1 : 0)
+                      << " boundary_pressure="
+                      << (poseChainControllerV16Stats.boundaryPressure ? 1 : 0)
+                      << " active="
+                      << (poseChainControllerV16AdmissionActive ? 1 : 0)
+                      << " candidates="
+                      << poseChainControllerV16CandidateBoundaryPairs
+                      << " allowed="
+                      << poseChainControllerV16AllowedBoundaryPairs
+                      << " rejected="
+                      << poseChainControllerV16RejectedBoundaryPairs
+                      << " base_rejected="
+                      << poseChainControllerV16BaseRejectedBoundaryPairs
+                      << " support_rejected="
+                      << poseChainControllerV16SupportRejectedBoundaryPairs
+                      << " quota_rejected="
+                      << poseChainControllerV16QuotaRejectedBoundaryPairs
+                      << " created="
+                      << poseChainControllerV16CreatedBoundaryPairs
+                      << " promoted_keyframe_so_far="
+                      << poseChainControllerV16PromotedThisKeyFrame
+                      << " promoted_neighbor="
+                      << poseChainControllerV16PromotedThisNeighbor
+                      << " step_ratio="
+                      << poseChainControllerV16Stats.stepRatio
+                      << " static_inliers="
+                      << poseChainControllerV16Stats.staticInliers
+                      << " static_grid_coverage="
+                      << poseChainControllerV16Stats.staticGridCoverage
+                      << " boundary_frac="
+                      << poseChainControllerV16Stats.boundaryFrac
+                      << " min_support_score="
+                      << PoseChainControllerV16MinSupportScore()
+                      << " min_reliable_support="
+                      << PoseChainControllerV16MinReliableSupport()
+                      << " min_depth_support="
+                      << PoseChainControllerV16MinDepthSupport()
+                      << " min_residual_support="
+                      << PoseChainControllerV16MinResidualSupport()
+                      << " max_promotions_keyframe="
+                      << PoseChainControllerV16MaxPromotionsPerKeyFrame()
+                      << " max_promotions_neighbor="
+                      << PoseChainControllerV16MaxPromotionsPerNeighbor()
+                      << std::endl;
+        }
+
+        if(SupportLowFallbackV17Log() &&
+           (supportLowFallbackV17Active ||
+            supportLowFallbackV17CandidateBoundaryPairs > 0))
+        {
+            std::cout << "[STSLAM_SUPPORT_LOW_FALLBACK_V17]"
+                      << " frame=" << mpCurrentKeyFrame->mnFrameId
+                      << " stage=create_new_map_points"
+                      << " current_kf=" << mpCurrentKeyFrame->mnId
+                      << " neighbor_kf=" << pKF2->mnId
+                      << " active="
+                      << (supportLowFallbackV17Active ? 1 : 0)
+                      << " support_low="
+                      << (poseChainControllerV16Stats.supportLow ? 1 : 0)
+                      << " risk="
+                      << (poseChainControllerV16Stats.risk ? 1 : 0)
+                      << " keyframe_pressure="
+                      << (poseChainControllerV16Stats.keyframePressure ? 1 : 0)
+                      << " candidates="
+                      << supportLowFallbackV17CandidateBoundaryPairs
+                      << " allowed="
+                      << supportLowFallbackV17AllowedBoundaryPairs
+                      << " rejected="
+                      << supportLowFallbackV17RejectedBoundaryPairs
+                      << " base_rejected="
+                      << supportLowFallbackV17BaseRejectedBoundaryPairs
+                      << " support_rejected="
+                      << supportLowFallbackV17SupportRejectedBoundaryPairs
+                      << " quota_rejected="
+                      << supportLowFallbackV17QuotaRejectedBoundaryPairs
+                      << " created="
+                      << supportLowFallbackV17CreatedBoundaryPairs
+                      << " promoted_keyframe_so_far="
+                      << supportLowFallbackV17PromotedThisKeyFrame
+                      << " promoted_neighbor="
+                      << supportLowFallbackV17PromotedThisNeighbor
+                      << " provenance_foreground_dynamic="
+                      << supportLowFallbackV17ForegroundDepthPairs
+                      << " provenance_background_supported="
+                      << supportLowFallbackV17BackgroundDepthPairs
+                      << " provenance_boundary_mixed="
+                      << supportLowFallbackV17BoundaryMixedPairs
+                      << " provenance_depth_unsupported="
+                      << supportLowFallbackV17DepthUnsupportedPairs
+                      << " provenance_unknown="
+                      << supportLowFallbackV17UnknownDepthPairs
+                      << " provenance_order="
+                      << AdmissionDepthProvenanceV17Name(
+                             kDepthProvenanceForegroundDynamic)
+                      << ","
+                      << AdmissionDepthProvenanceV17Name(
+                             kDepthProvenanceBackgroundSupported)
+                      << ","
+                      << AdmissionDepthProvenanceV17Name(
+                             kDepthProvenanceBoundaryMixed)
+                      << ","
+                      << AdmissionDepthProvenanceV17Name(
+                             kDepthProvenanceDepthUnsupported)
+                      << ","
+                      << AdmissionDepthProvenanceV17Name(
+                             kDepthProvenanceUnknown)
+                      << " min_support_score="
+                      << SupportLowFallbackV17MinSupportScore()
+                      << " min_reliable_support="
+                      << SupportLowFallbackV17MinReliableSupport()
+                      << " min_depth_support="
+                      << SupportLowFallbackV17MinDepthSupport()
+                      << " min_residual_support="
+                      << SupportLowFallbackV17MinResidualSupport()
+                      << " max_promotions_keyframe="
+                      << SupportLowFallbackV17MaxPromotionsPerKeyFrame()
+                      << " max_promotions_neighbor="
+                      << SupportLowFallbackV17MaxPromotionsPerNeighbor()
                       << std::endl;
         }
 

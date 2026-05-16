@@ -1,0 +1,3 @@
+case,events,applied,skipped,skipped_frames,applied_no_motion_pressure,applied_no_motion_frac,mean_estimated_step_applied,mean_allowed_step_applied,mean_step_ratio_applied,mean_static_inliers_applied,mean_static_grid_applied
+v18_pose_step_safeguard,249,249,0,,165,0.6626506024096386,0.025646626506024096,0.01681871485943775,1.9763670562248994,193.859437751004,0.03647533333333333
+v19_donoharm_grid,226,224,2,89 238,147,0.65625,0.02515667857142857,0.016741589285714283,1.9670644598214284,184.72321428571428,0.03525800446428572

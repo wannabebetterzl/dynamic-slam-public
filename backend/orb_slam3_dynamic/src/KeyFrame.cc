@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <map>
 #include<mutex>
 
 namespace ORB_SLAM3
@@ -32,6 +33,10 @@ long unsigned int KeyFrame::nNextId=0;
 
 namespace
 {
+
+std::mutex gPoseChainControllerV16StatsMutex;
+std::map<const KeyFrame*, KeyFrame::PoseChainControllerV16Stats>
+    gPoseChainControllerV16Stats;
 
 int GetEnvIntOrDefault(const char* name, const int defaultValue, const int minValue)
 {
@@ -112,6 +117,24 @@ std::vector<unsigned char> BuildStaticNearDynamicMaskFlags(const Frame& frame)
 }
 
 } // namespace
+
+void KeyFrame::SetPoseChainControllerV16Stats(
+    const PoseChainControllerV16Stats& stats)
+{
+    std::unique_lock<std::mutex> lock(gPoseChainControllerV16StatsMutex);
+    gPoseChainControllerV16Stats[this] = stats;
+}
+
+KeyFrame::PoseChainControllerV16Stats
+KeyFrame::GetPoseChainControllerV16Stats() const
+{
+    std::unique_lock<std::mutex> lock(gPoseChainControllerV16StatsMutex);
+    std::map<const KeyFrame*, PoseChainControllerV16Stats>::const_iterator it =
+        gPoseChainControllerV16Stats.find(this);
+    if(it == gPoseChainControllerV16Stats.end())
+        return PoseChainControllerV16Stats();
+    return it->second;
+}
 
 KeyFrame::KeyFrame():
         mnFrameId(0),  mTimeStamp(0), mnGridCols(FRAME_GRID_COLS), mnGridRows(FRAME_GRID_ROWS),
